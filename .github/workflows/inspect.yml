@@ -1,6 +1,7 @@
 # YARR 자동 검수: 30분마다 새로 올라온 곡의 음량을 재고 -14 LUFS 로 맞추고, YARR 안 중복 · 제목을 검사하고,
 # (키가 있으면) 기존 상업 음원과 대조해서 확실한 건 자동 승인 · 반려, 애매한 건 관리자에게 남겨요.
 # 바로 돌리고 싶으면 GitHub → Actions → "YARR 자동 검수" → Run workflow
+# 워커 파일 이름이 inspect.py 면 파이썬 기본 모듈(inspect)과 겹쳐 오류가 나서 review.py 로 씀
 name: YARR 자동 검수
 on:
   schedule:
@@ -32,7 +33,7 @@ jobs:
       - run: pip install -r worker/requirements.txt
       - name: 검수할 곡 확인
         id: count
-        run: python worker/inspect.py --count
+        run: python worker/review.py --count
       - name: FFmpeg 설치 (검수할 곡이 있을 때만)
         if: steps.count.outputs.pending != '0'
         run: |
@@ -40,4 +41,4 @@ jobs:
           ffmpeg -hide_banner -muxers | grep -q chromaprint && echo '음원 지문 사용 가능' || echo '⚠ 이 FFmpeg 에는 음원 지문이 없어요 → 곡은 자동 보류돼요'
       - name: 검수 실행
         if: steps.count.outputs.pending != '0'
-        run: python worker/inspect.py
+        run: python worker/review.py
