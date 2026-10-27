@@ -1,0 +1,43 @@
+# YARR 자동 검수: 30분마다 새로 올라온 곡의 음량을 재고 -14 LUFS 로 맞추고, YARR 안 중복 · 제목을 검사하고,
+# (키가 있으면) 기존 상업 음원과 대조해서 확실한 건 자동 승인 · 반려, 애매한 건 관리자에게 남겨요.
+# 바로 돌리고 싶으면 GitHub → Actions → "YARR 자동 검수" → Run workflow
+name: YARR 자동 검수
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+concurrency:
+  group: yarr-inspect
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      ACR_HOST: ${{ secrets.ACR_HOST }}
+      ACR_ACCESS_KEY: ${{ secrets.ACR_ACCESS_KEY }}
+      ACR_ACCESS_SECRET: ${{ secrets.ACR_ACCESS_SECRET }}
+      # Settings → Secrets and variables → Actions → Variables 탭에서 바꿀 수 있어요 (없으면 기본값)
+      AUTO_DECIDE: ${{ vars.AUTO_DECIDE || '1' }}
+      AUTO_APPROVE_WITHOUT_ACR: ${{ vars.AUTO_APPROVE_WITHOUT_ACR || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: worker/requirements.txt
+      - run: pip install -r worker/requirements.txt
+      - name: 검수할 곡 확인
+        id: count
+        run: python worker/inspect.py --count
+      - name: FFmpeg 설치 (검수할 곡이 있을 때만)
+        if: steps.count.outputs.pending != '0'
+        run: |
+          command -v ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q ffmpeg)
+          ffmpeg -hide_banner -muxers | grep -q chromaprint && echo '음원 지문 사용 가능' || echo '⚠ 이 FFmpeg 에는 음원 지문이 없어요 → 곡은 자동 보류돼요'
+      - name: 검수 실행
+        if: steps.count.outputs.pending != '0'
+        run: python worker/inspect.py
