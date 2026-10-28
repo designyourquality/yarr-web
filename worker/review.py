@@ -42,6 +42,7 @@ import tempfile
 import time
 
 TARGET_I, TARGET_TP, TARGET_LRA = -14.0, -1.0, 11.0
+LIMIT_LINEAR = 0.79       # 리미터 상한 (약 -2 dBFS) · AAC 로 바꿀 때 생기는 피크 여유
 BATCH = 10
 MIN_PLAY_SEC = 60          # 서버가 유효 재생으로 세는 최소 시간 (이보다 짧으면 차트 · 정산에 안 잡힘)
 DUP_REJECT, DUP_HOLD = 0.85, 0.75   # 음원 지문 일치도
@@ -81,16 +82,25 @@ def loudness(path: str, extra: str = '') -> dict:
 
 
 def normalize(src: str, dst: str) -> dict:
-    """2단계 loudnorm 으로 -14 LUFS AAC 192k 파일 만들기 → 결과 파일 측정값"""
+    """2단계 loudnorm 으로 -14 LUFS AAC 192k 파일 만들기 → 결과 파일 측정값.
+    loudnorm 뒤에 리미터를 한 번 더 걸고, 그래도 피크가 -1 dBTP 를 넘으면 넘친 만큼 낮춰 다시 만들어요
+    (AI 곡은 0 dBFS 를 넘는 피크가 많아 AAC 로 바꾸면 찌그러질 수 있어요)."""
     m = loudness(src)
     extra = (f":measured_I={m['input_i']}:measured_TP={m['input_tp']}:measured_LRA={m['input_lra']}"
              f":measured_thresh={m['input_thresh']}:offset={m['target_offset']}:linear=true")
-    af = f'loudnorm=I={TARGET_I}:TP={TARGET_TP}:LRA={TARGET_LRA}{extra}'
-    r = run(['ffmpeg', '-hide_banner', '-nostats', '-y', '-i', src, '-af', af, '-ar', '44100', '-ac', '2',
-             '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', '-vn', dst])
-    if r.returncode != 0:
-        raise RuntimeError('변환 실패: ' + r.stderr.strip().splitlines()[-1][:120])
-    after = loudness(dst)
+    trim = 0.0
+    for _ in range(3):
+        af = (f'loudnorm=I={TARGET_I}:TP={TARGET_TP}:LRA={TARGET_LRA}{extra},aresample=44100,'
+              f'volume={trim:.2f}dB,alimiter=limit={LIMIT_LINEAR}:attack=1:release=60:level=disabled')
+        r = run(['ffmpeg', '-hide_banner', '-nostats', '-y', '-i', src, '-af', af, '-ar', '44100', '-ac', '2',
+                 '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', '-vn', dst])
+        if r.returncode != 0:
+            raise RuntimeError('변환 실패: ' + r.stderr.strip().splitlines()[-1][:120])
+        after = loudness(dst)
+        over = float(after['input_tp']) - TARGET_TP
+        if over <= 0.3:
+            break
+        trim -= over + 0.3
     return {'before_i': float(m['input_i']), 'before_tp': float(m['input_tp']),
             'after_i': float(after['input_i']), 'after_tp': float(after['input_tp'])}
 
@@ -326,7 +336,7 @@ def fade_edges(src: str, length: float, dst: str, fade_out: float = 5.0) -> str:
     if length < 20:
         return src
     af = f'afade=t=in:st=0:d=0.5,afade=t=out:st={max(0.0, length - fade_out):.2f}:d={fade_out}'
-    r = run(['ffmpeg', '-v', 'error', '-y', '-i', src, '-af', af, '-vn', '-c:a', 'pcm_s16le', dst])
+    r = run(['ffmpeg', '-v', 'error', '-y', '-i', src, '-af', af, '-vn', '-c:a', 'pcm_f32le', dst])   # 32비트 실수: 0 dBFS 넘는 피크를 자르지 않고 그대로 넘겨요
     return dst if r.returncode == 0 and os.path.exists(dst) else src
 
 
