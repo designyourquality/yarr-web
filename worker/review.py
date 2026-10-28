@@ -464,8 +464,11 @@ def decide(t: dict, facts: dict, dup: tuple[float, dict | None], trusted: bool, 
         return 'REJECT', reason, ' · '.join(n for _, n in reject)
     if hold:
         return 'HOLD', '', ' · '.join(hold)
+    if t.get('creator_id') == HOUSE_ID and (t.get('lyrics') or '').strip():
+        # 보컬 오리지널: 발음 · 가사 전달 · 목소리 품질은 사람이 들어 봐야 알 수 있어요
+        return 'HOLD', '', 'YARR 보컬 오리지널 · 발음 · 가사 · 목소리를 직접 들어 보고 승인해 주세요'
     if t.get('creator_id') == HOUSE_ID:
-        # 운영사가 직접 만든 곡: 라이선스(Stable Audio 3 Community License)를 운영사가 확인했고 YARR 안 중복 · 음량 검사도 통과
+        # 운영사가 직접 만든 연주곡: 라이선스(Stable Audio 3 Community License)를 운영사가 확인했고 YARR 안 중복 · 음량 검사도 통과
         return 'APPROVE', '', 'YARR 오리지널 (운영사 생성 · Stable Audio 3) · YARR 중복 대조 · 음량 검사 통과'
     if recent_copy_reject:
         return 'HOLD', '', '최근 90일 안에 권리 문제로 반려된 곡이 있는 크리에이터 (경고 상태)'
@@ -523,7 +526,10 @@ def process(sb, t: dict, known: list[dict], lyrics_db: list[dict] | None = None)
             src = os.path.join(tmp, 'original' + os.path.splitext(path)[1])
             with open(src, 'wb') as f:
                 f.write(sb.storage.from_('uploads').download(path))
-            row, out, facts = inspect_file(src, tmp, use_acr=t.get('creator_id') != HOUSE_ID, fade=t.get('creator_id') == HOUSE_ID)
+            house = t.get('creator_id') == HOUSE_ID
+            vocal_house = house and bool((t.get('lyrics') or '').strip())
+            # 오리지널 연주곡은 기존 곡 대조를 건너뛰고, 보컬 오리지널(Lyria 3 Pro)은 멜로디가 기존 곡과 겹칠 수 있어 대조해요
+            row, out, facts = inspect_file(src, tmp, use_acr=not house or vocal_house, fade=house)
             facts['lyrics_dup'] = lyrics_duplicate(t.get('lyrics') or '', t['id'], lyrics_db or [])
             folder, name = path.rsplit('/', 1)
             norm = f"{folder}/norm-{os.path.splitext(name)[0]}.m4a"
