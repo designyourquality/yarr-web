@@ -5,6 +5,7 @@
   2. 원본 파일을 받아 FFmpeg 로 음량(LUFS · 피크)과 길이를 재요.
   3. -14 LUFS (피크 -1 dBTP) 로 맞춘 AAC 파일을 만들어 저장소에 올려요 (승인하면 이 파일이 재생돼요).
   4. ACRCloud 키가 있으면 기존 상업 음원과 3구간을 대조해요. 없으면 '미연결'로 적어요. (YARR 오리지널은 생략)
+     YARR 오리지널은 앞 0.5초 · 끝 5초를 페이드 처리해 뚝 끊기지 않게 해요.
   5. YARR 안의 다른 곡과 음원 지문(Chromaprint)을 대조해요 — 남의 곡 · 내가 이미 올린 곡 다시 올리기.
   6. 제목 · 프롬프트 · 가사에 커버 · 원곡 · 스타일 표기, 실존 가수 이름, 해시태그가 있는지 보고 YARR 안 가사 중복도 봐요.
   7. 결과를 tracks 에 적고 (011 SQL 이후) 자동으로 결정해요.
@@ -320,11 +321,20 @@ LYRICS_HOLD = 0.6   # 가사 줄 60% 이상 같으면 사람 확인
 
 # ---------------------------------------------------------------- 한 곡 검수
 
-def inspect_file(src: str, tmp: str, use_acr: bool = True) -> tuple[dict, str, dict]:
-    """(DB 에 적을 값, 변환 파일 경로, 자동 결정에 쓸 측정값)"""
+def fade_edges(src: str, length: float, dst: str, fade_out: float = 5.0) -> str:
+    """앞 0.5초 페이드인 · 끝 5초 페이드아웃 (AI 곡이 뚝 끊기는 걸 부드럽게). 실패하면 원본 그대로"""
+    if length < 20:
+        return src
+    af = f'afade=t=in:st=0:d=0.5,afade=t=out:st={max(0.0, length - fade_out):.2f}:d={fade_out}'
+    r = run(['ffmpeg', '-v', 'error', '-y', '-i', src, '-af', af, '-vn', '-c:a', 'pcm_s16le', dst])
+    return dst if r.returncode == 0 and os.path.exists(dst) else src
+
+
+def inspect_file(src: str, tmp: str, use_acr: bool = True, fade: bool = False) -> tuple[dict, str, dict]:
+    """(DB 에 적을 값, 변환 파일 경로, 자동 결정에 쓸 측정값). fade=True 면 앞뒤를 부드럽게 (YARR 오리지널)"""
     length = duration_sec(src)
     out = os.path.join(tmp, 'normalized.m4a')
-    lv = normalize(src, out)
+    lv = normalize(fade_edges(src, length, os.path.join(tmp, 'faded.wav')) if fade else src, out)
     clean, acr_note, acr_score = fingerprint(src, length, tmp) if use_acr else (True, '기존 곡 대조: 생략 (YARR 오리지널 · 운영사가 직접 생성)', 0)
     notes = [f"원본 {lv['before_i']:.1f} LUFS → 변환 {lv['after_i']:.1f} LUFS", acr_note]
     if length < MIN_PLAY_SEC:
@@ -448,7 +458,7 @@ def process(sb, t: dict, known: list[dict], lyrics_db: list[dict] | None = None)
             src = os.path.join(tmp, 'original' + os.path.splitext(path)[1])
             with open(src, 'wb') as f:
                 f.write(sb.storage.from_('uploads').download(path))
-            row, out, facts = inspect_file(src, tmp, use_acr=t.get('creator_id') != HOUSE_ID)
+            row, out, facts = inspect_file(src, tmp, use_acr=t.get('creator_id') != HOUSE_ID, fade=t.get('creator_id') == HOUSE_ID)
             facts['lyrics_dup'] = lyrics_duplicate(t.get('lyrics') or '', t['id'], lyrics_db or [])
             folder, name = path.rsplit('/', 1)
             norm = f"{folder}/norm-{os.path.splitext(name)[0]}.m4a"
