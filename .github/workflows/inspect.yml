@@ -31,6 +31,10 @@ jobs:
           cache: pip
           cache-dependency-path: worker/requirements.txt
       - run: pip install -r worker/requirements.txt
+      - name: ACRCloud 연결 확인 (직접 실행할 때만)
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        run: python worker/check_acr.py
       - name: 검수할 곡 확인
         id: count
         run: python worker/review.py --count
