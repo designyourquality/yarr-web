@@ -23,6 +23,9 @@ jobs:
       # Settings → Secrets and variables → Actions → Variables 탭에서 바꿀 수 있어요 (없으면 기본값)
       AUTO_DECIDE: ${{ vars.AUTO_DECIDE || '1' }}
       AUTO_APPROVE_WITHOUT_ACR: ${{ vars.AUTO_APPROVE_WITHOUT_ACR || '0' }}
+      # 보컬 오리지널 받아쓰기 기준 (넣은 가사 중 알아들은 비율): 이상이면 자동 승인 / 미만이면 반려 / 그 사이는 사람 확인
+      LYRIC_APPROVE: ${{ vars.LYRIC_APPROVE || '0.55' }}
+      LYRIC_REJECT: ${{ vars.LYRIC_REJECT || '0.25' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,6 +46,12 @@ jobs:
         run: |
           command -v ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q ffmpeg)
           ffmpeg -hide_banner -muxers | grep -q chromaprint && echo '음원 지문 사용 가능' || echo '⚠ 이 FFmpeg 에는 음원 지문이 없어요 → 곡은 자동 보류돼요'
+      - name: 받아쓰기 모델 캐시 (보컬곡 · 처음 한 번만 받아요)
+        if: steps.count.outputs.pending != '0'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: whisper-small-v1
       - name: 검수 실행
         if: steps.count.outputs.pending != '0'
         run: python worker/review.py
