@@ -414,7 +414,7 @@ def inspect_file(src: str, tmp: str, use_acr: bool = True, fade: bool = False) -
         'fingerprint_clean': bool(clean),
         'inspection_note': ' · '.join(notes)[:900],
     }
-    facts = {'length': length, 'before_i': lv['before_i'], 'acr': clean, 'acr_score': acr_score, 'acr_note': acr_note,
+    facts = {'length': length, 'before_i': lv['before_i'], 'peak': lv['after_tp'], 'acr': clean, 'acr_score': acr_score, 'acr_note': acr_note,
              'fp': chromaprint(out)}
     return row, out, facts
 
@@ -457,6 +457,8 @@ def decide(t: dict, facts: dict, dup: tuple[float, dict | None], trusted: bool, 
     if lhit is not None and lsim >= LYRICS_HOLD:
         hold.append(f"'{lhit.get('title', '?')}' 가사와 {lsim:.0%} 같음")
 
+    if facts.get('peak', -99) > TARGET_TP + 0.5:
+        hold.append(f"변환 파일 피크 {facts['peak']:+.1f} dBTP (찌그러짐 확인)")
     if reject:
         reason = reject[0][0]
         return 'REJECT', reason, ' · '.join(n for _, n in reject)
