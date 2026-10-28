@@ -4,12 +4,13 @@
   1. 서버에서 '검수 대기 + 아직 자동 검수 안 한' 곡을 가져와요 (업로드 파일이 있는 곡만).
   2. 원본 파일을 받아 FFmpeg 로 음량(LUFS · 피크)과 길이를 재요.
   3. -14 LUFS (피크 -1 dBTP) 로 맞춘 AAC 파일을 만들어 저장소에 올려요 (승인하면 이 파일이 재생돼요).
-  4. ACRCloud 키가 있으면 기존 상업 음원과 3구간을 대조해요. 없으면 '미연결'로 적어요.
+  4. ACRCloud 키가 있으면 기존 상업 음원과 3구간을 대조해요. 없으면 '미연결'로 적어요. (YARR 오리지널은 생략)
   5. YARR 안의 다른 곡과 음원 지문(Chromaprint)을 대조해요 — 남의 곡 · 내가 이미 올린 곡 다시 올리기.
-  6. 제목 · 프롬프트에 커버 표기 · 실존 가수 이름 · 해시태그가 있는지 봐요.
+  6. 제목 · 프롬프트 · 가사에 커버 · 원곡 · 스타일 표기, 실존 가수 이름, 해시태그가 있는지 보고 YARR 안 가사 중복도 봐요.
   7. 결과를 tracks 에 적고 (011 SQL 이후) 자동으로 결정해요.
-       - 확실한 문제 (기존 곡 일치 · 같은 음원 · 커버 표기 · 무료 플랜 · 무음 · 60초 미만) → 자동 반려 + 이유
-       - 애매함 (실존 이름 · 해시태그 · 약한 유사 · 15분 초과 · 검수 실패) → 대기 (관리자가 판단)
+       - 확실한 문제 (기존 곡 일치 · 같은 음원 · 무료 플랜 · 무음 · 60초 미만) → 자동 반려 + 이유
+       - 애매함 (커버 · 원곡 · 스타일 표기 · 실존 이름 · 해시태그 · 가사 중복 · 약한 유사 · 15분 초과 · 검수 실패)
+         → 대기 (관리자 화면에 주의 단어를 노란색으로)
        - 모두 깨끗하고 ACRCloud 대조까지 통과 → 자동 승인 (다음 0시 공개, 관리자는 공개 전 취소 가능)
        - ACRCloud 가 없으면 자동 승인은 안 함 (AUTO_APPROVE_WITHOUT_ACR=1 이고 믿을 만한 크리에이터면 예외)
   8. 1년 지난 앱 오류 기록을 지워요 (개인정보 처리방침의 보관 기간).
@@ -21,7 +22,7 @@
   AUTO_DECIDE              (선택) 0 이면 자동 승인 · 반려 끄기 (측정만)
   AUTO_APPROVE_WITHOUT_ACR (선택) 1 이면 ACRCloud 없이도 믿을 만한 크리에이터 곡은 자동 승인
 
-로컬 시험: python worker/inspect.py --file 노래.mp3   (서버 없이 측정 · 변환만)
+로컬 시험: python worker/review.py --file 노래.mp3   (서버 없이 측정 · 변환만)
 """
 from __future__ import annotations
 
@@ -225,8 +226,9 @@ def best_duplicate(fp: list[int], creator_id: str, track_id: str, known: list[di
 
 # ---------------------------------------------------------------- 제목 · 프롬프트 검사
 
-COVER_WORDS = ['커버', 'cover', '리메이크', 'remake']          # 다른 사람 곡을 다시 부른 것 → 반려
-MAYBE_WORDS = ['원곡', '메들리', 'medley', 'mashup', '매시업', '샘플링', 'sampling']   # 확인 필요
+COVER_WORDS = ['커버', 'cover', '리메이크', 'remake', 'ai커버', 'ai 커버']   # 다른 사람 곡을 다시 부른 표기일 수 있음 → 사람 확인
+MAYBE_WORDS = ['원곡', '메들리', 'medley', 'mashup', '매시업', '샘플링', 'sampling', 'style of', 'in the style',
+               'voice of', 'sounds like', 'type beat', '모창', '풍으로', '목소리로']   # 확인 필요
 # 이름이 들어 있으면 사람이 확인 (우연히 겹칠 수 있어서 자동 반려는 안 함). 운영하면서 계속 늘려 주세요.
 ARTISTS = [
     '아이유', '방탄소년단', '뉴진스', '블랙핑크', '아이브', '에스파', '르세라핌', '트와이스', '세븐틴', '빅뱅', '지드래곤',
@@ -236,42 +238,94 @@ ARTISTS = [
     'BTS', 'IU', 'NewJeans', 'BLACKPINK', 'IVE', 'aespa', 'LE SSERAFIM', 'TWICE', 'SEVENTEEN', 'BIGBANG', 'G-DRAGON',
     'Taylor Swift', 'Drake', 'Ariana Grande', 'The Weeknd', 'Beyonce', 'Michael Jackson', 'Ed Sheeran', 'Billie Eilish',
     'Bruno Mars', 'Justin Bieber', 'Rihanna', 'Eminem', 'Coldplay', 'Beatles', 'Dua Lipa', 'Post Malone',
+    'Kendrick Lamar', 'SZA', 'Olivia Rodrigo', 'Sabrina Carpenter', 'Bad Bunny', 'Lady Gaga', 'Adele', 'Harry Styles',
+    'Travis Scott', 'Kanye West', 'Frank Ocean', 'Daft Punk', 'Nujabes', 'Lana Del Rey', 'Doja Cat',
+    # 일본 (시티팝 · J-POP)
+    'Tatsuro Yamashita', '山下達郎', '야마시타 타츠로', 'Mariya Takeuchi', '竹内まりや', '다케우치 마리야', 'Anri', '杏里',
+    'Miki Matsubara', '松原みき', 'YOASOBI', 'Kenshi Yonezu', '米津玄師', 'Ado', 'Official髭男dism', 'King Gnu',
+    'Utada Hikaru', '宇多田ヒカル', 'Aimer', 'LiSA', 'Fujii Kaze', '藤井風', 'Vaundy', 'Mrs. GREEN APPLE', 'back number',
 ]
 
 
-def text_flags(title: str, prompt: str) -> tuple[list[str], list[str]]:
-    """(반려 사유, 확인 필요 사유)"""
-    text = f'{title} {prompt}'
+def text_flags(title: str, prompt: str, lyrics: str = '') -> tuple[list[str], list[str], list[str]]:
+    """(반려 사유, 확인 필요 사유, 관리자 화면에 노란색으로 보일 단어)
+    커버 · 원곡 · 실존 가수 이름은 정상 설명일 수도 있어서('album cover', '원곡 프롬프트를 변주') 자동 반려하지 않고 사람에게 넘겨요."""
+    text = f'{title} {prompt} {lyrics}'
     low = text.lower()
-    reject, hold = [], []
+    reject, hold, flags = [], [], []
     words = [w for w in COVER_WORDS if w in low]
     if words:
-        reject.append(f"커버곡 표기 ('{words[0]}') — 원곡 권리 때문에 올릴 수 없어요")
+        hold.append(f"커버 · 리메이크 표기 ('{words[0]}') — 원곡을 다시 부른 곡인지 확인")
+        flags += words[:2]
     maybe = [w for w in MAYBE_WORDS if w in low]
     if maybe:
-        hold.append(f"원곡 · 메들리 표기 ('{maybe[0]}')")
+        hold.append(f"원곡 · 스타일 · 모창 표기 ('{maybe[0]}')")
+        flags += maybe[:3]
     names = []
     for a in ARTISTS:
-        if re.fullmatch(r'[A-Za-z0-9 \-]+', a):
+        if re.fullmatch(r'[A-Za-z0-9 .\-]+', a):
             if re.search(r'(?<![A-Za-z0-9])' + re.escape(a.lower()) + r'(?![A-Za-z0-9])', low):
                 names.append(a)
         elif a in text:
             names.append(a)
     if names:
         hold.append('실존 가수 이름: ' + ', '.join(names[:3]))
+        flags += names[:3]
     if '#' in title:
         hold.append('제목에 해시태그 (가수 · 원곡 이름을 태그로 붙이는 경우가 많아요)')
-    return reject, hold
+        flags.append('#')
+    return reject, hold, list(dict.fromkeys(flags))[:8]
+
+
+# ---------------------------------------------------------------- 가사 중복 (YARR 안)
+
+def lyric_lines(text: str) -> set[str]:
+    """비교용 가사 줄: 공백 · 문장부호를 지우고 소문자, 4글자 이상인 줄만"""
+    out = set()
+    for line in (text or '').splitlines():
+        k = re.sub(r'[\s\W_]+', '', line.lower())
+        if len(k) >= 4:
+            out.add(k)
+    return out
+
+
+def known_lyrics(sb) -> list[dict]:
+    try:
+        return (sb.table('tracks').select('id,title,creator_id,lyrics').not_.is_('lyrics', 'null')
+                .in_('status', ['ACTIVE', 'PENDING', 'TAKEDOWN_24H']).limit(5000).execute().data) or []
+    except Exception:
+        return []   # 016 SQL 전
+
+
+def lyrics_duplicate(lyrics: str, track_id: str, others: list[dict]) -> tuple[float, dict | None]:
+    """새 곡 가사 줄 중 다른 곡과 겹치는 비율이 가장 높은 곡"""
+    mine = lyric_lines(lyrics)
+    if len(mine) < 4:
+        return 0.0, None
+    best, hit = 0.0, None
+    for o in others:
+        if o['id'] == track_id:
+            continue
+        theirs = lyric_lines(o.get('lyrics') or '')
+        if not theirs:
+            continue
+        r = len(mine & theirs) / len(mine)
+        if r > best:
+            best, hit = r, o
+    return best, hit
+
+
+LYRICS_HOLD = 0.6   # 가사 줄 60% 이상 같으면 사람 확인
 
 
 # ---------------------------------------------------------------- 한 곡 검수
 
-def inspect_file(src: str, tmp: str) -> tuple[dict, str, dict]:
+def inspect_file(src: str, tmp: str, use_acr: bool = True) -> tuple[dict, str, dict]:
     """(DB 에 적을 값, 변환 파일 경로, 자동 결정에 쓸 측정값)"""
     length = duration_sec(src)
     out = os.path.join(tmp, 'normalized.m4a')
     lv = normalize(src, out)
-    clean, acr_note, acr_score = fingerprint(src, length, tmp)
+    clean, acr_note, acr_score = fingerprint(src, length, tmp) if use_acr else (True, '기존 곡 대조: 생략 (YARR 오리지널 · 운영사가 직접 생성)', 0)
     notes = [f"원본 {lv['before_i']:.1f} LUFS → 변환 {lv['after_i']:.1f} LUFS", acr_note]
     if length < MIN_PLAY_SEC:
         notes.append(f'⚠ {MIN_PLAY_SEC}초보다 짧아요 (재생이 집계되지 않아요)')
@@ -322,10 +376,13 @@ def decide(t: dict, facts: dict, dup: tuple[float, dict | None], trusted: bool, 
         hold.append('15분보다 김')
     if not facts['fp']:
         hold.append('음원 지문을 만들지 못함 (YARR 안 중복 대조 못 함)')
-    tr, th = text_flags(t.get('title') or '', t.get('prompt_recipe') or '')
+    tr, th, _ = text_flags(t.get('title') or '', t.get('prompt_recipe') or '', t.get('lyrics') or '')
     for r in tr:
         reject.append((R_COPY, r))
     hold += th
+    lsim, lhit = facts.get('lyrics_dup') or (0.0, None)
+    if lhit is not None and lsim >= LYRICS_HOLD:
+        hold.append(f"'{lhit.get('title', '?')}' 가사와 {lsim:.0%} 같음")
 
     if reject:
         reason = reject[0][0]
@@ -352,10 +409,15 @@ def client():
 
 
 def pending(sb) -> list[dict]:
-    return (sb.table('tracks').select('id,title,original_url,creator_id,ai_plan,prompt_recipe')
-            .eq('status', 'PENDING').is_('inspected_at', 'null')
-            .like('original_url', 'storage:uploads/%')
-            .order('created_at').limit(BATCH).execute().data) or []
+    def q(cols):
+        return (sb.table('tracks').select(cols)
+                .eq('status', 'PENDING').is_('inspected_at', 'null')
+                .like('original_url', 'storage:uploads/%')
+                .order('created_at').limit(BATCH).execute().data) or []
+    try:
+        return q('id,title,original_url,creator_id,ai_plan,prompt_recipe,lyrics')
+    except Exception:
+        return q('id,title,original_url,creator_id,ai_plan,prompt_recipe')   # 016 SQL 전
 
 
 def creator_record(sb, creator_id: str) -> tuple[bool, bool]:
@@ -377,7 +439,7 @@ def creator_record(sb, creator_id: str) -> tuple[bool, bool]:
     return approved >= 2 and not copy, copy
 
 
-def process(sb, t: dict, known: list[dict]) -> str:
+def process(sb, t: dict, known: list[dict], lyrics_db: list[dict] | None = None) -> str:
     path = t['original_url'][len('storage:uploads/'):]
     now = dt.datetime.now(dt.timezone.utc).isoformat()
     verdict = None
@@ -386,7 +448,8 @@ def process(sb, t: dict, known: list[dict]) -> str:
             src = os.path.join(tmp, 'original' + os.path.splitext(path)[1])
             with open(src, 'wb') as f:
                 f.write(sb.storage.from_('uploads').download(path))
-            row, out, facts = inspect_file(src, tmp)
+            row, out, facts = inspect_file(src, tmp, use_acr=t.get('creator_id') != HOUSE_ID)
+            facts['lyrics_dup'] = lyrics_duplicate(t.get('lyrics') or '', t['id'], lyrics_db or [])
             folder, name = path.rsplit('/', 1)
             norm = f"{folder}/norm-{os.path.splitext(name)[0]}.m4a"
             with open(out, 'rb') as f:
@@ -401,9 +464,16 @@ def process(sb, t: dict, known: list[dict]) -> str:
             verdict = decide(t, facts, dup, trusted, recent)
             if verdict[0] == 'HOLD':
                 row['inspection_note'] = (f"⚠ 자동 보류: {verdict[2]} · " + row['inspection_note'])[:900]
+            flags = text_flags(t.get('title') or '', t.get('prompt_recipe') or '', t.get('lyrics') or '')[2]
+            if flags:
+                row['review_flags'] = flags
         except Exception as e:  # 실패해도 관리자가 볼 수 있게 기록하고 다음 곡으로
             row = {'inspected_at': now, 'inspection_note': f'⚠ 자동 검수 실패: {str(e)[:300]} · 관리자가 직접 확인해 주세요'}
-        sb.table('tracks').update(row).eq('id', t['id']).execute()
+        try:
+            sb.table('tracks').update(row).eq('id', t['id']).execute()
+        except Exception:
+            row.pop('review_flags', None)   # 016 SQL 전
+            sb.table('tracks').update(row).eq('id', t['id']).execute()
         if verdict and verdict[0] != 'HOLD' and os.environ.get('AUTO_DECIDE', '1') != '0':
             sb.rpc('auto_decide_track', {'p_track_id': t['id'], 'p_approve': verdict[0] == 'APPROVE',
                                          'p_reason': verdict[1] or None, 'p_note': verdict[2]}).execute()
@@ -473,8 +543,9 @@ def main():
                 f.write(f'pending={len(todo)}\n')
         return
     known = known_fingerprints(sb)
+    lyrics_db = known_lyrics(sb)
     for t in todo:
-        print(f"- {t['title']}: {process(sb, t, known)}")
+        print(f"- {t['title']}: {process(sb, t, known, lyrics_db)}")
     print(f'지문 채움: {backfill(sb, known)}곡')
     cleanup(sb)
     print(f'완료: {len(todo)}곡')
