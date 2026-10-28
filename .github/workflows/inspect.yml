@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   inspect:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # Ubuntu 26 의 FFmpeg 8 은 AAC 변환 피크가 튀어요 (2026-10-28 확인) · 24.04 = FFmpeg 6.1
     timeout-minutes: 20
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
