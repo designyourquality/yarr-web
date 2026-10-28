@@ -437,7 +437,13 @@ def transcribe(path: str, language: str = 'ko') -> str | None:
         if _WHISPER is None:
             from faster_whisper import WhisperModel
             _WHISPER = WhisperModel(WHISPER_MODEL, device='cpu', compute_type='int8')
-        segs, _ = _WHISPER.transcribe(path, language=language, beam_size=1, vad_filter=True,
+        # 오디오는 FFmpeg 로 직접 풀어서 넘겨요 (faster-whisper 내장 디코더(PyAV)는 버전에 따라 오류가 나요)
+        r = subprocess.run(['ffmpeg', '-v', 'error', '-i', path, '-ac', '1', '-ar', '16000', '-f', 'f32le', '-'],
+                           capture_output=True, check=False)
+        audio = np.frombuffer(r.stdout, dtype=np.float32)
+        if audio.size < 16000:
+            raise RuntimeError('오디오를 읽지 못했어요')
+        segs, _ = _WHISPER.transcribe(audio, language=language, beam_size=1, vad_filter=False,
                                       condition_on_previous_text=False)
         return ' '.join(x.text.strip() for x in segs)
     except Exception as e:  # 모델을 못 받거나 패키지가 없으면 사람 확인으로
