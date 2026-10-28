@@ -41,6 +41,8 @@ import sys
 import tempfile
 import time
 
+import numpy as np
+
 TARGET_I, TARGET_TP, TARGET_LRA = -14.0, -1.0, 11.0
 LIMIT_DB = -2.0           # 리미터 상한 (dBFS) · AAC 로 바꿀 때 생기는 피크 여유
 BATCH = 10
@@ -81,30 +83,77 @@ def loudness(path: str, extra: str = '') -> dict:
     return json.loads(m[-1])
 
 
+def _decode(src: str) -> 'np.ndarray':
+    """오디오 → 44.1kHz 스테레오 32비트 실수 (샘플 수, 2)"""
+    r = subprocess.run(['ffmpeg', '-v', 'error', '-i', src, '-vn', '-ac', '2', '-ar', '44100', '-f', 'f32le', '-'],
+                       capture_output=True, check=False)
+    if r.returncode != 0 or not r.stdout:
+        raise RuntimeError('오디오를 읽지 못했어요')
+    return np.frombuffer(r.stdout, dtype=np.float32).reshape(-1, 2).astype(np.float64)
+
+
+_TP_TAPS = None
+
+
+def _true_peak(x: 'np.ndarray') -> 'np.ndarray':
+    """샘플마다 4배 오버샘플링 피크 (BS.1770 true peak 근사) · 두 채널 중 큰 값"""
+    global _TP_TAPS
+    if _TP_TAPS is None:
+        n = np.arange(-48, 49)
+        h = np.sinc(n / 4) * np.kaiser(len(n), 8.0)
+        _TP_TAPS = [h[p::4] for p in range(1, 4)]   # 샘플 사이 3개 지점
+    peak = np.abs(x).max(axis=1)
+    for ch in range(x.shape[1]):
+        for taps in _TP_TAPS:
+            y = np.convolve(x[:, ch], taps, mode='same')
+            np.maximum(peak, np.abs(y), out=peak)
+    return peak
+
+
+def _limit(x: 'np.ndarray', ceiling_db: float, block: int = 512) -> 'np.ndarray':
+    """미리 보고 누르는 리미터: 피크가 상한을 넘는 구간만 블록 단위로 부드럽게 줄여요.
+    블록마다 (앞 · 지금 · 뒤 블록) 중 가장 많이 줄여야 하는 값을 쓰고 블록 사이는 직선으로 이어서
+    어느 샘플도 상한을 넘지 않게 해요 (약 12ms 단위 · 찌그러짐 없이)."""
+    lim = 10 ** (ceiling_db / 20)
+    need = np.minimum(1.0, lim / np.maximum(_true_peak(x), 1e-9))
+    nb = -(-len(need) // block)
+    pad = np.ones(nb * block)
+    pad[:len(need)] = need
+    r = pad.reshape(nb, block).min(axis=1)
+    v = np.minimum(r, np.minimum(np.r_[1.0, r[:-1]], np.r_[r[1:], 1.0]))
+    centers = np.arange(nb) * block + block / 2
+    g = np.interp(np.arange(len(need)), centers, v)
+    return x * g[:, None]
+
+
+def _encode(x: 'np.ndarray', dst: str) -> None:
+    r = subprocess.run(['ffmpeg', '-hide_banner', '-v', 'error', '-y', '-f', 'f32le', '-ar', '44100', '-ac', '2', '-i', '-',
+                        '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', '-vn', dst],
+                       input=x.astype(np.float32).tobytes(), capture_output=True, check=False)
+    if r.returncode != 0:
+        raise RuntimeError('변환 실패: ' + (r.stderr.decode(errors='ignore').strip().splitlines() or ['?'])[-1][:120])
+
+
 def normalize(src: str, dst: str) -> dict:
     """-14 LUFS · 피크 -1 dBTP AAC 192k 파일 만들기 → 결과 파일 측정값.
     1) 원본 음량을 재서 -14 LUFS 가 되게 한 번에 키우거나 줄이고
-    2) 4배 오버샘플링한 리미터로 피크를 눌러요 (AI 곡은 0 dBFS 를 넘는 피크가 많아요)
-    3) AAC 로 바꾼 뒤 다시 재서, 피크가 넘치면 리미터 상한만 더 낮춰 다시 만들어요 (음량은 그대로)."""
+    2) 직접 만든 리미터(4배 오버샘플링 피크 기준)로 상한을 넘는 피크만 눌러요 (AI 곡은 0 dBFS 를 넘는 피크가 많아요)
+    3) AAC 로 바꾼 뒤 다시 재서, 피크가 넘치면 상한만 더 낮춰 다시 만들어요 (음량은 그대로).
+    FFmpeg 버전마다 다른 loudnorm · alimiter 동작에 기대지 않아요."""
     m = loudness(src)
-    gain = TARGET_I - float(m['input_i'])
+    gain = 10 ** ((TARGET_I - float(m['input_i'])) / 20)
+    x = _decode(src) * gain
     ceiling = LIMIT_DB
     after = None
     for i in range(4):
-        lim = 10 ** (ceiling / 20)
-        af = (f'volume={gain:.2f}dB,aresample=176400,'
-              f'alimiter=limit={lim:.4f}:attack=1:release=80:level=disabled,aresample=44100')
-        r = run(['ffmpeg', '-hide_banner', '-nostats', '-y', '-i', src, '-af', af, '-ac', '2',
-                 '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', '-vn', dst])
-        if r.returncode != 0:
-            raise RuntimeError('변환 실패: ' + r.stderr.strip().splitlines()[-1][:120])
+        _encode(_limit(x, ceiling), dst)
         after = loudness(dst)
         tp = float(after['input_tp'])
         print(f'    음량 {i + 1}회: 원본 {m["input_i"]} LUFS / {m["input_tp"]} dBTP → '
-              f'{after["input_i"]} LUFS / {tp} dBTP (게인 {gain:+.1f} dB · 상한 {ceiling:.1f} dB)', flush=True)
+              f'{after["input_i"]} LUFS / {tp} dBTP (상한 {ceiling:.1f} dB)', flush=True)
         if tp <= TARGET_TP + 0.2:
             break
-        ceiling -= tp - TARGET_TP + 0.3
+        ceiling -= tp - TARGET_TP + 0.2
     return {'before_i': float(m['input_i']), 'before_tp': float(m['input_tp']),
             'after_i': float(after['input_i']), 'after_tp': float(after['input_tp'])}
 
