@@ -42,7 +42,7 @@ import tempfile
 import time
 
 TARGET_I, TARGET_TP, TARGET_LRA = -14.0, -1.0, 11.0
-LIMIT_LINEAR = 0.79       # 리미터 상한 (약 -2 dBFS) · AAC 로 바꿀 때 생기는 피크 여유
+LIMIT_DB = -2.0           # 리미터 상한 (dBFS) · AAC 로 바꿀 때 생기는 피크 여유
 BATCH = 10
 MIN_PLAY_SEC = 60          # 서버가 유효 재생으로 세는 최소 시간 (이보다 짧으면 차트 · 정산에 안 잡힘)
 DUP_REJECT, DUP_HOLD = 0.85, 0.75   # 음원 지문 일치도
@@ -82,25 +82,29 @@ def loudness(path: str, extra: str = '') -> dict:
 
 
 def normalize(src: str, dst: str) -> dict:
-    """2단계 loudnorm 으로 -14 LUFS AAC 192k 파일 만들기 → 결과 파일 측정값.
-    loudnorm 뒤에 리미터를 한 번 더 걸고, 그래도 피크가 -1 dBTP 를 넘으면 넘친 만큼 낮춰 다시 만들어요
-    (AI 곡은 0 dBFS 를 넘는 피크가 많아 AAC 로 바꾸면 찌그러질 수 있어요)."""
+    """-14 LUFS · 피크 -1 dBTP AAC 192k 파일 만들기 → 결과 파일 측정값.
+    1) 원본 음량을 재서 -14 LUFS 가 되게 한 번에 키우거나 줄이고
+    2) 4배 오버샘플링한 리미터로 피크를 눌러요 (AI 곡은 0 dBFS 를 넘는 피크가 많아요)
+    3) AAC 로 바꾼 뒤 다시 재서, 피크가 넘치면 리미터 상한만 더 낮춰 다시 만들어요 (음량은 그대로)."""
     m = loudness(src)
-    extra = (f":measured_I={m['input_i']}:measured_TP={m['input_tp']}:measured_LRA={m['input_lra']}"
-             f":measured_thresh={m['input_thresh']}:offset={m['target_offset']}:linear=true")
-    trim = 0.0
-    for _ in range(3):
-        af = (f'loudnorm=I={TARGET_I}:TP={TARGET_TP}:LRA={TARGET_LRA}{extra},aresample=44100,'
-              f'volume={trim:.2f}dB,alimiter=limit={LIMIT_LINEAR}:attack=1:release=60:level=disabled')
-        r = run(['ffmpeg', '-hide_banner', '-nostats', '-y', '-i', src, '-af', af, '-ar', '44100', '-ac', '2',
+    gain = TARGET_I - float(m['input_i'])
+    ceiling = LIMIT_DB
+    after = None
+    for i in range(4):
+        lim = 10 ** (ceiling / 20)
+        af = (f'volume={gain:.2f}dB,aresample=176400,'
+              f'alimiter=limit={lim:.4f}:attack=1:release=80:level=disabled,aresample=44100')
+        r = run(['ffmpeg', '-hide_banner', '-nostats', '-y', '-i', src, '-af', af, '-ac', '2',
                  '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', '-vn', dst])
         if r.returncode != 0:
             raise RuntimeError('변환 실패: ' + r.stderr.strip().splitlines()[-1][:120])
         after = loudness(dst)
-        over = float(after['input_tp']) - TARGET_TP
-        if over <= 0.3:
+        tp = float(after['input_tp'])
+        print(f'    음량 {i + 1}회: 원본 {m["input_i"]} LUFS / {m["input_tp"]} dBTP → '
+              f'{after["input_i"]} LUFS / {tp} dBTP (게인 {gain:+.1f} dB · 상한 {ceiling:.1f} dB)', flush=True)
+        if tp <= TARGET_TP + 0.2:
             break
-        trim -= over + 0.3
+        ceiling -= tp - TARGET_TP + 0.3
     return {'before_i': float(m['input_i']), 'before_tp': float(m['input_tp']),
             'after_i': float(after['input_i']), 'after_tp': float(after['input_tp'])}
 
@@ -562,6 +566,7 @@ def main():
             with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                 f.write(f'pending={len(todo)}\n')
         return
+    print(run(['ffmpeg', '-version']).stdout.splitlines()[0][:80], flush=True)
     known = known_fingerprints(sb)
     lyrics_db = known_lyrics(sb)
     for t in todo:
