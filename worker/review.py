@@ -422,6 +422,44 @@ def inspect_file(src: str, tmp: str, use_acr: bool = True, fade: bool = False) -
 HOUSE_ID = '00000000-0000-0000-0000-0000000000a1'   # 'YARR Originals' (운영사가 Stable Audio 3 로 만든 곡)
 
 
+# ---------------------------------------------------------------- 보컬 오리지널: 가사 받아쓰기 (Whisper)
+
+LYRIC_APPROVE = float(os.environ.get('LYRIC_APPROVE', '0.55'))   # 넣은 가사의 55% 이상 알아들으면 자동 승인
+LYRIC_REJECT = float(os.environ.get('LYRIC_REJECT', '0.25'))     # 25% 미만이면 보컬이 거의 안 들리는 곡 → 반려 (그 사이는 사람 확인)
+WHISPER_MODEL = os.environ.get('WHISPER_MODEL', 'small')
+_WHISPER = None
+
+
+def transcribe(path: str, language: str = 'ko') -> str | None:
+    """노래에서 부른 가사를 받아 적기 (faster-whisper · CPU). 쓸 수 없으면 None"""
+    global _WHISPER
+    try:
+        if _WHISPER is None:
+            from faster_whisper import WhisperModel
+            _WHISPER = WhisperModel(WHISPER_MODEL, device='cpu', compute_type='int8')
+        segs, _ = _WHISPER.transcribe(path, language=language, beam_size=1, vad_filter=True,
+                                      condition_on_previous_text=False)
+        return ' '.join(x.text.strip() for x in segs)
+    except Exception as e:  # 모델을 못 받거나 패키지가 없으면 사람 확인으로
+        print(f'    받아쓰기 실패: {str(e)[:120]}', flush=True)
+        return None
+
+
+def _letters(text: str) -> str:
+    text = re.sub(r'\[[^\]]*\]', ' ', text or '')          # [Verse] 같은 구간 표시 빼기
+    return re.sub(r'[^0-9a-z가-힣]', '', text.lower())
+
+
+def lyric_match(lyrics: str, heard: str) -> float:
+    """넣은 가사 중 실제로 들린 비율 (두 글자 묶음 기준 · 반복되는 후렴은 한 번만 셈)"""
+    a, b = _letters(lyrics), _letters(heard)
+    want = {a[i:i + 2] for i in range(len(a) - 1)}
+    if not want:
+        return 0.0
+    got = {b[i:i + 2] for i in range(len(b) - 1)}
+    return len(want & got) / len(want)
+
+
 def decide(t: dict, facts: dict, dup: tuple[float, dict | None], trusted: bool, recent_copy_reject: bool) -> tuple[str, str, str]:
     """('APPROVE' | 'REJECT' | 'HOLD', 반려 이유, 설명)"""
     reject: list[tuple[str, str]] = []
@@ -465,8 +503,17 @@ def decide(t: dict, facts: dict, dup: tuple[float, dict | None], trusted: bool, 
     if hold:
         return 'HOLD', '', ' · '.join(hold)
     if t.get('creator_id') == HOUSE_ID and (t.get('lyrics') or '').strip():
-        # 보컬 오리지널: 발음 · 가사 전달 · 목소리 품질은 사람이 들어 봐야 알 수 있어요
-        return 'HOLD', '', 'YARR 보컬 오리지널 · 발음 · 가사 · 목소리를 직접 들어 보고 승인해 주세요'
+        # 보컬 오리지널: 넣은 가사를 실제로 알아들을 수 있게 불렀는지 받아쓰기로 확인 (승인 곡 중 일부는 서버가 사후 점검으로 뽑아요)
+        m = facts.get('lyric_match')
+        if facts['acr'] is not True:
+            return 'HOLD', '', 'YARR 보컬 오리지널 · 기존 곡 대조(ACRCloud)를 못 했어요'
+        if m is None:
+            return 'HOLD', '', 'YARR 보컬 오리지널 · 가사 받아쓰기를 못 했어요 · 직접 들어 보고 승인해 주세요'
+        if m < LYRIC_REJECT:
+            return 'REJECT', R_QUALITY, f'보컬 · 가사가 거의 들리지 않아요 (받아쓰기 일치 {m:.0%})'
+        if m < LYRIC_APPROVE:
+            return 'HOLD', '', f'YARR 보컬 오리지널 · 가사가 일부만 들려요 (받아쓰기 일치 {m:.0%}) · 직접 들어 보고 판단해 주세요'
+        return 'APPROVE', '', f'YARR 보컬 오리지널 (Lyria 3 Pro) · 기존 곡 대조 · 받아쓰기 일치 {m:.0%} · 중복 · 음량 검사 통과'
     if t.get('creator_id') == HOUSE_ID:
         # 운영사가 직접 만든 연주곡: 라이선스(Stable Audio 3 Community License)를 운영사가 확인했고 YARR 안 중복 · 음량 검사도 통과
         return 'APPROVE', '', 'YARR 오리지널 (운영사 생성 · Stable Audio 3) · YARR 중복 대조 · 음량 검사 통과'
@@ -531,6 +578,12 @@ def process(sb, t: dict, known: list[dict], lyrics_db: list[dict] | None = None)
             # 오리지널 연주곡은 기존 곡 대조를 건너뛰고, 보컬 오리지널(Lyria 3 Pro)은 멜로디가 기존 곡과 겹칠 수 있어 대조해요
             row, out, facts = inspect_file(src, tmp, use_acr=not house or vocal_house, fade=house)
             facts['lyrics_dup'] = lyrics_duplicate(t.get('lyrics') or '', t['id'], lyrics_db or [])
+            if vocal_house:
+                heard = transcribe(out)
+                if heard is not None:
+                    facts['lyric_match'] = lyric_match(t.get('lyrics') or '', heard)
+                    row['inspection_note'] = (f"가사 받아쓰기 일치 {facts['lyric_match']:.0%} · " + row['inspection_note'])[:900]
+                    print(f"    받아쓰기 {facts['lyric_match']:.0%}: {heard[:80]}", flush=True)
             folder, name = path.rsplit('/', 1)
             norm = f"{folder}/norm-{os.path.splitext(name)[0]}.m4a"
             with open(out, 'rb') as f:
