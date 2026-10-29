@@ -749,6 +749,35 @@ def renorm(sb, limit: int = 5) -> int:
 def cleanup(sb):
     cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=365)).isoformat()
     sb.table('client_errors').delete().lt('created_at', cutoff).execute()
+    try:
+        n = purge_deleted_accounts(sb)
+        if n:
+            print(f'탈퇴 계정 파일 정리: {n}개', flush=True)
+    except Exception as e:  # 정리는 다음 실행에서 다시 해도 돼요
+        print(f'탈퇴 계정 파일 정리 실패: {e}', flush=True)
+
+
+UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+
+
+def purge_deleted_accounts(sb, max_folders: int = 20) -> int:
+    """계정을 지운 사람의 업로드 폴더에 남은 파일 지우기 (021: 앱이 먼저 곡을 내리고 파일을 지우지만,
+    중간에 끊기면 파일이 남을 수 있어요). 폴더 이름 = 사용자 ID, users 표에 없으면 탈퇴한 계정이에요."""
+    bucket = sb.storage.from_('uploads')
+    folders = [e['name'] for e in (bucket.list('', {'limit': 1000}) or []) if e.get('id') is None and UUID_RE.match(e.get('name') or '')]
+    if not folders:
+        return 0
+    alive = set()
+    for i in range(0, len(folders), 100):
+        rows = sb.table('users').select('id').in_('id', folders[i:i + 100]).execute().data or []
+        alive |= {r['id'] for r in rows}
+    removed = 0
+    for uid in [f for f in folders if f not in alive][:max_folders]:
+        files = [f"{uid}/{e['name']}" for e in (bucket.list(uid, {'limit': 1000}) or []) if e.get('id')]
+        if files:
+            bucket.remove(files)
+            removed += len(files)
+    return removed
 
 
 def main():
