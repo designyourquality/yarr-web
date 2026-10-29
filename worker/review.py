@@ -481,9 +481,20 @@ def transcribe(path: str, language: str = 'ko') -> str | None:
         return None
 
 
+def lyric_language(lyrics: str) -> str:
+    """가사 언어 (받아쓰기에 알려 줘요): 가나가 있으면 일본어, 한글이 있으면 한국어, 아니면 영어"""
+    t = lyrics or ''
+    if re.search(r'[\u3040-\u30ff]', t):
+        return 'ja'
+    if re.search(r'[가-힣]', t):
+        return 'ko'
+    return 'en'
+
+
 def _letters(text: str) -> str:
     text = re.sub(r'\[[^\]]*\]', ' ', text or '')          # [Verse] 같은 구간 표시 빼기
-    return re.sub(r'[^0-9a-z가-힣]', '', text.lower())
+    # 한글 · 영문 · 숫자 · 일본어(가나 · 한자)만 남겨서 비교해요
+    return re.sub(r'[^0-9a-z가-힣\u3040-\u30ff\u4e00-\u9fff]', '', text.lower())
 
 
 def lyric_match(lyrics: str, heard: str) -> float:
@@ -615,7 +626,7 @@ def process(sb, t: dict, known: list[dict], lyrics_db: list[dict] | None = None)
             row, out, facts = inspect_file(src, tmp, use_acr=not house or vocal_house, fade=house)
             facts['lyrics_dup'] = lyrics_duplicate(t.get('lyrics') or '', t['id'], lyrics_db or [])
             if vocal_house:
-                heard = transcribe(out)
+                heard = transcribe(out, lyric_language(t.get('lyrics') or ''))
                 if heard is not None:
                     facts['lyric_match'] = lyric_match(t.get('lyrics') or '', heard)
                     row['inspection_note'] = (f"가사 받아쓰기 일치 {facts['lyric_match']:.0%} · " + row['inspection_note'])[:900]
