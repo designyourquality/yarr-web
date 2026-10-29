@@ -3,7 +3,8 @@
 하는 일
   1. 서버에서 '검수 대기 + 아직 자동 검수 안 한' 곡을 가져와요 (업로드 파일이 있는 곡만).
   2. 원본 파일을 받아 FFmpeg 로 음량(LUFS · 피크)과 길이를 재요.
-  3. -14 LUFS (피크 -1 dBTP) 로 맞춘 AAC 파일을 만들어 저장소에 올려요 (승인하면 이 파일이 재생돼요).
+  3. 30Hz 아래 · 17kHz 위를 걸러내고 -14 LUFS (피크 -1 dBTP) 로 맞춘 AAC 파일을 만들어 저장소에 올려요 (승인하면 이 파일이 재생돼요).
+     예전 방식으로 만든 곡은 [음량v2] 표시가 붙을 때까지 한 번에 5곡씩 다시 만들어요.
   4. ACRCloud 키가 있으면 기존 상업 음원과 3구간을 대조해요. 없으면 '미연결'로 적어요. (YARR 오리지널은 생략)
      YARR 오리지널은 앞 0.5초 · 끝 5초를 페이드 처리해 뚝 끊기지 않게 해요.
   5. YARR 안의 다른 곡과 음원 지문(Chromaprint)을 대조해요 — 남의 곡 · 내가 이미 올린 곡 다시 올리기.
@@ -134,26 +135,55 @@ def _encode(x: 'np.ndarray', dst: str) -> None:
         raise RuntimeError('변환 실패: ' + (r.stderr.decode(errors='ignore').strip().splitlines() or ['?'])[-1][:120])
 
 
+HIGHPASS_HZ = 30    # 이 아래 초저음은 매장 · 휴대폰 스피커에서 소리로 안 나고 피크만 키워요
+LOWPASS_HZ = int(os.environ.get('LOWPASS_HZ', '17000'))   # 이 위 초고음은 AAC 로 바꿀 때 피크를 크게 튀게 해요 (0 = 끔)
+
+
+def _band_limit(src: str) -> str:
+    """30Hz 아래 · 17kHz 위를 걸러낸 32비트 실수 wav (들리는 소리는 그대로). 실패하면 원본 그대로"""
+    dst = os.path.splitext(src)[0] + '.band.wav'
+    af = f'highpass=f={HIGHPASS_HZ}:p=2' + (f',lowpass=f={LOWPASS_HZ}:p=2' if LOWPASS_HZ else '')
+    r = run(['ffmpeg', '-v', 'error', '-y', '-i', src, '-af', af, '-vn', '-c:a', 'pcm_f32le', dst])
+    return dst if r.returncode == 0 and os.path.exists(dst) else src
+
+
 def normalize(src: str, dst: str) -> dict:
     """-14 LUFS · 피크 -1 dBTP AAC 192k 파일 만들기 → 결과 파일 측정값.
-    1) 원본 음량을 재서 -14 LUFS 가 되게 한 번에 키우거나 줄이고
-    2) 직접 만든 리미터(4배 오버샘플링 피크 기준)로 상한을 넘는 피크만 눌러요 (AI 곡은 0 dBFS 를 넘는 피크가 많아요)
-    3) AAC 로 바꾼 뒤 다시 재서, 피크가 넘치면 상한만 더 낮춰 다시 만들어요 (음량은 그대로).
+    0) 30Hz 아래 · 17kHz 위를 걸러내요 (들리는 소리는 그대로, AAC 변환 때 튀는 피크만 줄어요)
+    1) -14 LUFS 가 되게 키우거나 줄이고, 직접 만든 리미터(4배 오버샘플링 피크 기준)로 상한을 넘는 피크만 눌러요
+    2) AAC 로 바꾼 뒤 다시 재요. AAC 는 바꿀 때마다 피크가 조금씩 다르게 튀어서, 상한과 추가 음량을 바꿔 가며
+       여러 번 만들어 보고 '피크 -0.8 dBTP 이하' 중 음량이 -14 에 가장 가까운 파일을 써요.
+       (예전에는 피크만 보고 상한을 계속 낮춰서 저음 강한 곡이 -16 LUFS 로 작게 공개됐어요 · 2026-10-29)
     FFmpeg 버전마다 다른 loudnorm · alimiter 동작에 기대지 않아요."""
     m = loudness(src)
-    gain = 10 ** ((TARGET_I - float(m['input_i'])) / 20)
-    x = _decode(src) * gain
-    ceiling = LIMIT_DB
-    after = None
-    for i in range(4):
-        _encode(_limit(x, ceiling), dst)
-        after = loudness(dst)
-        tp = float(after['input_tp'])
+    band = _band_limit(src)
+    gain_db = TARGET_I - float((loudness(band) if band != src else m)['input_i'])
+    base = _decode(band)
+    tmp = dst + '.try.m4a'
+    best = None   # (점수, 측정값)
+    ceiling, boost = LIMIT_DB, 0.0
+    for i in range(8):
+        _encode(_limit(base * 10 ** ((gain_db + boost) / 20), ceiling), tmp)
+        after = loudness(tmp)
+        tp, li = float(after['input_tp']), float(after['input_i'])
+        ok = tp <= TARGET_TP + 0.2
         print(f'    음량 {i + 1}회: 원본 {m["input_i"]} LUFS / {m["input_tp"]} dBTP → '
-              f'{after["input_i"]} LUFS / {tp} dBTP (상한 {ceiling:.1f} dB)', flush=True)
-        if tp <= TARGET_TP + 0.2:
+              f'{li} LUFS / {tp} dBTP (상한 {ceiling:.1f} dB · 추가 {boost:+.1f} dB){"" if ok else " 피크 넘침"}', flush=True)
+        score = (0 if ok else 1, abs(li - TARGET_I) if ok else tp)
+        if best is None or score < best[0]:
+            best = (score, after)
+            os.replace(tmp, dst)
+        if ok and abs(li - TARGET_I) <= 0.5:
             break
-        ceiling -= tp - TARGET_TP + 0.2
+        if not ok:
+            ceiling -= min(2.0, tp - TARGET_TP + 0.2)   # 피크가 넘치면 상한을 낮추고
+        elif boost < 3.0:
+            boost = min(3.0, boost + (TARGET_I - li))   # 음량이 모자라면 더 키우고 (피크는 리미터가 눌러요)
+        else:
+            break
+    if os.path.exists(tmp):
+        os.remove(tmp)
+    after = best[1]
     return {'before_i': float(m['input_i']), 'before_tp': float(m['input_tp']),
             'after_i': float(after['input_i']), 'after_tp': float(after['input_tp'])}
 
@@ -645,6 +675,66 @@ def backfill(sb, known: list[dict], limit: int = 10) -> int:
     return n
 
 
+RENORM_MARK = '[음량v2]'   # 이 표시가 없는 공개 곡은 새 방식(초저음 · 초고음 정리 + 음량 맞춤)으로 한 번 다시 만들어요
+
+
+def _renorm_rows(sb) -> list[dict]:
+    return (sb.table('tracks').select('id,title,creator_id,status,original_url,normalized_url,inspection_note,lufs_value')
+            .not_.is_('inspected_at', 'null').not_.is_('normalized_url', 'null')
+            .in_('status', ['ACTIVE', 'PENDING'])
+            .like('original_url', 'storage:uploads/%').order('created_at').limit(500).execute().data) or []
+
+
+def _needs_renorm(r: dict) -> bool:
+    note = r.get('inspection_note') or ''
+    return RENORM_MARK not in note and not note.startswith('⚠ 자동 검수 실패') and bool(r.get('normalized_url'))
+
+
+def renorm_backlog(sb) -> int:
+    try:
+        return sum(1 for r in _renorm_rows(sb) if _needs_renorm(r))
+    except Exception:
+        return 0
+
+
+def renorm(sb, limit: int = 5) -> int:
+    """이미 검수된 곡(공개 · 공개 예약 · 대기)을 새 음량 방식으로 다시 만들어 같은 자리에 덮어써요.
+    저음이 강한 곡이 -16 LUFS 근처로 작게 나가던 문제 (2026-10-29). 한 번에 몇 곡씩 · 이미 한 곡은 건너뛰어요."""
+    n = 0
+    for r in _renorm_rows(sb):
+        note = r.get('inspection_note') or ''
+        if not _needs_renorm(r) or n >= limit:
+            continue
+        path = r['original_url'][len('storage:uploads/'):]
+        norm = (r['normalized_url'] or '')[len('storage:uploads/'):]
+        if not norm:
+            continue
+        with tempfile.TemporaryDirectory() as tmp:
+            try:
+                src = os.path.join(tmp, 'original' + os.path.splitext(path)[1])
+                with open(src, 'wb') as f:
+                    f.write(sb.storage.from_('uploads').download(path))
+                length = duration_sec(src)
+                house = r.get('creator_id') == HOUSE_ID
+                out = os.path.join(tmp, 'normalized.m4a')
+                lv = normalize(fade_edges(src, length, os.path.join(tmp, 'faded.wav')) if house else src, out)
+                with open(out, 'rb') as f:
+                    sb.storage.from_('uploads').upload(norm, f.read(), {'content-type': 'audio/mp4', 'upsert': 'true'})
+                old = r.get('lufs_value')
+                head = f"{RENORM_MARK} 음량 다시 맞춤 {old if old is not None else '?'} → {lv['after_i']:.1f} LUFS · "
+                sb.table('tracks').update({
+                    'lufs_value': round(lv['after_i'], 1),
+                    'peak_dbtp': round(lv['after_tp'], 1),
+                    'waveform': waveform(out),
+                    'inspection_note': (head + note)[:900],
+                }).eq('id', r['id']).execute()
+                print(f"  음량 다시 맞춤 {r['title']}: {old} → {lv['after_i']:.1f} LUFS / {lv['after_tp']:.1f} dBTP", flush=True)
+                n += 1
+            except Exception as e:
+                print(f"  음량 다시 맞춤 실패 {r['title']}: {e}", flush=True)
+    return n
+
+
 def cleanup(sb):
     cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=365)).isoformat()
     sb.table('client_errors').delete().lt('created_at', cutoff).execute()
@@ -677,10 +767,11 @@ def main():
     sb = client()
     todo = pending(sb)
     if a.count:
-        print(f'검수할 곡: {len(todo)}개')
+        redo = renorm_backlog(sb)
+        print(f'검수할 곡: {len(todo)}개 · 음량 다시 맞출 곡: {redo}개')
         if os.environ.get('GITHUB_OUTPUT'):
             with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                f.write(f'pending={len(todo)}\n')
+                f.write(f'pending={len(todo) + redo}\n')
         return
     print(run(['ffmpeg', '-version']).stdout.splitlines()[0][:80], flush=True)
     known = known_fingerprints(sb)
@@ -688,6 +779,7 @@ def main():
     for t in todo:
         print(f"- {t['title']}: {process(sb, t, known, lyrics_db)}")
     print(f'지문 채움: {backfill(sb, known)}곡')
+    print(f'음량 다시 맞춤: {renorm(sb, int(os.environ.get("RENORM_BATCH", "5")))}곡')
     cleanup(sb)
     print(f'완료: {len(todo)}곡')
 
