@@ -787,12 +787,25 @@ def main():
     print(run(['ffmpeg', '-version']).stdout.splitlines()[0][:80], flush=True)
     known = known_fingerprints(sb)
     lyrics_db = known_lyrics(sb)
-    for t in todo:
-        print(f"- {t['title']}: {process(sb, t, known, lyrics_db)}")
+    # GitHub 예약 실행은 몇 시간씩 밀릴 때가 많아서, 한 번 돌 때 대기 곡을 시간 한도 안에서 끝까지 처리해요
+    start = time.monotonic()
+    budget = float(os.environ.get('RUN_BUDGET_MIN', '40')) * 60
+    done, seen, over = 0, set(), False
+    while todo and not over:
+        for t in todo:
+            seen.add(t['id'])
+            print(f"- {t['title']}: {process(sb, t, known, lyrics_db)}", flush=True)
+            done += 1
+            if time.monotonic() - start > budget:
+                over = True
+                print('⏱ 시간 한도 → 남은 곡은 다음 실행에서 이어서 해요', flush=True)
+                break
+        if not over:
+            todo = [t for t in pending(sb) if t['id'] not in seen]   # 같은 곡을 두 번 돌지 않게
     print(f'지문 채움: {backfill(sb, known)}곡')
     print(f'음량 다시 맞춤: {renorm(sb, int(os.environ.get("RENORM_BATCH", "5")))}곡')
     cleanup(sb)
-    print(f'완료: {len(todo)}곡')
+    print(f'완료: {done}곡')
 
 
 if __name__ == '__main__':
