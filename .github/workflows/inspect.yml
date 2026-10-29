@@ -5,7 +5,7 @@
 name: YARR 자동 검수
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '7,37 * * * *'   # 정각은 GitHub 이 붐벼서 자주 밀려요
   workflow_dispatch:
 concurrency:
   group: yarr-inspect
@@ -13,7 +13,7 @@ concurrency:
 jobs:
   inspect:
     runs-on: ubuntu-24.04   # Ubuntu 26 의 FFmpeg 8 은 AAC 변환 피크가 튀어요 (2026-10-28 확인) · 24.04 = FFmpeg 6.1
-    timeout-minutes: 20
+    timeout-minutes: 60   # 대기 곡을 한 번에 끝까지 처리 (워커 시간 한도 RUN_BUDGET_MIN 기본 40분)
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
