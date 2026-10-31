@@ -25,6 +25,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 W, H = 720, 1280
+# 쇼츠 · 릴스 · 틱톡은 아래 약 17%(설명 · 버튼)와 위 약 8%(검색 · 카메라 아이콘)를 덮어요 → 글자는 y 120~1060 안에만
 SECONDS = 15.0
 ORANGE = '0xFF7B2F'
 BG = '0x17171A'
@@ -152,33 +153,33 @@ def render(src: str, out: str, meta: dict, start: float | None = None, length: f
     dt = lambda txt, size, y, color='white', font=bold, x='(w-text_w)/2', extra='': (
         f"drawtext=fontfile='{font}':textfile='{txt}':fontsize={size}:fontcolor={color}:x={x}:y={y}{extra}")
     v = [
-        f"color=c={BG}:s={W}x{H}:r=30:d={length},drawbox=x=24:y=96:w={W - 48}:h=1040:color={PANEL}:t=fill[bg]",
+        f"color=c={BG}:s={W}x{H}:r=30:d={length},drawbox=x=24:y=120:w={W - 48}:h=940:color={PANEL}:t=fill[bg]",
         # 도트 스펙트럼: 48×18 막대 → 14px 칸으로 키우고 칸 사이를 배경색 선으로 갈라 도트처럼
         "[0:a]asplit=2[a0][a1]",
-        f"[a0]showfreqs=s=48x19:mode=bar:ascale=sqrt:fscale=log:colors={ORANGE}:win_size=2048,crop=48:18:0:0,format=rgba,"
-        f"scale={48 * 14}:{18 * 14}:flags=neighbor,drawgrid=w=14:h=14:t=4:c={PANEL}@1[spec]",
+        f"[a0]showfreqs=s=48x16:mode=bar:ascale=sqrt:fscale=log:colors={ORANGE}:win_size=2048,crop=48:15:0:0,format=rgba,"
+        f"scale={48 * 14}:{15 * 14}:flags=neighbor,drawgrid=w=14:h=14:t=4:c={PANEL}@1[spec]",
     ]
     draw = [
-        dt(tf('logo', 'YARR'), 92, 150, ORANGE),
-        dt(tf('tag', 'AI MUSIC CHART · 버튼으로 만드는 내 노래'), 26, 262, SOFT, reg),
-        f"drawbox=x=60:y=318:w={W - 120}:h=3:color={ORANGE}@0.6:t=fill",
-        dt(tf('title', title), tsize, 392 - tsize // 2),
-        dt(tf('artist', f'by {artist}' if artist else vocal), 32, 450, SOFT, reg),
-        dt(tf('recipe', recipe or vocal), 28, 506, ORANGE, reg),
+        dt(tf('logo', 'YARR'), 84, 160, ORANGE),
+        dt(tf('tag', 'AI MUSIC CHART · 버튼으로 만드는 내 노래'), 24, 262, SOFT, reg),
+        f"drawbox=x=60:y=306:w={W - 120}:h=3:color={ORANGE}@0.6:t=fill",
+        dt(tf('title', title), tsize, 372 - tsize // 2),
+        dt(tf('artist', f'by {artist}' if artist else vocal), 30, 420, SOFT, reg),
+        dt(tf('recipe', recipe or vocal), 26, 468, ORANGE, reg),
     ]
     cw = chord_windows(meta.get('chords') or [], start, length)
     if cw:
-        draw.append(dt(tf('chlabel', 'AI 추정 코드'), 24, 870, SOFT, reg))
+        draw.append(dt(tf('chlabel', 'AI 추정 코드'), 22, 752, SOFT, reg))
         for i, (a, b, c, n) in enumerate(cw[:40]):
             en = f":enable='between(t,{a},{b - 0.001})'"
-            draw.append(dt(tf(f'c{i}', c), 112, 908, 'white', bold, extra=en))
+            draw.append(dt(tf(f'c{i}', c), 96, 780, 'white', bold, extra=en))
             if n:
-                draw.append(dt(tf(f'n{i}', f'다음  {n}'), 28, 1040, SOFT, reg, extra=en))
+                draw.append(dt(tf(f'n{i}', f'다음  {n}'), 26, 890, SOFT, reg, extra=en))
     draw += [
-        dt(tf('wm1', 'YARR에서 1분 만에 만든 내 노래'), 32, 1170, 'white'),
-        dt(tf('wm2', '이 레시피로 내 버전 만들기 · YARR 앱'), 26, 1218, ORANGE, reg),
+        dt(tf('wm1', 'YARR에서 1분 만에 만든 내 노래'), 30, 950, 'white'),
+        dt(tf('wm2', '이 레시피로 내 버전 만들기 · YARR 앱'), 24, 994, ORANGE, reg),
     ]
-    v.append(f"[bg][spec]overlay=x=24:y=580,{','.join(draw)},format=yuv420p[v]")
+    v.append(f"[bg][spec]overlay=x=24:y=520,{','.join(draw)},format=yuv420p[v]")
     fade_out = max(0.0, length - 1.0)
     a = f"[a1]afade=t=in:d=0.5,afade=t=out:st={fade_out}:d=1.0,aresample=44100[a]"
     graph = ';'.join(v + [a])
