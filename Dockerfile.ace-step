@@ -1,24 +1,24 @@
 # YARR 보컬곡 GPU 서버 · ACE-Step 1.5 (MIT) · RunPod Serverless 용 (저장소 맨 위에서 빌드)
 # RunPod 의 Dockerfile path 에 Dockerfile.ace-step 을 넣어요. 우리 코드는 gpu/ace-step 폴더에 있어요
-# ACE-Step 은 CUDA 12.8 용 PyTorch 를 써요 → 엔드포인트의 Minimum CUDA version 을 12.8 로 두세요
-FROM nvidia/cuda:12.8.1-runtime-ubuntu22.04
+# 기본 이미지는 RunPod 빌더에서 검증된 것(SA3 서버와 같은 것)을 쓰고, ACE-Step 은 uv 가 만든 별도 환경(.venv · CUDA 12.8 PyTorch)에서 돌아가요
+# → 엔드포인트의 Minimum CUDA version 은 12.8
+FROM pytorch/pytorch:2.7.1-cuda12.6-cudnn9-runtime
 
-ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONUNBUFFERED=1 TOKENIZERS_PARALLELISM=false
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        software-properties-common build-essential git curl ffmpeg libsndfile1 \
-    && add-apt-repository ppa:deadsnakes/ppa && apt-get update \
-    && apt-get install -y --no-install-recommends python3.11 python3.11-dev python3.11-venv \
+ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONUNBUFFERED=1 TOKENIZERS_PARALLELISM=false \
+    UV_PYTHON_INSTALL_DIR=/opt/uv-python UV_LINK_MODE=copy
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential git curl ffmpeg libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
-# uv 설치 (다른 이미지에서 복사하는 방식은 RunPod 빌더에서 실패해서 설치 스크립트로)
+# uv (ACE-Step 이 쓰는 패키지 관리 도구)
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh \
     && uv --version
 
-# 검증한 커밋으로 고정 (2026-08-29) · 바꿀 때는 시험 후에 (RunPod 빌더가 ARG 를 못 받아서 직접 적어요)
+# 검증한 커밋으로 고정 (2026-08-29) · 바꿀 때는 시험 후에
 WORKDIR /app
 RUN git clone https://github.com/ACE-Step/ACE-Step-1.5 /app \
     && git checkout ca1e85fe9430179831e6bc6be790c332190a3866 \
-    && uv sync --frozen --no-dev --python python3.11 \
+    && uv python install 3.11 \
+    && uv sync --frozen --no-dev --python 3.11 \
     && uv pip install --python /app/.venv/bin/python "runpod>=1.7" \
     && rm -rf /root/.cache
 
