@@ -1,13 +1,15 @@
-# YARR 연주곡 GPU 서버 · RunPod Serverless 용 (저장소 맨 위에서 빌드하는 버전)
-# RunPod 의 Dockerfile path 에 Dockerfile.stable-audio 를 넣어요. 실제 코드는 gpu/stable-audio 폴더에 있어요
-# stable-audio-3 가 torch 2.7.1 을 쓰므로 같은 버전의 기본 이미지를 써요 (버전이 다르면 torchvision 오류)
+# YARR vocal GPU server - ACE-Step 1.5 (MIT) - RunPod Serverless (build from repo root)
+# RunPod Dockerfile path: Dockerfile.ace-step . Our handler lives in gpu/ace-step/
+# Same base image as the SA3 endpoint. ACE-Step runs in its own uv venv (CUDA 12.8 PyTorch) -> endpoint Minimum CUDA 12.8
+# Note: the RunPod builder rejected our earlier Dockerfile before any step ran (no logs). This version avoids
+# "curl | sh" and installs uv with pip instead.
 FROM pytorch/pytorch:2.7.1-cuda12.6-cudnn9-runtime
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential git ffmpeg libsndfile1 && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir uv
 WORKDIR /app
-COPY gpu/stable-audio/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
- && (pip uninstall -y torchvision || true)
-COPY gpu/stable-audio/handler.py .
-# 모델은 처음 켜질 때 Hugging Face 에서 받아요 (HF_TOKEN 필요). 네트워크 볼륨을 붙이면 다음부터는 캐시에서 읽어요
-ENV HF_HOME=/runpod-volume/hf PYTHONUNBUFFERED=1
-CMD ["python", "-u", "handler.py"]
+RUN git clone https://github.com/ACE-Step/ACE-Step-1.5 /app && git checkout ca1e85fe9430179831e6bc6be790c332190a3866
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python UV_LINK_MODE=copy
+RUN uv python install 3.11 && uv sync --frozen --no-dev --python 3.11 && uv pip install --python /app/.venv/bin/python "runpod>=1.7" && rm -rf /root/.cache
+COPY gpu/ace-step/handler.py /app/yarr_handler.py
+ENV ACE_CKPT=/tmp/ace_ckpt HF_HOME=/tmp/hf PYTHONUNBUFFERED=1 TOKENIZERS_PARALLELISM=false
+CMD ["/app/.venv/bin/python", "-u", "/app/yarr_handler.py"]
