@@ -10,7 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get install -y --no-install-recommends python3.11 python3.11-dev python3.11-venv \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:0.7 /uv /uvx /bin/
+# uv 설치 (다른 이미지에서 복사하는 방식은 RunPod 빌더에서 실패해서 설치 스크립트로)
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh \
+    && uv --version
 
 # 검증한 커밋으로 고정 (2026-08-29) · 바꿀 때는 시험 후에
 ARG ACE_COMMIT=ca1e85fe9430179831e6bc6be790c332190a3866
