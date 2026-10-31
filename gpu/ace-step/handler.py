@@ -143,6 +143,8 @@ def handler(job: dict) -> dict:
         task_type='text2music', caption=p['caption'], lyrics=p['lyrics'], instrumental=p['instrumental'],
         vocal_language=p['vocal_language'], bpm=p['bpm'], duration=float(p['duration']), seed=p['seed'],
         inference_steps=8, thinking=True,
+        # LM 이 곡 설명을 고쳐 쓰지 않게 (고쳐 쓰면 '여자 보컬' 같은 지시가 빠질 때가 있어요) · 구조 · 박자 계획은 그대로 LM 이 해요
+        use_cot_caption=False,
     )
     config = GenerationConfig(batch_size=1, use_random_seed=p['seed'] < 0,
                               seeds=None if p['seed'] < 0 else [p['seed']], audio_format='wav')
