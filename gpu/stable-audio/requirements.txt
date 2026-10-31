@@ -1,0 +1,5 @@
+runpod>=1.7
+numpy
+soundfile
+# Stable Audio 3 공식 코드 (첫 시험 때 동작 확인한 커밋으로 고정하세요: ...stable-audio-3@<커밋>)
+git+https://github.com/Stability-AI/stable-audio-3
