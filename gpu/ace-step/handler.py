@@ -7,6 +7,10 @@
   GET  https://api.runpod.ai/v2/<엔드포인트 id>/status/<id>  →  {"status": "COMPLETED", "output": {"audio_b64": "<mp3 base64>", ...}}
 결과는 base64 mp3 로 돌려주고, 저장소에 올리는 건 서버 함수가 해요 (이 서버에는 Supabase 키를 두지 않아요).
 
+커버(직접 찍기 실험): {"input": {..., "src_audio_b64": "<mp3/wav base64 · 8MB 이하>", "cover_strength": 0.55}}
+  → ACE-Step 의 cover 작업: 가이드 음원의 멜로디 · 리듬 · 코드 구조를 따라 caption · lyrics 대로 새로 만들어요.
+     cover_strength 1.0 = 구조를 꽉 따름 · 0.5 = 반반 · 0.2 = 느슨하게 (곡 길이는 가이드 길이를 따라요)
+
 환경 변수 (RunPod → 엔드포인트)
   HF_TOKEN            Hugging Face 토큰 (Secret 으로 · 공개 모델이라 없어도 되지만 받기가 빨라요)
   ACE_DIT             기본 acestep-v15-turbo (8단계 · 빠름)
@@ -118,8 +122,19 @@ def clean_input(inp: dict) -> dict:
     bpm = int(bpm) if isinstance(bpm, (int, float)) and 40 <= bpm <= 220 else None
     seed = inp.get('seed')
     seed = int(seed) if isinstance(seed, (int, float)) and seed >= 0 else -1
+    src = inp.get('src_audio_b64')
+    src_bytes = None
+    if src:
+        try:
+            src_bytes = base64.b64decode(str(src), validate=False)
+        except Exception as e:  # noqa: BLE001
+            raise ValueError(f'src_audio_b64 를 읽지 못했어요: {e}')
+        if not 1000 <= len(src_bytes) <= 8 * 1024 * 1024:
+            raise ValueError('src_audio 는 1KB~8MB')
+    strength = inp.get('cover_strength')
+    strength = float(strength) if isinstance(strength, (int, float)) and 0.0 <= strength <= 1.0 else 0.55
     return {'caption': caption, 'lyrics': lyrics, 'instrumental': instrumental, 'duration': duration,
-            'vocal_language': lang, 'bpm': bpm, 'seed': seed}
+            'vocal_language': lang, 'bpm': bpm, 'seed': seed, 'src_bytes': src_bytes, 'cover_strength': strength}
 
 
 def encode_mp3(path: str, kbps: int = MP3_KBPS) -> bytes:
@@ -137,27 +152,52 @@ def handler(job: dict) -> dict:
     t0 = time.time()
     p = clean_input(job.get('input'))
     dit, llm = load_models()
-    from acestep.inference import GenerationConfig, GenerationParams, generate_music
+    from acestep.inference import GenerationConfig, GenerationParams
 
-    params = GenerationParams(
-        task_type='text2music', caption=p['caption'], lyrics=p['lyrics'], instrumental=p['instrumental'],
-        vocal_language=p['vocal_language'], bpm=p['bpm'], duration=float(p['duration']), seed=p['seed'],
-        inference_steps=8, thinking=True,
-        # LM 이 곡 설명을 고쳐 쓰지 않게 (고쳐 쓰면 '여자 보컬' 같은 지시가 빠질 때가 있어요) · 구조 · 박자 계획은 그대로 LM 이 해요
-        use_cot_caption=False,
-    )
+    cover = p['src_bytes'] is not None
+    src_dir = tempfile.mkdtemp() if cover else None
+    src_path = None
+    if cover:
+        src_path = os.path.join(src_dir, 'guide.wav' if p['src_bytes'][:4] == b'RIFF' else 'guide.mp3')
+        with open(src_path, 'wb') as f:
+            f.write(p['src_bytes'])
+    if cover:
+        # 커버: LM 대신 가이드 음원이 곡 구조(멜로디 · 리듬 · 코드)를 정해요
+        params = GenerationParams(
+            task_type='cover', src_audio=src_path, audio_cover_strength=p['cover_strength'],
+            caption=p['caption'], lyrics=p['lyrics'], instrumental=p['instrumental'],
+            vocal_language=p['vocal_language'], bpm=p['bpm'], seed=p['seed'], inference_steps=8,
+            thinking=False, use_cot_caption=False,
+        )
+    else:
+        params = GenerationParams(
+            task_type='text2music', caption=p['caption'], lyrics=p['lyrics'], instrumental=p['instrumental'],
+            vocal_language=p['vocal_language'], bpm=p['bpm'], duration=float(p['duration']), seed=p['seed'],
+            inference_steps=8, thinking=True,
+            # LM 이 곡 설명을 고쳐 쓰지 않게 (고쳐 쓰면 '여자 보컬' 같은 지시가 빠질 때가 있어요) · 구조 · 박자 계획은 그대로 LM 이 해요
+            use_cot_caption=False,
+        )
     config = GenerationConfig(batch_size=1, use_random_seed=p['seed'] < 0,
                               seeds=None if p['seed'] < 0 else [p['seed']], audio_format='wav')
-    with tempfile.TemporaryDirectory() as out:
-        result = generate_music(dit, llm, params, config, save_dir=out)
-        if not result.success or not result.audios:
-            raise RuntimeError(f'만들기 실패: {result.error or result.status_message}')
-        a = result.audios[0]
-        data = encode_mp3(a['path'])
-        seed = (a.get('params') or {}).get('seed')
-        sr = a.get('sample_rate') or 48000
-        t = a.get('tensor')
-        seconds = round(t.shape[-1] / sr, 1) if t is not None else p['duration']
+    try:
+        with tempfile.TemporaryDirectory() as out:
+            return _run(dit, llm, params, config, out, p, t0, cover)
+    finally:
+        if src_dir:
+            shutil.rmtree(src_dir, ignore_errors=True)
+
+
+def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) -> dict:
+    from acestep.inference import generate_music
+    result = generate_music(dit, llm, params, config, save_dir=out)
+    if not result.success or not result.audios:
+        raise RuntimeError(f'만들기 실패: {result.error or result.status_message}')
+    a = result.audios[0]
+    data = encode_mp3(a['path'])
+    seed = (a.get('params') or {}).get('seed')
+    sr = a.get('sample_rate') or 48000
+    t = a.get('tensor')
+    seconds = round(t.shape[-1] / sr, 1) if t is not None else p['duration']
     return {
         'audio_b64': base64.b64encode(data).decode('ascii'),
         'format': 'mp3',
@@ -166,6 +206,8 @@ def handler(job: dict) -> dict:
         'seed': seed,
         'took': round(time.time() - t0, 1),
         'model': f'ace-step-1.5:{DIT}+{LM}',
+        'task': 'cover' if cover else 'text2music',
+        'cover_strength': p['cover_strength'] if cover else None,
     }
 
 
