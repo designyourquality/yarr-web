@@ -7,7 +7,7 @@
 
 환경 변수 (RunPod → 엔드포인트 → Environment Variables / Secrets)
   HF_TOKEN       Hugging Face 토큰 (stabilityai/stable-audio-3-medium 이용 동의 후 발급 · 채팅에 붙여 넣지 마세요)
-  HF_HOME        모델 캐시 위치 (기본 /runpod-volume/hf · 네트워크 볼륨을 붙이면 다음 시작부터 다시 받지 않아요)
+  HF_HOME        모델 캐시 위치 (지금 /tmp/hf · RunPod Cached model 에 stabilityai/stable-audio-3-medium 을 넣으면 그걸 연결해 써요)
   SA3_VARIANT    기본 medium
   MAX_SECONDS    한 곡 최대 길이 (기본 200초)
   MP3_KBPS       기본 192
@@ -24,14 +24,51 @@ MAX_SECONDS = int(os.environ.get('MAX_SECONDS', '200'))
 MP3_KBPS = int(os.environ.get('MP3_KBPS', '192'))
 VARIANT = os.environ.get('SA3_VARIANT', 'medium')
 _MODEL = None
+# RunPod 엔드포인트의 'Cached model' 에 모델을 넣으면 이 폴더에 미리 받아 둬요 (읽기 전용일 수 있어요)
+RUNPOD_HF_CACHE = os.environ.get('RUNPOD_HF_CACHE', '/runpod-volume/huggingface-cache/hub')
+
+
+def link_cached_models() -> list[str]:
+    """RunPod 가 미리 받아 둔 모델을 우리 캐시(HF_HOME/hub)에 연결해요 → 처음 켜질 때 10GB 를 다시 받지 않아요.
+    연결만 하고 쓰지는 않아서 읽기 전용이어도 괜찮아요. 함께 쓰는 T5Gemma 같은 작은 모델은 평소처럼 받아요."""
+    linked = []
+    if not os.path.isdir(RUNPOD_HF_CACHE):
+        return linked
+    hub = os.path.join(os.environ.get('HF_HOME') or os.path.expanduser('~/.cache/huggingface'), 'hub')
+    os.makedirs(hub, exist_ok=True)
+    for name in os.listdir(RUNPOD_HF_CACHE):
+        src, dst = os.path.join(RUNPOD_HF_CACHE, name), os.path.join(hub, name)
+        if name.startswith('models--') and os.path.isdir(src) and not os.path.exists(dst):
+            try:
+                os.symlink(src, dst, target_is_directory=True)
+                linked.append(name)
+            except OSError as e:
+                print(f'캐시 연결 실패 {name}: {e}', flush=True)
+    return linked
 
 
 def load_model():
     """처음 한 번만 불러요 (같은 작업자는 다음 요청부터 바로 만들어요)"""
     global _MODEL
     if _MODEL is None:
+        linked = link_cached_models()
+        if linked:
+            print(f'미리 받아 둔 모델 사용: {", ".join(linked)}', flush=True)
         from stable_audio_3 import StableAudioModel   # pip: git+https://github.com/Stability-AI/stable-audio-3
-        _MODEL = StableAudioModel.from_pretrained(VARIANT)
+        try:
+            _MODEL = StableAudioModel.from_pretrained(VARIANT)
+        except Exception as e:
+            if not linked:
+                raise
+            # 미리 받아 둔 모델로 안 되면(읽기 전용 · 파일 빠짐) 연결을 끊고 평소처럼 받아요
+            print(f'미리 받아 둔 모델로 불러오기 실패 → 새로 받아요: {e}', flush=True)
+            hub = os.path.join(os.environ.get('HF_HOME') or os.path.expanduser('~/.cache/huggingface'), 'hub')
+            for name in linked:
+                try:
+                    os.unlink(os.path.join(hub, name))
+                except OSError:
+                    pass
+            _MODEL = StableAudioModel.from_pretrained(VARIANT)
     return _MODEL
 
 
