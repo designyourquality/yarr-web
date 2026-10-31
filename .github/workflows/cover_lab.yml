@@ -1,0 +1,37 @@
+# YARR 커버 실험 (직접 찍기): 가이드 음원(C-G-Am-F + 도트 멜로디)으로 ACE-Step 커버 6곡 만들기
+# GPU 비용이 드는 실행이라 사람이 직접 눌러요 (예약 실행 없음)
+# 필요: Settings → Secrets and variables → Actions → RUNPOD_API_KEY
+# 결과: 실행 화면 아래 Artifacts 'cover-lab' 내려받기 (guide.mp3 + 6곡 + results.json)
+name: YARR 커버 실험
+on:
+  workflow_dispatch:
+    inputs:
+      strengths:
+        description: '커버 강도 (쉼표로)'
+        default: '0.35,0.55,0.75'
+      seconds:
+        description: '곡 길이 (초)'
+        default: '90'
+jobs:
+  lab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+      LAB_STRENGTHS: ${{ inputs.strengths }}
+      LAB_SECONDS: ${{ inputs.seconds }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q 'numpy>=1.26'
+      - run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
+      - name: 6곡 만들기
+        run: python worker/cover_lab.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cover-lab
+          path: cover_lab_out/
+          retention-days: 7
