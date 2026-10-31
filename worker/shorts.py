@@ -68,8 +68,9 @@ def duration(path: str) -> float:
         return 0.0
 
 
-def best_start(path: str, length: float = SECONDS) -> float:
-    """가장 꽉 찬(소리가 큰) 구간의 시작 초. 앞 10% · 끝 5초는 건너뛰어요 (인트로 · 페이드아웃)"""
+def best_start(path: str, length: float = SECONDS, vocal: bool = False) -> float:
+    """하이라이트 15초의 시작 초: 소리 에너지가 가장 큰 15초.
+    보컬곡은 후렴이 보통 나오는 곳(전체의 30~65%)에서 먼저 찾고, 연주곡은 앞 10% · 끝 5초만 빼고 전체에서 찾아요."""
     from chords import decode, SR
     x = decode(path)
     if len(x) < SR * (length + 2):
@@ -77,13 +78,20 @@ def best_start(path: str, length: float = SECONDS) -> float:
     sec = np.sqrt(np.add.reduceat(x * x, np.arange(0, len(x), SR)) / SR)
     win = int(length)
     total = len(sec)
-    lo = max(0, int(total * 0.1))
-    hi = max(lo, total - win - 5)
-    if hi <= lo:
-        return 0.0
     sums = np.convolve(sec, np.ones(win), mode='valid')
-    i = lo + int(np.argmax(sums[lo:hi + 1]))
-    return float(i)
+
+    def pick(lo: int, hi: int) -> int | None:
+        hi = min(hi, len(sums) - 1)
+        if hi < lo:
+            return None
+        return lo + int(np.argmax(sums[lo:hi + 1]))
+
+    i = None
+    if vocal:
+        i = pick(int(total * 0.30), int(total * 0.65))
+    if i is None:
+        i = pick(max(0, int(total * 0.1)), total - win - 5)
+    return float(i or 0)
 
 
 def _esc(path: str) -> str:
@@ -117,7 +125,7 @@ def render(src: str, out: str, meta: dict, start: float | None = None, length: f
         raise RuntimeError('오디오 길이를 읽지 못했어요')
     length = min(length, max(3.0, dur))
     if start is None:
-        start = best_start(src, length)
+        start = best_start(src, length, bool(meta.get('vocal')))
     start = max(0.0, min(float(start), max(0.0, dur - length)))
     bold, reg = _esc(font_path(True)), _esc(font_path(False))
     tmp = tempfile.mkdtemp(prefix='short_')
@@ -171,8 +179,8 @@ def render(src: str, out: str, meta: dict, start: float | None = None, length: f
         dt(tf('wm2', '이 레시피로 내 버전 만들기 · YARR 앱'), 26, 1218, ORANGE, reg),
     ]
     v.append(f"[bg][spec]overlay=x=24:y=580,{','.join(draw)},format=yuv420p[v]")
-    fade_out = max(0.0, length - 1.5)
-    a = f"[a1]afade=t=in:d=0.4,afade=t=out:st={fade_out}:d=1.5,aresample=44100[a]"
+    fade_out = max(0.0, length - 1.0)
+    a = f"[a1]afade=t=in:d=0.5,afade=t=out:st={fade_out}:d=1.0,aresample=44100[a]"
     graph = ';'.join(v + [a])
     cmd = ['ffmpeg', '-v', 'error', '-y', '-ss', f'{start:.2f}', '-t', f'{length:.2f}', '-i', src,
            '-filter_complex', graph, '-map', '[v]', '-map', '[a]',
