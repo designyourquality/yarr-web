@@ -44,6 +44,9 @@ import time
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from chords import analyze as chord_analyze  # noqa: E402  코드 타임라인 · 조성 (040 SQL)
+
 TARGET_I, TARGET_TP, TARGET_LRA = -14.0, -1.0, 11.0
 LIMIT_DB = -2.0           # 리미터 상한 (dBFS) · AAC 로 바꿀 때 생기는 피크 여유
 BATCH = 10
@@ -675,12 +678,20 @@ def process(sb, t: dict, known: list[dict], lyrics_db: list[dict] | None = None)
             flags = text_flags(t.get('title') or '', t.get('prompt_recipe') or '', t.get('lyrics') or '')[2]
             if flags:
                 row['review_flags'] = flags
+            # 코드 타임라인 · 조성: 공개될 음원(고른 구간 · 음량 맞춘 파일) 기준 · 실패해도 검수는 계속
+            try:
+                ch = chord_analyze(out)
+                row.update({'chords': ch, 'musical_key': ch.get('key') or None})
+            except Exception as e:
+                print(f'    코드 분석 실패: {str(e)[:120]}', flush=True)
         except Exception as e:  # 실패해도 관리자가 볼 수 있게 기록하고 다음 곡으로
             row = {'inspected_at': now, 'inspection_note': f'⚠ 자동 검수 실패: {str(e)[:300]} · 관리자가 직접 확인해 주세요'}
         try:
             sb.table('tracks').update(row).eq('id', t['id']).execute()
         except Exception:
             row.pop('review_flags', None)   # 016 SQL 전
+            row.pop('chords', None)         # 040 SQL 전
+            row.pop('musical_key', None)
             sb.table('tracks').update(row).eq('id', t['id']).execute()
         if verdict and verdict[0] != 'HOLD' and os.environ.get('AUTO_DECIDE', '1') != '0':
             sb.rpc('auto_decide_track', {'p_track_id': t['id'], 'p_approve': verdict[0] == 'APPROVE',
@@ -710,6 +721,37 @@ def backfill(sb, known: list[dict], limit: int = 10) -> int:
                     n += 1
             except Exception as e:
                 print(f"  지문 채우기 실패 {r['title']}: {e}")
+    return n
+
+
+def _chord_rows(sb, limit: int = 500) -> list[dict]:
+    """코드 · 조성이 아직 없는 공개 곡 (040 SQL 전이면 빈 목록)"""
+    try:
+        return (sb.table('tracks').select('id,title,audio_url').eq('status', 'ACTIVE').is_('chords', 'null')
+                .like('audio_url', 'storage:uploads/%').order('publish_at', desc=True).limit(limit).execute().data) or []
+    except Exception:
+        return []
+
+
+def chord_backlog(sb) -> int:
+    return len(_chord_rows(sb))
+
+
+def chord_backfill(sb, limit: int = 60) -> int:
+    """이미 공개된 곡(YARR 오리지널 포함)에 코드 타임라인 · 조성 채우기 (곡당 몇 초)"""
+    n = 0
+    for r in _chord_rows(sb, limit):
+        with tempfile.TemporaryDirectory() as tmp:
+            try:
+                path = r['audio_url'][len('storage:uploads/'):]
+                src = os.path.join(tmp, 'a' + os.path.splitext(path)[1])
+                with open(src, 'wb') as f:
+                    f.write(sb.storage.from_('uploads').download(path))
+                ch = chord_analyze(src)
+                sb.table('tracks').update({'chords': ch, 'musical_key': ch.get('key') or None}).eq('id', r['id']).execute()
+                n += 1
+            except Exception as e:
+                print(f"  코드 채우기 실패 {r['title']}: {str(e)[:120]}")
     return n
 
 
@@ -836,6 +878,8 @@ def main():
             dup = best_duplicate(facts['fp'], 'local', '', known) if facts['fp'] else (0.0, None)
             v = decide(t, facts, dup, trusted=False, recent_copy_reject=False)
             row['자동 결정'] = {'결과': v[0], '반려 이유': v[1], '설명': v[2], '음원 지문': f"{len(facts['fp'])}개 값"}
+            ch = chord_analyze(out)
+            row['코드'] = {'조성': ch['key'], '처음 8개': [c['c'] for c in ch['chords'][:8]], '개수': len(ch['chords'])}
             print(json.dumps(row, ensure_ascii=False, indent=2))
         return
 
@@ -843,10 +887,11 @@ def main():
     todo = pending(sb)
     if a.count:
         redo = renorm_backlog(sb)
-        print(f'검수할 곡: {len(todo)}개 · 음량 다시 맞출 곡: {redo}개')
+        chords_left = chord_backlog(sb)
+        print(f'검수할 곡: {len(todo)}개 · 음량 다시 맞출 곡: {redo}개 · 코드 채울 곡: {chords_left}개')
         if os.environ.get('GITHUB_OUTPUT'):
             with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                f.write(f'pending={len(todo) + redo}\n')
+                f.write(f'pending={len(todo) + redo + chords_left}\n')
         return
     print(run(['ffmpeg', '-version']).stdout.splitlines()[0][:80], flush=True)
     known = known_fingerprints(sb)
@@ -868,6 +913,7 @@ def main():
             todo = [t for t in pending(sb) if t['id'] not in seen]   # 같은 곡을 두 번 돌지 않게
     print(f'지문 채움: {backfill(sb, known)}곡')
     print(f'음량 다시 맞춤: {renorm(sb, int(os.environ.get("RENORM_BATCH", "5")))}곡')
+    print(f'코드 · 조성 채움: {chord_backfill(sb, int(os.environ.get("CHORD_BATCH", "60")))}곡')
     cleanup(sb)
     print(f'완료: {done}곡')
 
