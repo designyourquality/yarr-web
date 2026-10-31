@@ -423,12 +423,24 @@ def fade_edges(src: str, length: float, dst: str, fade_out: float = 5.0) -> str:
     return dst if r.returncode == 0 and os.path.exists(dst) else src
 
 
+def trim_part(src: str, start: float | None, end: float | None, dst: str) -> str:
+    """YARR 스튜디오: 사용자가 고른 구간만 남겨요 (시작 ~ 끝 초). 값이 없거나 실패하면 원본 그대로"""
+    if start is None and end is None:
+        return src
+    s0 = max(0.0, float(start or 0))
+    cmd = ['ffmpeg', '-v', 'error', '-y', '-ss', f'{s0:.2f}', '-i', src]
+    if end is not None and float(end) > s0:
+        cmd += ['-t', f'{float(end) - s0:.2f}']
+    r = run(cmd + ['-vn', '-c:a', 'pcm_f32le', dst])
+    return dst if r.returncode == 0 and os.path.exists(dst) else src
+
+
 def inspect_file(src: str, tmp: str, use_acr: bool = True, fade: bool = False) -> tuple[dict, str, dict]:
     """(DB 에 적을 값, 변환 파일 경로, 자동 결정에 쓸 측정값). fade=True 면 앞뒤를 부드럽게 (YARR 오리지널)"""
     length = duration_sec(src)
     out = os.path.join(tmp, 'normalized.m4a')
     lv = normalize(fade_edges(src, length, os.path.join(tmp, 'faded.wav')) if fade else src, out)
-    clean, acr_note, acr_score = fingerprint(src, length, tmp) if use_acr else (True, '기존 곡 대조: 생략 (YARR 오리지널 · 운영사가 직접 생성)', 0)
+    clean, acr_note, acr_score = fingerprint(src, length, tmp) if use_acr else (True, '기존 곡 대조: 생략 (야르 안에서 생성한 연주곡)', 0)
     notes = [f"원본 {lv['before_i']:.1f} LUFS → 변환 {lv['after_i']:.1f} LUFS", acr_note]
     if length < MIN_PLAY_SEC:
         notes.append(f'⚠ {MIN_PLAY_SEC}초보다 짧아요 (재생이 집계되지 않아요)')
@@ -450,6 +462,11 @@ def inspect_file(src: str, tmp: str, use_acr: bool = True, fade: bool = False) -
 
 
 HOUSE_ID = '00000000-0000-0000-0000-0000000000a1'   # 'YARR Originals' (운영사가 Stable Audio 3 로 만든 곡)
+STUDIO_PLAN = 'YARR 스튜디오'   # 사용자가 야르 안에서 버튼으로 만든 연주곡 (서버가 프롬프트를 조립 · Stable Audio 3)
+
+
+def is_studio(t: dict) -> bool:
+    return (t.get('ai_plan') or '').startswith(STUDIO_PLAN)
 
 
 # ---------------------------------------------------------------- 보컬 오리지널: 가사 받아쓰기 (Whisper)
@@ -561,6 +578,9 @@ def decide(t: dict, facts: dict, dup: tuple[float, dict | None], trusted: bool, 
         if m < LYRIC_APPROVE:
             return 'HOLD', '', f'YARR 보컬 오리지널 · 가사가 일부만 들려요 (받아쓰기 일치 {m:.0%}) · 직접 들어 보고 판단해 주세요'
         return 'APPROVE', '', f'YARR 보컬 오리지널 (Lyria 3 Pro) · 기존 곡 대조 · 받아쓰기 일치 {m:.0%} · 중복 · 음량 검사 통과'
+    if is_studio(t) and not (t.get('lyrics') or '').strip() and not recent_copy_reject:
+        # 야르 스튜디오 연주곡: 프롬프트는 서버가 버튼 값으로만 조립(사용자 문장 없음) · Stable Audio 3 · 제목 · 중복 · 음량 검사 통과
+        return 'APPROVE', '', 'YARR 스튜디오 연주곡 (버튼 레시피 · Stable Audio 3) · YARR 중복 대조 · 제목 · 음량 검사 통과'
     if t.get('creator_id') == HOUSE_ID:
         # 운영사가 직접 만든 연주곡: 라이선스(Stable Audio 3 Community License)를 운영사가 확인했고 YARR 안 중복 · 음량 검사도 통과
         return 'APPROVE', '', 'YARR 오리지널 (운영사 생성 · Stable Audio 3) · YARR 중복 대조 · 음량 검사 통과'
@@ -587,7 +607,11 @@ def pending(sb) -> list[dict]:
                 .like('original_url', 'storage:uploads/%')
                 .order('created_at').limit(BATCH).execute().data) or []
     try:
-        return q('id,title,original_url,creator_id,ai_plan,prompt_recipe,lyrics')
+        return q('id,title,original_url,creator_id,ai_plan,prompt_recipe,lyrics,trim_start_sec,trim_end_sec')
+    except Exception:
+        pass
+    try:
+        return q('id,title,original_url,creator_id,ai_plan,prompt_recipe,lyrics')   # 031 SQL 전
     except Exception:
         return q('id,title,original_url,creator_id,ai_plan,prompt_recipe')   # 016 SQL 전
 
@@ -621,9 +645,12 @@ def process(sb, t: dict, known: list[dict], lyrics_db: list[dict] | None = None)
             with open(src, 'wb') as f:
                 f.write(sb.storage.from_('uploads').download(path))
             house = t.get('creator_id') == HOUSE_ID
+            studio = is_studio(t) and not (t.get('lyrics') or '').strip()
             vocal_house = house and bool((t.get('lyrics') or '').strip())
-            # 오리지널 연주곡은 기존 곡 대조를 건너뛰고, 보컬 오리지널(Lyria 3 Pro)은 멜로디가 기존 곡과 겹칠 수 있어 대조해요
-            row, out, facts = inspect_file(src, tmp, use_acr=not house or vocal_house, fade=house)
+            if studio:   # 사용자가 고른 구간만 남기고 (끝 5초 페이드아웃은 inspect_file 이 해요)
+                src = trim_part(src, t.get('trim_start_sec'), t.get('trim_end_sec'), os.path.join(tmp, 'trimmed.wav'))
+            # 오리지널 · 스튜디오 연주곡은 기존 곡 대조를 건너뛰고, 보컬 오리지널(Lyria 3 Pro)은 멜로디가 기존 곡과 겹칠 수 있어 대조해요
+            row, out, facts = inspect_file(src, tmp, use_acr=not (house or studio) or vocal_house, fade=house or studio)
             facts['lyrics_dup'] = lyrics_duplicate(t.get('lyrics') or '', t['id'], lyrics_db or [])
             if vocal_house:
                 heard = transcribe(out, lyric_language(t.get('lyrics') or ''))
@@ -690,10 +717,15 @@ RENORM_MARK = '[음량v2]'   # 이 표시가 없는 공개 곡은 새 방식(초
 
 
 def _renorm_rows(sb) -> list[dict]:
-    return (sb.table('tracks').select('id,title,creator_id,status,original_url,normalized_url,inspection_note,lufs_value')
-            .not_.is_('inspected_at', 'null').not_.is_('normalized_url', 'null')
-            .in_('status', ['ACTIVE', 'PENDING'])
-            .like('original_url', 'storage:uploads/%').order('created_at').limit(500).execute().data) or []
+    def q(cols):
+        return (sb.table('tracks').select(cols)
+                .not_.is_('inspected_at', 'null').not_.is_('normalized_url', 'null')
+                .in_('status', ['ACTIVE', 'PENDING'])
+                .like('original_url', 'storage:uploads/%').order('created_at').limit(500).execute().data) or []
+    try:
+        return q('id,title,creator_id,status,original_url,normalized_url,inspection_note,lufs_value,ai_plan,lyrics,trim_start_sec,trim_end_sec')
+    except Exception:   # 031 SQL 전
+        return q('id,title,creator_id,status,original_url,normalized_url,inspection_note,lufs_value')
 
 
 def _needs_renorm(r: dict) -> bool:
@@ -725,10 +757,13 @@ def renorm(sb, limit: int = 5) -> int:
                 src = os.path.join(tmp, 'original' + os.path.splitext(path)[1])
                 with open(src, 'wb') as f:
                     f.write(sb.storage.from_('uploads').download(path))
-                length = duration_sec(src)
                 house = r.get('creator_id') == HOUSE_ID
+                studio = is_studio(r) and not (r.get('lyrics') or '').strip()
+                if studio:   # 고른 구간은 다시 만들 때도 그대로
+                    src = trim_part(src, r.get('trim_start_sec'), r.get('trim_end_sec'), os.path.join(tmp, 'trimmed.wav'))
+                length = duration_sec(src)
                 out = os.path.join(tmp, 'normalized.m4a')
-                lv = normalize(fade_edges(src, length, os.path.join(tmp, 'faded.wav')) if house else src, out)
+                lv = normalize(fade_edges(src, length, os.path.join(tmp, 'faded.wav')) if house or studio else src, out)
                 with open(out, 'rb') as f:
                     sb.storage.from_('uploads').upload(norm, f.read(), {'content-type': 'audio/mp4', 'upsert': 'true'})
                 old = r.get('lufs_value')
