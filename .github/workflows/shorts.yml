@@ -1,0 +1,28 @@
+# YARR 쇼츠 영상 굽기 (043 SQL): 앱에서 [🎬 쇼츠 영상 만들기]를 누르면 서버가 이 워커를 바로 깨워요.
+# 내 곡의 하이라이트 15초를 720×1280 세로 MP4 로 만들어 비공개 저장소에 올리고, 24시간 지난 영상은 지워요.
+# 하루 한 번(새벽) 예약 실행은 만료 영상 정리용이에요.
+name: YARR 쇼츠 영상
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 18 * * *'   # 한국 시간 새벽 3:23
+concurrency:
+  group: yarr-shorts
+  cancel-in-progress: false
+jobs:
+  shorts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q 'supabase>=2.10,<3' 'numpy>=1.26'
+      - name: FFmpeg · 한글 글꼴
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg fonts-nanum
+      - name: 영상 굽기
+        run: python worker/shorts.py
