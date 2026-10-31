@@ -610,7 +610,7 @@ def pending(sb) -> list[dict]:
                 .like('original_url', 'storage:uploads/%')
                 .order('created_at').limit(BATCH).execute().data) or []
     try:
-        return q('id,title,original_url,creator_id,ai_plan,prompt_recipe,lyrics,trim_start_sec,trim_end_sec')
+        return q('id,title,original_url,creator_id,ai_plan,prompt_recipe,lyrics,trim_start_sec,trim_end_sec,bpm')
     except Exception:
         pass
     try:
@@ -680,7 +680,7 @@ def process(sb, t: dict, known: list[dict], lyrics_db: list[dict] | None = None)
                 row['review_flags'] = flags
             # 코드 타임라인 · 조성: 공개될 음원(고른 구간 · 음량 맞춘 파일) 기준 · 실패해도 검수는 계속
             try:
-                ch = chord_analyze(out)
+                ch = chord_analyze(out, t.get('bpm'))
                 row.update({'chords': ch, 'musical_key': ch.get('key') or None})
             except Exception as e:
                 print(f'    코드 분석 실패: {str(e)[:120]}', flush=True)
@@ -724,11 +724,20 @@ def backfill(sb, known: list[dict], limit: int = 10) -> int:
     return n
 
 
+CHORDS_V = '2'   # chords.py 분석 방식 번호: 이보다 옛 방식으로 뽑은 곡은 다시 분석해요
+
+
 def _chord_rows(sb, limit: int = 500) -> list[dict]:
-    """코드 · 조성이 아직 없는 공개 곡 (040 SQL 전이면 빈 목록)"""
-    try:
-        return (sb.table('tracks').select('id,title,audio_url').eq('status', 'ACTIVE').is_('chords', 'null')
+    """코드 · 조성이 아직 없거나 옛 방식(v1)으로 뽑은 공개 곡 (040 SQL 전이면 빈 목록)"""
+    def q(f):
+        return (f(sb.table('tracks').select('id,title,audio_url,bpm').eq('status', 'ACTIVE'))
                 .like('audio_url', 'storage:uploads/%').order('publish_at', desc=True).limit(limit).execute().data) or []
+    try:
+        rows = q(lambda x: x.is_('chords', 'null'))
+        if len(rows) < limit:
+            seen = {r['id'] for r in rows}
+            rows += [r for r in q(lambda x: x.not_.is_('chords', 'null').neq('chords->>v', CHORDS_V)) if r['id'] not in seen]
+        return rows[:limit]
     except Exception:
         return []
 
@@ -738,7 +747,7 @@ def chord_backlog(sb) -> int:
 
 
 def chord_backfill(sb, limit: int = 60) -> int:
-    """이미 공개된 곡(YARR 오리지널 포함)에 코드 타임라인 · 조성 채우기 (곡당 몇 초)"""
+    """이미 공개된 곡(YARR 오리지널 포함)에 코드 타임라인 · 조성 채우기 · 옛 방식은 다시 (곡당 몇 초)"""
     n = 0
     for r in _chord_rows(sb, limit):
         with tempfile.TemporaryDirectory() as tmp:
@@ -747,7 +756,7 @@ def chord_backfill(sb, limit: int = 60) -> int:
                 src = os.path.join(tmp, 'a' + os.path.splitext(path)[1])
                 with open(src, 'wb') as f:
                     f.write(sb.storage.from_('uploads').download(path))
-                ch = chord_analyze(src)
+                ch = chord_analyze(src, r.get('bpm'))
                 sb.table('tracks').update({'chords': ch, 'musical_key': ch.get('key') or None}).eq('id', r['id']).execute()
                 n += 1
             except Exception as e:
@@ -878,7 +887,7 @@ def main():
             dup = best_duplicate(facts['fp'], 'local', '', known) if facts['fp'] else (0.0, None)
             v = decide(t, facts, dup, trusted=False, recent_copy_reject=False)
             row['자동 결정'] = {'결과': v[0], '반려 이유': v[1], '설명': v[2], '음원 지문': f"{len(facts['fp'])}개 값"}
-            ch = chord_analyze(out)
+            ch = chord_analyze(out, None)
             row['코드'] = {'조성': ch['key'], '처음 8개': [c['c'] for c in ch['chords'][:8]], '개수': len(ch['chords'])}
             print(json.dumps(row, ensure_ascii=False, indent=2))
         return

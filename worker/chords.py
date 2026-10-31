@@ -5,7 +5,8 @@
   2) 장 · 단 3화음 24개 + '코드 없음'과 비교한 뒤
   3) 코드가 자주 바뀌지 않게 비터비로 다듬어서
   [{"t": 시작 초, "c": "Am"}, …] 와 "C Major" 같은 조성을 돌려줘요.
-AI 추정값이라 앱에는 'AI 추정 코드'로 보여 줘요 (정확도는 섞인 음원 기준 대략 60~75%).
+AI 추정값이라 앱에는 'AI 추정 코드'로 보여 줘요.
+v2: 봉우리만 세기 · 패드 덜어내기 · 베이스 가중치 2배 · 바뀜 문턱 낮춤 · BPM 기준 최소 길이.
 """
 from __future__ import annotations
 
@@ -20,6 +21,14 @@ NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 # Krumhansl–Kessler 조성 프로필
 _MAJ = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
 _MIN = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
+
+# 민감도 (v2 · 2026-10-31 · 합성 시험곡 4개 100%: 드럼 · 잔향 · 계속 깔린 패드 · 움직이는 보컬)
+PEAK = True     # 잡음(드럼 · 숨소리) 대신 스펙트럼 '봉우리'만 음으로 셈 ← 패드 · 잡음에 코드가 묻히던 문제의 핵심
+PEAKX = 4.0     # 봉우리로 칠 크기: 그 순간 중앙값의 몇 배 이상
+SLOW = 0.5      # 16초 이동 평균의 이만큼을 빼서, 계속 깔리는 패드 · 보컬 롱톤을 덜어냄
+SCALE = 12      # 코드 판정 선명도
+STAY = 0.85     # 같은 코드에 머무르려는 정도 (낮을수록 잘 바뀜 · v1 0.92)
+BASSW = 0.3     # 베이스(40~260Hz)가 근음이면 가산점 (v1 0.15 → 2배)
 
 
 def decode(path: str) -> np.ndarray:
@@ -46,12 +55,21 @@ def chroma(x: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     bass = (freqs >= 40) & (freqs <= 260)
     pcb = np.full(freqs.shape, -1)
     pcb[bass] = np.round(69 + 12 * np.log2(freqs[bass] / 440)).astype(int) % 12
-    lm = np.log1p(mag * 50)
+    lm = np.log1p(mag * 50)   # 에너지(조용한 구간 판정)용
+    # 잡음(드럼 · 숨소리) 대신 '음'만: 양옆보다 큰 봉우리이면서 그 프레임 중앙값의 PEAKX 배 이상인 칸만 세요
+    if PEAK:
+        pk = (mag[:, 1:-1] > mag[:, :-2]) & (mag[:, 1:-1] >= mag[:, 2:])
+        pk = np.pad(pk, ((0, 0), (1, 1)))
+        med = np.median(mag[:, ok], axis=1, keepdims=True) + 1e-9
+        pk &= mag > PEAKX * med
+        hm = np.where(pk, np.sqrt(mag), 0.0)
+    else:
+        hm = lm
     c = np.zeros((12, n))
     b = np.zeros((12, n))
     for k in range(12):
-        c[k] = lm[:, pc == k].sum(axis=1)
-        b[k] = lm[:, pcb == k].sum(axis=1)
+        c[k] = hm[:, pc == k].sum(axis=1)
+        b[k] = hm[:, pcb == k].sum(axis=1)
     energy = lm[:, ok].sum(axis=1)
     return c, b, energy
 
@@ -119,37 +137,43 @@ def estimate_key(c: np.ndarray, chords: list[list] | None = None, total: float =
     return f'{NAMES[root]} {mode}'
 
 
-def analyze(path: str) -> dict:
-    """{'key': 'C Major', 'chords': [{'t': 0.0, 'c': 'C'}, …], 'v': 1}"""
+def analyze(path: str, bpm: float | None = None) -> dict:
+    """{'v': 2, 'key': 'C Major', 'chords': [{'t': 0.0, 'c': 'C'}, …]}
+    bpm 을 알면 1박보다 짧은 코드는 앞 코드에 붙여요 (모르면 0.8초)"""
     x = decode(path)
     c, b, energy = chroma(x)
+    n = c.shape[1]
+    step = HOP / SR
+    k = max(1, int(16 / step))
+    ker = np.ones(k) / k
+    slow = np.vstack([np.convolve(c[i], ker, mode='same') for i in range(12)])
+    c2 = np.maximum(c - SLOW * slow, 0) + 1e-9
     tpl, names = _templates()
-    feat = c / (np.linalg.norm(c, axis=0, keepdims=True) + 1e-9)
+    feat = c2 / (np.linalg.norm(c2, axis=0, keepdims=True) + 1e-9)
     bassn = b / (np.linalg.norm(b, axis=0, keepdims=True) + 1e-9)
-    sim = tpl @ feat                                     # (24, n) 코사인 유사도
+    sim = tpl @ feat
     root = np.repeat(np.arange(12), 2)
-    sim = sim + 0.15 * bassn[root, :]                    # 베이스가 근음이면 가산점
+    sim = sim + BASSW * bassn[root, :]
     quiet = energy < np.percentile(energy, 5) * 0.6 + 1e-9
-    n_score = np.where(quiet, 1.0, 0.55)[None, :]        # '코드 없음' (조용한 구간)
+    n_score = np.where(quiet, 1.0 + BASSW, 0.55)[None, :]
     allsim = np.vstack([sim, n_score])
-    logp = 12 * allsim
+    logp = SCALE * allsim
     logp -= logp.max(axis=0, keepdims=True)
     logp -= np.log(np.exp(logp).sum(axis=0, keepdims=True))
-    path = viterbi(logp)
+    path = viterbi(logp, STAY)
     labels = names + ['N']
-    step = HOP / SR
-    segs: list[list] = []
+    segs = []
     for i, p in enumerate(path):
         if segs and segs[-1][1] == labels[p]:
             continue
         segs.append([i * step, labels[p]])
-    # 0.8초보다 짧은 코드는 앞 코드에 붙여요 (읽기 쉽게)
-    total = len(path) * step
-    out: list[list] = []
+    total = n * step
+    minlen = (60.0 / bpm) if bpm and 40 <= bpm <= 220 else 0.8
+    out = []
     for j, (t, lab) in enumerate(segs):
         end = segs[j + 1][0] if j + 1 < len(segs) else total
-        if out and (end - t < 0.8 or out[-1][1] == lab):
+        if out and (end - t < minlen or out[-1][1] == lab):
             continue
         out.append([t, lab])
     chords = [{'t': round(t, 1), 'c': lab} for t, lab in out][:600]
-    return {'v': 1, 'key': estimate_key(c, [x for x in out if x[1] != 'N'], total), 'chords': chords}
+    return {'v': 2, 'key': estimate_key(c, [x for x in out if x[1] != 'N'], total), 'chords': chords}
