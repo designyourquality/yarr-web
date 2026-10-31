@@ -14,11 +14,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh \
     && uv --version
 
-# 검증한 커밋으로 고정 (2026-08-29) · 바꿀 때는 시험 후에
-ARG ACE_COMMIT=ca1e85fe9430179831e6bc6be790c332190a3866
+# 검증한 커밋으로 고정 (2026-08-29) · 바꿀 때는 시험 후에 (RunPod 빌더가 ARG 를 못 받아서 직접 적어요)
 WORKDIR /app
 RUN git clone https://github.com/ACE-Step/ACE-Step-1.5 /app \
-    && git checkout ${ACE_COMMIT} \
+    && git checkout ca1e85fe9430179831e6bc6be790c332190a3866 \
     && uv sync --frozen --no-dev --python python3.11 \
     && uv pip install --python /app/.venv/bin/python "runpod>=1.7" \
     && rm -rf /root/.cache
