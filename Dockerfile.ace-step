@@ -11,5 +11,6 @@ RUN git clone https://github.com/ACE-Step/ACE-Step-1.5 /app && git checkout ca1e
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python UV_LINK_MODE=copy
 RUN uv python install 3.11 && uv sync --frozen --no-dev --python 3.11 && uv pip install --python /app/.venv/bin/python "runpod>=1.7" && rm -rf /root/.cache
 COPY gpu/ace-step/handler.py /app/yarr_handler.py
+COPY worker/guide.py /app/yarr_guide.py
 ENV ACE_CKPT=/tmp/ace_ckpt HF_HOME=/tmp/hf PYTHONUNBUFFERED=1 TOKENIZERS_PARALLELISM=false
 CMD ["/app/.venv/bin/python", "-u", "/app/yarr_handler.py"]
