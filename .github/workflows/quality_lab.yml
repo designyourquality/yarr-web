@@ -9,6 +9,9 @@ on:
       seconds:
         description: '글로 만드는 곡 길이 (초)'
         default: '120'
+      only:
+        description: '어떤 곡만 (all · t 글로 만든 곡 · c 직접 찍기)'
+        default: 'all'
 jobs:
   lab:
     runs-on: ubuntu-24.04
@@ -16,6 +19,7 @@ jobs:
     env:
       RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
       LAB_SECONDS: ${{ inputs.seconds }}
+      LAB_ONLY: ${{ inputs.only }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
