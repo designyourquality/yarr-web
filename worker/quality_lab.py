@@ -33,6 +33,7 @@ KEY = os.environ.get('RUNPOD_API_KEY', '')
 SECONDS = int(os.environ.get('LAB_SECONDS', '120'))
 OUT = os.environ.get('LAB_OUT', 'quality_lab_out')
 SEED = 1031
+ONLY = os.environ.get('LAB_ONLY', 'all').strip()   # all · t (글로 만든 곡만) · c (직접 찍기만)
 
 TEXTURE = 'natural human vocal, breathy, acoustic warmth, studio condenser mic'
 # 2026-11-01 '오후3시' 와 같은 곡 설명 · 가사 (모델에 보낸 모양 그대로)
@@ -96,7 +97,7 @@ def main() -> None:
     if not KEY:
         sys.exit('RUNPOD_API_KEY 가 없어요')
     os.makedirs(OUT, exist_ok=True)
-    jobs = plan()
+    jobs = [j for j in plan() if ONLY in ('', 'all') or j['key'].startswith(ONLY)]
     letters = [chr(ord('A') + i) for i in range(len(jobs))]
     random.Random(int(time.time())).shuffle(letters)   # 블라인드: 실행마다 글자가 섞여요
     for j, letter in zip(jobs, letters):
