@@ -140,7 +140,15 @@ def render_bars(guide: dict, melody_gain: float = 1.0, drums: bool = True, seed:
     return buf
 
 
-def render(guide: dict, seconds: float, melody_gain: float = 1.0) -> np.ndarray:
+def _lowpass(x: np.ndarray, hz: float = 2000.0, taps: int = 255) -> np.ndarray:
+    """저역 통과 (윈도 싱크 FIR · numpy 만) → 벽 너머 피아노처럼 부드럽게, 2kHz 위 전자음 성분을 깎아요"""
+    t = np.arange(taps) - (taps - 1) / 2
+    h = np.sinc(2 * hz / SR * t) * np.hamming(taps)
+    h /= h.sum()
+    return np.convolve(x, h, mode='same')
+
+
+def render(guide: dict, seconds: float, melody_gain: float = 1.0, melody_where: str = 'all', lowpass: bool = False) -> np.ndarray:
     """곡 길이만큼 반복: 인트로(코드만) → 멜로디 반복 · 16마디마다 4마디 간주(멜로디 작게) → 끝 페이드
     melody_gain: 보컬곡은 0.7 (멜로디 신스가 너무 크면 가사 대신 '뚜루루' 로 따라 불러요 · 2026-11-01 실험)"""
     drums = guide.get('drums', True) is not False
@@ -153,12 +161,18 @@ def render(guide: dict, seconds: float, melody_gain: float = 1.0) -> np.ndarray:
     i = 0
     pos = 0
     while pos < total:
-        part = bare if i == 0 else (soft if i % 4 == 0 else full)   # 4바퀴(16마디)마다 한 바퀴는 간주
+        if melody_where == 'gaps':
+            # 보컬곡용: 멜로디는 전주(첫 바퀴) · 간주(4바퀴마다)에만, 노래 구간은 코드만 → 보컬이 신스 질감을 따라 하지 않게
+            part = full if i == 0 or i % 4 == 0 else bare
+        else:
+            part = bare if i == 0 else (soft if i % 4 == 0 else full)   # 4바퀴(16마디)마다 한 바퀴는 간주
         _add(out, part, pos)
         pos += loop_len
         i += 1
     fade = min(total, int(4 * SR))
     out[-fade:] *= np.linspace(1, 0, fade)
+    if lowpass:
+        out = _lowpass(out)
     peak = np.max(np.abs(out)) or 1.0
     return out / peak * 0.85
 
