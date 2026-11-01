@@ -10,6 +10,11 @@
 커버(직접 찍기 실험): {"input": {..., "src_audio_b64": "<mp3/wav base64 · 8MB 이하>", "cover_strength": 0.55}}
   → ACE-Step 의 cover 작업: 가이드 음원의 멜로디 · 리듬 · 코드 구조를 따라 caption · lyrics 대로 새로 만들어요.
      cover_strength 1.0 = 구조를 꽉 따름 · 0.5 = 반반 · 0.2 = 느슨하게 (곡 길이는 가이드 길이를 따라요)
+직접 찍기(앱): {"input": {..., "guide": {"bpm": 100, "key": "C", "chords": ["C","G","Am","F"],
+                                        "notes": [{"beat": 0, "pitch": 0, "len": 1}, ...], "drums": true},
+                         "cover_strength": 0.55}}
+  → 이 서버가 음표 · 코드로 가이드 음원을 바로 합성해서(yarr_guide.py · numpy) 커버로 만들어요.
+     보컬곡은 가이드 멜로디 소리를 30% 줄여요 (크면 가사 대신 '뚜루루' 로 따라 불러요 · 2026-11-01 실험)
 
 환경 변수 (RunPod → 엔드포인트)
   HF_TOKEN            Hugging Face 토큰 (Secret 으로 · 공개 모델이라 없어도 되지만 받기가 빨라요)
@@ -131,10 +136,17 @@ def clean_input(inp: dict) -> dict:
             raise ValueError(f'src_audio_b64 를 읽지 못했어요: {e}')
         if not 1000 <= len(src_bytes) <= 8 * 1024 * 1024:
             raise ValueError('src_audio 는 1KB~8MB')
+    guide = None
+    if inp.get('guide') is not None and not src_bytes:
+        import yarr_guide
+        guide = yarr_guide.check(inp.get('guide'))
+        x = yarr_guide.render(guide, duration, melody_gain=1.0 if instrumental else 0.7)
+        src_bytes = yarr_guide.to_wav_bytes(x)
     strength = inp.get('cover_strength')
     strength = float(strength) if isinstance(strength, (int, float)) and 0.0 <= strength <= 1.0 else 0.55
     return {'caption': caption, 'lyrics': lyrics, 'instrumental': instrumental, 'duration': duration,
-            'vocal_language': lang, 'bpm': bpm, 'seed': seed, 'src_bytes': src_bytes, 'cover_strength': strength}
+            'vocal_language': lang, 'bpm': bpm, 'seed': seed, 'src_bytes': src_bytes, 'cover_strength': strength,
+            'guide': guide is not None}
 
 
 def encode_mp3(path: str, kbps: int = MP3_KBPS) -> bytes:
@@ -208,6 +220,7 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         'model': f'ace-step-1.5:{DIT}+{LM}',
         'task': 'cover' if cover else 'text2music',
         'cover_strength': p['cover_strength'] if cover else None,
+        'guide': p.get('guide', False),
     }
 
 
