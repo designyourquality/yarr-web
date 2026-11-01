@@ -33,7 +33,7 @@ KEY = os.environ.get('RUNPOD_API_KEY', '')
 SECONDS = int(os.environ.get('LAB_SECONDS', '120'))
 OUT = os.environ.get('LAB_OUT', 'quality_lab_out')
 SEED = 1031
-ONLY = os.environ.get('LAB_ONLY', 'all').strip()   # all · t (글로 만든 곡만) · c (직접 찍기만)
+ONLY = os.environ.get('LAB_ONLY', 'all').strip()   # all · t (글로 만든 곡만) · c (직접 찍기만) · v (목소리 노브 7곡)
 
 TEXTURE = 'natural human vocal, breathy, acoustic warmth, studio condenser mic'
 # 2026-11-01 '오후3시' 와 같은 곡 설명 · 가사 (모델에 보낸 모양 그대로)
@@ -85,6 +85,54 @@ def plan() -> list[dict]:
     ]
 
 
+# ---- 목소리 노브 실험 (LAB_ONLY=v · 2026-11-01): 성별 · 창법 뼈대는 고정, 굵기 · 숨 · 거침 · 파워 '슬롯' 단어만 갈아 끼워요
+VOICE_BASE = 'warm korean acoustic pop, piano, acoustic guitar, soft bass, light drums, 90 bpm, female vocal, clean pop style'
+VOICE_TAIL = 'natural human vocal, acoustic warmth, studio condenser mic, clear korean pronunciation'
+VOICE_MID = {'weight': 'natural mid-range vocal, balanced tone', 'air': 'clean clear tone', 'power': 'moderate relaxed delivery'}
+VOICE_LYRICS = """[Verse]
+작은 창문 너머로 노을이 번지면
+하루 끝에 남은 말을 꺼내 볼게
+따뜻한 차 한 잔에 기대어 앉아
+오늘도 잘 버텼다고 말해 줄게
+
+[Chorus]
+천천히 걸어도 괜찮아
+네 걸음은 네가 정하면 돼
+저 노을이 다 질 때까지
+여기서 같이 쉬어 가자
+
+[Verse]
+바쁘게 지나간 사람들 사이로
+나만 멈춘 것 같아 겁이 났지만
+작은 불빛 하나 켜 둔 이 방에서
+다시 숨을 고르는 법을 배워
+
+[Chorus]
+천천히 걸어도 괜찮아
+네 걸음은 네가 정하면 돼
+저 노을이 다 질 때까지
+여기서 같이 쉬어 가자"""
+
+
+def voice_caption(**slots: str) -> str:
+    s = {**VOICE_MID, **slots}
+    return ', '.join([VOICE_BASE, s['weight'], s['air'], s['power'], VOICE_TAIL])
+
+
+def voice_plan() -> list[dict]:
+    base = {'lyrics': VOICE_LYRICS, 'instrumental': False, 'vocal_language': 'ko', 'bpm': 90, 'duration': SECONDS, 'seed': SEED,
+            'shift': 3.0, 'master': True}
+    return [
+        {'key': 'v1 기준점 (전부 50)', 'input': {**base, 'caption': voice_caption()}},
+        {'key': 'v2 굵기 0', 'input': {**base, 'caption': voice_caption(weight='thin high-pitched vocal, light airy head voice, youthful bright timbre')}},
+        {'key': 'v3 굵기 100', 'input': {**base, 'caption': voice_caption(weight='deep resonant low-register vocal, thick heavy chest voice, dark warm timbre')}},
+        {'key': 'v4 숨소리 100', 'input': {**base, 'caption': voice_caption(air='very breathy whispery vocal, intimate close-mic air, soft sighing delivery')}},
+        {'key': 'v5 거침 100', 'input': {**base, 'caption': voice_caption(air='husky raspy vocal, smoky gravelly texture, raw scratchy soul voice')}},
+        {'key': 'v6 파워 0', 'input': {**base, 'caption': voice_caption(power='laid-back effortless singing, soft relaxed murmur, low energy vocal')}},
+        {'key': 'v7 파워 100', 'input': {**base, 'caption': voice_caption(power='powerful belting vocal, strong emotional projection, high-energy dynamic singing')}},
+    ]
+
+
 def call(method: str, path: str, body: dict | None = None) -> dict:
     req = urllib.request.Request(f'https://api.runpod.ai/v2/{ENDPOINT}/{path}', method=method,
                                  data=None if body is None else json.dumps(body).encode(),
@@ -97,7 +145,7 @@ def main() -> None:
     if not KEY:
         sys.exit('RUNPOD_API_KEY 가 없어요')
     os.makedirs(OUT, exist_ok=True)
-    jobs = [j for j in plan() if ONLY in ('', 'all') or j['key'].startswith(ONLY)]
+    jobs = voice_plan() if ONLY == 'v' else [j for j in plan() if ONLY in ('', 'all') or j['key'].startswith(ONLY)]
     letters = [chr(ord('A') + i) for i in range(len(jobs))]
     random.Random(int(time.time())).shuffle(letters)   # 블라인드: 실행마다 글자가 섞여요
     for j, letter in zip(jobs, letters):
