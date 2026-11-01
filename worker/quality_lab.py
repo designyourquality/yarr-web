@@ -33,7 +33,7 @@ KEY = os.environ.get('RUNPOD_API_KEY', '')
 SECONDS = int(os.environ.get('LAB_SECONDS', '120'))
 OUT = os.environ.get('LAB_OUT', 'quality_lab_out')
 SEED = 1031
-ONLY = os.environ.get('LAB_ONLY', 'all').strip()   # all · t (글로 만든 곡만) · c (직접 찍기만) · v (목소리 노브 7곡) · k (노브 확인 18곡) · p (보컬 페르소나 24종 × 2 = 48클립)
+ONLY = os.environ.get('LAB_ONLY', 'all').strip()   # all · t (글로 만든 곡만) · c (직접 찍기만) · v (목소리 노브 7곡) · k (노브 확인 18곡) · p (보컬 페르소나 24종 × 2 = 48클립) · r (페르소나 재실험 8종 × 2 = 16클립)
 
 TEXTURE = 'natural human vocal, breathy, acoustic warmth, studio condenser mic'
 # 2026-11-01 '오후3시' 와 같은 곡 설명 · 가사 (모델에 보낸 모양 그대로)
@@ -205,8 +205,63 @@ def persona_plan() -> list[dict]:
         tail = 'clear korean pronunciation' if fx else 'natural human vocal, acoustic warmth, studio condenser mic, clear korean pronunciation'
         caption = f'{stage}, {bpm} bpm, {desc}, {tail}'
         for seed in PERSONA_SEEDS:
-            jobs.append({'key': f'{cat} · {name} ({key}) · 시드 {seed}', 'group': cat, 'persona': key,
+            jobs.append({'key': f'{cat} · {name} ({key}) · 시드 {seed}', 'group': cat, 'persona': key, 'name': name,
                          'input': {'caption': caption, 'lyrics': PERSONA_LYRICS, 'instrumental': False, 'vocal_language': 'ko',
+                                   'bpm': bpm, 'duration': 40, 'seed': seed, 'shift': 3.0, 'master': True}})
+    return jobs
+
+
+# ---- 페르소나 재실험 (LAB_ONLY=r · 2026-11-01): p 실험에서 흔들린 8종만 고쳐서 같은 시드(7 · 77)로 다시 뽑아요
+# 그룹 4종: 두 번 중 한 번만 캐릭터가 나옴 → 설명 강화 + 가사 섹션 제목에 파트 지시
+# 소녀 미성 vs 포크: 둘 다 통기타라 헷갈림 → 반주 · 마이크 질감을 갈라요
+# 남자 트로트 · 발라드: 전주 15~24초 → 첫 섹션 제목 + 곡 설명 앞에 '바로 노래 시작'
+NO_INTRO = '[Verse 1 - immediate vocal entry, no instrumental intro]'
+R_LYRICS = {
+    'duet': """[Verse - Male Vocal Solo]
+골목 끝 작은 불빛 하나 켜 두고
+오늘의 이야기를 천천히 꺼내 볼게
+
+[Chorus - Female Vocal Solo]
+이 노래가 너에게 닿을 때까지
+
+[Chorus - Male and Female Duet Harmony]
+나는 여기서 계속 부를게""",
+    'group': """[Verse - Group Members Trading Lines]
+골목 끝 작은 불빛 하나 켜 두고
+오늘의 이야기를 천천히 꺼내 볼게
+
+[Chorus - Full Group Unison and Layered Harmony]
+이 노래가 너에게 닿을 때까지
+나는 여기서 계속 부를게""",
+    'no_intro': NO_INTRO + """
+골목 끝 작은 불빛 하나 켜 두고
+오늘의 이야기를 천천히 꺼내 볼게
+
+[Chorus]
+이 노래가 너에게 닿을 때까지
+나는 여기서 계속 부를게""",
+}
+# (key, 폴더, 화면 이름, 곡 설명 전체, bpm, 가사 종류)
+RETEST = [
+    ('duet', '그룹', '남녀 설레는 어쿠스틱 듀엣', 'romantic acoustic duet, guitar and piano, 92 bpm, male and female vocal duet, distinct male verse and female chorus, two singers trading lines, sweet harmonized ending', 92, 'duet'),
+    ('group_girl', '그룹', '청량 걸그룹 (다인원 하모니)', 'cheerful teen-pop band sound, bright guitar, punchy live drums, 120 bpm, natural clean k-pop girl group vocals, multiple bright female voices singing in unison, clean human vocal harmony', 120, 'group'),
+    ('group_boy', '그룹', '에너제틱 보이그룹 (랩 + 보컬)', 'k-pop dance, heavy beat, 124 bpm, all-male k-pop boy band, multiple masculine male vocals, deep male rap and punchy male tenor chorus, powerful male unison hook', 124, 'group'),
+    ('choir', '그룹', '웅장한 가스펠 · 콰이어 합창단', 'gospel organ, piano, handclaps, 84 bpm, large gospel choir ensemble, twenty singers singing together in unison and four-part harmony, powerful group chorus from the start', 84, 'group'),
+    ('f_clear', '여자', '맑고 청아한 소녀 미성', 'bright acoustic piano and bell pop, glockenspiel, 96 bpm, bright youthful female soprano, pure crystal-clear head voice, innocent clean pop tone', 96, 'plain'),
+    ('f_folk', '여자', '담백한 이야기꾼 (포크)', 'unplugged fingerstyle acoustic guitar, warm harmonica, no drums, 88 bpm, laid-back conversational female vocal, dry close-mic conversational singing, unadorned singer-songwriter tone', 88, 'plain'),
+    ('m_trot', '남자', '구수하고 힘 있는 성인가요', 'immediate vocal start, short intro, korean trot, brass, two-beat rhythm, 120 bpm, deep resonant korean trot male vocal, heavy traditional vibrato, rich mature projection', 120, 'no_intro'),
+    ('m_ballad', '남자', '애절한 호소력 · 허스키 발라드', 'immediate vocal start, short intro, rock ballad, piano, strings, 70 bpm, emotional husky male k-ballad vocal, dramatic raspy climax, deep sorrowful projection', 70, 'no_intro'),
+]
+
+
+def retest_plan() -> list[dict]:
+    jobs = []
+    for key, cat, name, caption, bpm, kind in RETEST:
+        fx_tail = 'natural human vocal, acoustic warmth, studio condenser mic, clear korean pronunciation'
+        lyrics = R_LYRICS.get(kind, PERSONA_LYRICS)
+        for seed in PERSONA_SEEDS:
+            jobs.append({'key': f'{cat} · {name} ({key}) · 시드 {seed}', 'group': cat, 'persona': key, 'name': name,
+                         'input': {'caption': f'{caption}, {fx_tail}', 'lyrics': lyrics, 'instrumental': False, 'vocal_language': 'ko',
                                    'bpm': bpm, 'duration': 40, 'seed': seed, 'shift': 3.0, 'master': True}})
     return jobs
 
@@ -223,9 +278,9 @@ def main() -> None:
     if not KEY:
         sys.exit('RUNPOD_API_KEY 가 없어요')
     os.makedirs(OUT, exist_ok=True)
-    jobs = persona_plan() if ONLY == 'p' else knob_plan() if ONLY == 'k' else voice_plan() if ONLY == 'v' else [j for j in plan() if ONLY in ('', 'all') or j['key'].startswith(ONLY)]
+    jobs = persona_plan() if ONLY == 'p' else retest_plan() if ONLY == 'r' else knob_plan() if ONLY == 'k' else voice_plan() if ONLY == 'v' else [j for j in plan() if ONLY in ('', 'all') or j['key'].startswith(ONLY)]
     rnd = random.Random(int(time.time()))
-    if ONLY == 'p':
+    if ONLY in ('p', 'r'):
         # 카테고리 폴더 안에서 번호를 섞어요 (여자/여자_07.mp3) · 폴더마다 고를 목록(목록.txt)을 같이 넣어요
         for cat in dict.fromkeys(j['group'] for j in jobs):
             mine = [j for j in jobs if j['group'] == cat]
@@ -236,7 +291,8 @@ def main() -> None:
             os.makedirs(os.path.join(OUT, cat), exist_ok=True)
             with open(os.path.join(OUT, cat, '목록.txt'), 'w', encoding='utf-8') as f:
                 f.write(f'{cat} 클립 {len(mine)}개 · 아래 목소리 중 어떤 것인지 골라 주세요 (목소리마다 2개씩)\n\n')
-                f.write('\n'.join(f'- {p[2]}' for p in PERSONAS if p[1] == cat) + '\n')
+                names = dict.fromkeys(m['name'] for m in mine)
+                f.write('\n'.join(f'- {x}' for x in names) + '\n')
     elif ONLY == 'k':
         # 묶음(노브_시드)마다 A · B · C 를 섞어요 → 묶음 안에서 순서 맞히기
         for g in sorted({j['group'] for j in jobs}):
