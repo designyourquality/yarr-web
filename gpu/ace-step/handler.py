@@ -15,6 +15,11 @@
                          "cover_strength": 0.55}}
   → 이 서버가 음표 · 코드로 가이드 음원을 바로 합성해서(yarr_guide.py · numpy) 커버로 만들어요.
      보컬곡은 가이드 멜로디 소리를 30% 줄여요 (크면 가사 대신 '뚜루루' 로 따라 불러요 · 2026-11-01 실험)
+음질 옵션 (실험 · 빠지면 지금과 똑같이):
+  "dit": "acestep-v15-turbo" | "acestep-v15-turbo-shift3" | "acestep-v15-xl-turbo" (처음 쓰면 받아서 같은 작업자에 올려 둬요)
+  "shift": 1.0~5.0 (공식 문서는 turbo 에 3.0 권장) · "steps": 4~20 (turbo 기본 8)
+  "master": true → 마지막 mp3 변환 때 쇳소리 대역(3.5~6kHz) -2dB · 중저음(150~300Hz) +1.5dB · 가벼운 압축
+  "guide_melody": "all" | "gaps" (gaps = 멜로디는 전주 · 간주에만, 노래 구간은 코드만) · "guide_lowpass": true (가이드 2kHz 위를 깎아 전자음 질감이 덜 옮게)
 
 환경 변수 (RunPod → 엔드포인트)
   HF_TOKEN            Hugging Face 토큰 (Secret 으로 · 공개 모델이라 없어도 되지만 받기가 빨라요)
@@ -45,6 +50,9 @@ LANGS = {'ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'pt', 'it', 'ru', 'unknown'}
 
 _DIT = None
 _LLM = None
+_DITS: dict = {}
+DIT_CHOICES = {'acestep-v15-turbo', 'acestep-v15-turbo-shift3', 'acestep-v15-xl-turbo'}
+MASTER_AF = 'equalizer=f=4500:t=q:w=0.8:g=-2,equalizer=f=220:t=q:w=0.9:g=1.5,acompressor=threshold=-18dB:ratio=2:attack=20:release=250:makeup=1'
 
 
 def shadow_cached_checkpoints() -> bool:
@@ -102,7 +110,28 @@ def load_models():
     if not ok:
         raise RuntimeError(f'LM 준비 실패: {status}')
     _DIT, _LLM = dit, llm
+    _DITS[DIT] = dit
     return dit, llm
+
+
+def get_dit(name: str | None):
+    """요청마다 다른 DiT (음질 실험) · 한 번 올린 모델은 같은 작업자에 남겨 둬요"""
+    dit, _ = load_models()
+    if not name or name == DIT:
+        return dit
+    if name in _DITS:
+        return _DITS[name]
+    from acestep.handler import AceStepHandler
+    from acestep.model_downloader import ensure_dit_model
+    ok, msg = ensure_dit_model(name, checkpoints_dir=__import__('pathlib').Path(CKPT), token=os.environ.get('HF_TOKEN') or None, prefer_source='huggingface')
+    if not ok:
+        raise RuntimeError(f'{name} 받기 실패: {msg}')
+    h = AceStepHandler()
+    status, ok = h.initialize_service(project_root=os.path.dirname(CKPT), config_path=name, device='cuda')
+    if not ok:
+        raise RuntimeError(f'{name} 준비 실패: {status}')
+    _DITS[name] = h
+    return h
 
 
 def clean_input(inp: dict) -> dict:
@@ -140,19 +169,25 @@ def clean_input(inp: dict) -> dict:
     if inp.get('guide') is not None and not src_bytes:
         import yarr_guide
         guide = yarr_guide.check(inp.get('guide'))
-        x = yarr_guide.render(guide, duration, melody_gain=1.0 if instrumental else 0.7)
+        x = yarr_guide.render(guide, duration, melody_gain=1.0 if instrumental else 0.7,
+                              melody_where='gaps' if inp.get('guide_melody') == 'gaps' else 'all', lowpass=inp.get('guide_lowpass') is True)
         src_bytes = yarr_guide.to_wav_bytes(x)
     strength = inp.get('cover_strength')
     strength = float(strength) if isinstance(strength, (int, float)) and 0.0 <= strength <= 1.0 else 0.55
     return {'caption': caption, 'lyrics': lyrics, 'instrumental': instrumental, 'duration': duration,
             'vocal_language': lang, 'bpm': bpm, 'seed': seed, 'src_bytes': src_bytes, 'cover_strength': strength,
-            'guide': guide is not None}
+            'guide': guide is not None,
+            'dit': str(inp['dit']) if inp.get('dit') in DIT_CHOICES else None,
+            'shift': float(inp['shift']) if isinstance(inp.get('shift'), (int, float)) and 1.0 <= inp['shift'] <= 5.0 else None,
+            'steps': int(inp['steps']) if isinstance(inp.get('steps'), (int, float)) and 4 <= inp['steps'] <= 20 else 8,
+            'master': inp.get('master') is True}
 
 
-def encode_mp3(path: str, kbps: int = MP3_KBPS) -> bytes:
+def encode_mp3(path: str, kbps: int = MP3_KBPS, master: bool = False) -> bytes:
     with tempfile.TemporaryDirectory() as tmp:
         mp3 = os.path.join(tmp, 'a.mp3')
-        r = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', path, '-codec:a', 'libmp3lame', '-b:a', f'{kbps}k', mp3],
+        af = ['-af', MASTER_AF] if master else []
+        r = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', path, *af, '-codec:a', 'libmp3lame', '-b:a', f'{kbps}k', mp3],
                            capture_output=True, text=True)
         if r.returncode != 0:
             raise RuntimeError(f'mp3 변환 실패: {r.stderr[:200]}')
@@ -163,8 +198,10 @@ def encode_mp3(path: str, kbps: int = MP3_KBPS) -> bytes:
 def handler(job: dict) -> dict:
     t0 = time.time()
     p = clean_input(job.get('input'))
-    dit, llm = load_models()
+    _, llm = load_models()
+    dit = get_dit(p['dit'])
     from acestep.inference import GenerationConfig, GenerationParams
+    tune = {'inference_steps': p['steps'], **({'shift': p['shift']} if p['shift'] else {})}
 
     cover = p['src_bytes'] is not None
     src_dir = tempfile.mkdtemp() if cover else None
@@ -178,14 +215,14 @@ def handler(job: dict) -> dict:
         params = GenerationParams(
             task_type='cover', src_audio=src_path, audio_cover_strength=p['cover_strength'],
             caption=p['caption'], lyrics=p['lyrics'], instrumental=p['instrumental'],
-            vocal_language=p['vocal_language'], bpm=p['bpm'], seed=p['seed'], inference_steps=8,
+            vocal_language=p['vocal_language'], bpm=p['bpm'], seed=p['seed'], **tune,
             thinking=False, use_cot_caption=False,
         )
     else:
         params = GenerationParams(
             task_type='text2music', caption=p['caption'], lyrics=p['lyrics'], instrumental=p['instrumental'],
             vocal_language=p['vocal_language'], bpm=p['bpm'], duration=float(p['duration']), seed=p['seed'],
-            inference_steps=8, thinking=True,
+            **tune, thinking=True,
             # LM 이 곡 설명을 고쳐 쓰지 않게 (고쳐 쓰면 '여자 보컬' 같은 지시가 빠질 때가 있어요) · 구조 · 박자 계획은 그대로 LM 이 해요
             use_cot_caption=False,
         )
@@ -205,7 +242,7 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
     if not result.success or not result.audios:
         raise RuntimeError(f'만들기 실패: {result.error or result.status_message}')
     a = result.audios[0]
-    data = encode_mp3(a['path'])
+    data = encode_mp3(a['path'], master=p.get('master', False))
     seed = (a.get('params') or {}).get('seed')
     sr = a.get('sample_rate') or 48000
     t = a.get('tensor')
@@ -221,6 +258,7 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         'task': 'cover' if cover else 'text2music',
         'cover_strength': p['cover_strength'] if cover else None,
         'guide': p.get('guide', False),
+        'dit': p.get('dit') or DIT, 'shift': p.get('shift') or 1.0, 'steps': p.get('steps', 8), 'master': p.get('master', False),
     }
 
 
