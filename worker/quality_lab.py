@@ -33,7 +33,7 @@ KEY = os.environ.get('RUNPOD_API_KEY', '')
 SECONDS = int(os.environ.get('LAB_SECONDS', '120'))
 OUT = os.environ.get('LAB_OUT', 'quality_lab_out')
 SEED = 1031
-ONLY = os.environ.get('LAB_ONLY', 'all').strip()   # all · t (글로 만든 곡만) · c (직접 찍기만) · v (목소리 노브 7곡) · k (노브 확인 18곡)
+ONLY = os.environ.get('LAB_ONLY', 'all').strip()   # all · t (글로 만든 곡만) · c (직접 찍기만) · v (목소리 노브 7곡) · k (노브 확인 18곡) · p (보컬 페르소나 24종 × 2 = 48클립)
 
 TEXTURE = 'natural human vocal, breathy, acoustic warmth, studio condenser mic'
 # 2026-11-01 '오후3시' 와 같은 곡 설명 · 가사 (모델에 보낸 모양 그대로)
@@ -159,6 +159,58 @@ def knob_plan() -> list[dict]:
     return jobs
 
 
+# ---- 보컬 페르소나 24종 확인 (LAB_ONLY=p): 성별 · 나이대 · 창법 · 마이크 · 장르 캐릭터를 한 세트로 통째로 바꿔요
+# 24종 × 시드 2개 = 48클립 (40초 · 절 2줄 + 후렴 2줄) · 카테고리 폴더 안에서 이름을 가린 채 '어떤 목소리인지' 맞히기
+# 키: 기존 house-music VOCAL_TONES 키를 그대로 쓰고(레시피 호환), 새 캐릭터만 새 키 (f_rnb · f_folk · m_ballad · m_band · fx_gugak)
+# (key, 카테고리, 화면 이름, 목소리 묘사, 어울리는 반주 힌트, bpm, 이펙트 여부)
+PERSONAS = [
+    ('f_clear', '여자', '맑고 청아한 소녀 미성', 'bright youthful female soprano, pure crystal-clear head voice, innocent clean pop tone', 'light acoustic pop, piano', 96, False),
+    ('f_whisper', '여자', '새벽 감성 · 귓속말 호흡', 'intimate close-mic whispery female vocal, ultra-breathy airy delivery, soft sighing indie-folk tone', 'lo-fi acoustic guitar, soft room', 78, False),
+    ('f_mature', '여자', '성숙하고 깊은 중저음 (알토)', 'deep warm female contralto, mature low-register chest voice, rich dark timbre', 'slow piano ballad', 70, False),
+    ('f_jazz', '여자', '스모키 재즈 · 허스키 소울', 'smoky raspy female jazz diva, gritty soulful throat texture, warm vintage tube-mic vocal', 'jazz trio, upright bass, brushed drums', 92, False),
+    ('f_rnb', '여자', '트렌디 R&B · 그루브', 'stylish K-R&B female vocal, agile melisma and runs, rhythmic groovy delivery', 'smooth R&B groove, electric piano', 94, False),
+    ('f_diva', '여자', '폭발적 고음 · 파워 디바', 'powerful belting female diva, soaring high-note climax, strong chest projection', 'big pop ballad, strings, drums', 76, False),
+    ('f_folk', '여자', '담백한 이야기꾼 (포크)', 'laid-back conversational female vocal, unadorned natural acoustic singer-songwriter tone', 'fingerpicked acoustic guitar', 88, False),
+    ('f_trot', '여자', '간드러지는 정통 트로트', 'expressive korean trot female vocal, rich traditional vibrato, bright nasal inflection', 'korean trot, accordion, two-beat rhythm', 124, False),
+    ('m_soft', '남자', '달콤하고 부드러운 미성', 'sweet warm male high-tenor, soft romantic ballad vocal, gentle smooth tone', 'piano ballad, soft strings', 72, False),
+    ('m_indie', '남자', '나른한 카페 싱어송라이터', 'relaxed effortless male indie vocal, intimate close-mic breathy murmur', 'bossa nova acoustic guitar', 90, False),
+    ('m_deep', '남자', '동굴 같은 묵직한 중저음', 'deep resonant male baritone-bass, thick heavy chest voice, dark commanding low-end', 'slow jazz ballad, upright bass', 68, False),
+    ('m_rock', '남자', '거칠고 터프한 록 · 블루스', 'raw gravelly male rock vocal, gritty raspy scratchy throat, aggressive powerful tone', 'blues rock, overdriven electric guitar, drums', 118, False),
+    ('m_rap', '남자', '멜로디 싱잉랩 · 트렌디 R&B', 'melodic singing-rap male vocal, rhythmic hip-hop R&B flow, modern trendy delivery', 'hip hop beat, mellow keys', 92, False),
+    ('m_ballad', '남자', '애절한 호소력 · 허스키 발라드', 'emotional husky male K-ballad vocal, dramatic raspy climax, deep sorrowful projection', 'rock ballad, piano, strings', 70, False),
+    ('m_band', '남자', '시원한 고음 · 청량 밴드 보컬', 'bright energetic male pop-rock tenor, punchy clear high-register projection, uplifting', 'pop rock band, driving drums', 128, False),
+    ('m_trot', '남자', '구수하고 힘 있는 성인가요', 'deep resonant korean trot male vocal, heavy traditional vibrato, rich mature projection', 'korean trot, brass, two-beat rhythm', 120, False),
+    ('duet', '그룹', '남녀 설레는 어쿠스틱 듀엣', 'male and female vocal duet, alternating verses, sweet harmonized chorus', 'acoustic pop, guitar and piano', 92, False),
+    ('group_girl', '그룹', '청량 걸그룹 (다인원 하모니)', 'bright k-pop girl group vocals, multiple female voices, layered catchy chorus harmonies', 'upbeat k-pop, synth, punchy drums', 120, False),
+    ('group_boy', '그룹', '에너제틱 보이그룹 (랩 + 보컬)', 'energetic k-pop boy group vocals, male vocal and rap trade-off, powerful unison chorus', 'k-pop dance, heavy beat', 124, False),
+    ('choir', '그룹', '웅장한 가스펠 · 콰이어 합창단', 'grand gospel choir vocals, massive multi-part harmony, soulful ensemble singing', 'gospel organ, piano, handclaps', 84, False),
+    ('fx_radio', '이펙트', '빈티지 라디오 (전화기 너머)', 'lo-fi vintage AM radio vocal filter, narrow bandpass telephone voice effect, vinyl crackle', 'old-time swing band', 100, True),
+    ('fx_autotune', '이펙트', '사이버펑크 오토튠 (기계음)', 'heavy hard-tuned robotic pitch correction, futuristic vocoder electronic vocal', 'dark synthwave, electronic beat', 110, True),
+    ('fx_echo', '이펙트', '몽환적 우주 리버브 (드림팝)', 'vocal drenched in massive shimmering cathedral reverb and delay, ethereal shoegaze dream-pop vocal', 'dream pop, washed-out guitars', 86, True),
+    ('fx_gugak', '이펙트', '국악 소리꾼 (판소리 한 자락)', 'traditional korean pansori fusion vocal, dramatic han-filled raspy vibrato, powerful projection', 'korean traditional fusion, gayageum, janggu', 96, True),
+]
+PERSONA_LYRICS = """[Verse]
+골목 끝 작은 불빛 하나 켜 두고
+오늘의 이야기를 천천히 꺼내 볼게
+
+[Chorus]
+이 노래가 너에게 닿을 때까지
+나는 여기서 계속 부를게"""
+PERSONA_SEEDS = [7, 77]
+
+
+def persona_plan() -> list[dict]:
+    jobs = []
+    for key, cat, name, desc, stage, bpm, fx in PERSONAS:
+        tail = 'clear korean pronunciation' if fx else 'natural human vocal, acoustic warmth, studio condenser mic, clear korean pronunciation'
+        caption = f'{stage}, {bpm} bpm, {desc}, {tail}'
+        for seed in PERSONA_SEEDS:
+            jobs.append({'key': f'{cat} · {name} ({key}) · 시드 {seed}', 'group': cat, 'persona': key,
+                         'input': {'caption': caption, 'lyrics': PERSONA_LYRICS, 'instrumental': False, 'vocal_language': 'ko',
+                                   'bpm': bpm, 'duration': 40, 'seed': seed, 'shift': 3.0, 'master': True}})
+    return jobs
+
+
 def call(method: str, path: str, body: dict | None = None) -> dict:
     req = urllib.request.Request(f'https://api.runpod.ai/v2/{ENDPOINT}/{path}', method=method,
                                  data=None if body is None else json.dumps(body).encode(),
@@ -171,9 +223,21 @@ def main() -> None:
     if not KEY:
         sys.exit('RUNPOD_API_KEY 가 없어요')
     os.makedirs(OUT, exist_ok=True)
-    jobs = knob_plan() if ONLY == 'k' else voice_plan() if ONLY == 'v' else [j for j in plan() if ONLY in ('', 'all') or j['key'].startswith(ONLY)]
+    jobs = persona_plan() if ONLY == 'p' else knob_plan() if ONLY == 'k' else voice_plan() if ONLY == 'v' else [j for j in plan() if ONLY in ('', 'all') or j['key'].startswith(ONLY)]
     rnd = random.Random(int(time.time()))
-    if ONLY == 'k':
+    if ONLY == 'p':
+        # 카테고리 폴더 안에서 번호를 섞어요 (여자/여자_07.mp3) · 폴더마다 고를 목록(목록.txt)을 같이 넣어요
+        for cat in dict.fromkeys(j['group'] for j in jobs):
+            mine = [j for j in jobs if j['group'] == cat]
+            nums = list(range(1, len(mine) + 1))
+            rnd.shuffle(nums)
+            for j, n in zip(mine, nums):
+                j['file'] = f"{cat}/{cat}_{n:02d}"
+            os.makedirs(os.path.join(OUT, cat), exist_ok=True)
+            with open(os.path.join(OUT, cat, '목록.txt'), 'w', encoding='utf-8') as f:
+                f.write(f'{cat} 클립 {len(mine)}개 · 아래 목소리 중 어떤 것인지 골라 주세요 (목소리마다 2개씩)\n\n')
+                f.write('\n'.join(f'- {p[2]}' for p in PERSONAS if p[1] == cat) + '\n')
+    elif ONLY == 'k':
         # 묶음(노브_시드)마다 A · B · C 를 섞어요 → 묶음 안에서 순서 맞히기
         for g in sorted({j['group'] for j in jobs}):
             abc = ['A', 'B', 'C']
