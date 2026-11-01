@@ -140,11 +140,13 @@ def render_bars(guide: dict, melody_gain: float = 1.0, drums: bool = True, seed:
     return buf
 
 
-def render(guide: dict, seconds: float) -> np.ndarray:
-    """곡 길이만큼 반복: 인트로(코드만) → 멜로디 반복 · 16마디마다 4마디 간주(멜로디 작게) → 끝 페이드"""
-    full = render_bars(guide, 1.0)
-    soft = render_bars(guide, 0.25)
-    bare = render_bars(guide, 0.0)
+def render(guide: dict, seconds: float, melody_gain: float = 1.0) -> np.ndarray:
+    """곡 길이만큼 반복: 인트로(코드만) → 멜로디 반복 · 16마디마다 4마디 간주(멜로디 작게) → 끝 페이드
+    melody_gain: 보컬곡은 0.7 (멜로디 신스가 너무 크면 가사 대신 '뚜루루' 로 따라 불러요 · 2026-11-01 실험)"""
+    drums = guide.get('drums', True) is not False
+    full = render_bars(guide, melody_gain, drums)
+    soft = render_bars(guide, 0.25 * melody_gain, drums)
+    bare = render_bars(guide, 0.0, drums)
     loop_len = len(full)
     total = int(seconds * SR)
     out = np.zeros(total)
@@ -159,6 +161,41 @@ def render(guide: dict, seconds: float) -> np.ndarray:
     out[-fade:] *= np.linspace(1, 0, fade)
     peak = np.max(np.abs(out)) or 1.0
     return out / peak * 0.85
+
+
+def check(guide: dict) -> dict:
+    """앱에서 온 값 확인 → 깨끗한 가이드 (이상하면 ValueError)"""
+    if not isinstance(guide, dict):
+        raise ValueError('guide 가 없어요')
+    bpm = guide.get('bpm')
+    if not isinstance(bpm, (int, float)) or not 60 <= bpm <= 180:
+        raise ValueError('guide.bpm 은 60~180')
+    key = str(guide.get('key') or 'C')
+    if key not in NAMES and key not in ALIAS:
+        raise ValueError('guide.key 를 모르겠어요')
+    chords = guide.get('chords')
+    if not isinstance(chords, list) or not 1 <= len(chords) <= 8:
+        raise ValueError('guide.chords 는 1~8개')
+    out_chords = []
+    for c in chords:
+        c = str(c).strip()
+        root = c[:2] if len(c) > 1 and c[1] in '#b' else c[:1]
+        if not root or (root not in NAMES and root not in ALIAS) or len(c) > 8:
+            raise ValueError(f'코드를 모르겠어요: {c[:8]}')
+        out_chords.append(c)
+    notes = guide.get('notes') or []
+    if not isinstance(notes, list) or len(notes) > 128:
+        raise ValueError('guide.notes 는 128개까지')
+    out_notes = []
+    for n in notes:
+        if not isinstance(n, dict):
+            continue
+        b, p, ln = n.get('beat'), n.get('pitch'), n.get('len', 1)
+        if not all(isinstance(v, (int, float)) for v in (b, p, ln)):
+            continue
+        if 0 <= b < len(out_chords) * 4 and 0 <= p < len(MAJOR) and 0.25 <= ln <= 8:
+            out_notes.append({'beat': float(b), 'pitch': int(p), 'len': float(ln)})
+    return {'bpm': float(bpm), 'key': key, 'chords': out_chords, 'notes': out_notes, 'drums': guide.get('drums', True) is not False}
 
 
 def to_wav_bytes(x: np.ndarray) -> bytes:
