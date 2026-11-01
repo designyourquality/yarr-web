@@ -648,12 +648,13 @@ def process(sb, t: dict, known: list[dict], lyrics_db: list[dict] | None = None)
             with open(src, 'wb') as f:
                 f.write(sb.storage.from_('uploads').download(path))
             house = t.get('creator_id') == HOUSE_ID
-            studio = is_studio(t) and not (t.get('lyrics') or '').strip()
+            studio_any = is_studio(t)   # 스튜디오 곡 (연주곡 · 보컬곡 모두): 고른 구간 자르기 + 앞뒤 페이드
+            studio = studio_any and not (t.get('lyrics') or '').strip()   # 스튜디오 연주곡: 기존 곡 대조 생략
             vocal_house = house and bool((t.get('lyrics') or '').strip())
-            if studio:   # 사용자가 고른 구간만 남기고 (끝 5초 페이드아웃은 inspect_file 이 해요)
+            if studio_any:   # 사용자가 고른 구간만 남기고 (끝 5초 페이드아웃은 inspect_file 이 해요) · 2026-11-01 보컬곡도 (전엔 보컬곡만 구간이 무시됐어요)
                 src = trim_part(src, t.get('trim_start_sec'), t.get('trim_end_sec'), os.path.join(tmp, 'trimmed.wav'))
             # 오리지널 · 스튜디오 연주곡은 기존 곡 대조를 건너뛰고, 보컬 오리지널(Lyria 3 Pro)은 멜로디가 기존 곡과 겹칠 수 있어 대조해요
-            row, out, facts = inspect_file(src, tmp, use_acr=not (house or studio) or vocal_house, fade=house or studio)
+            row, out, facts = inspect_file(src, tmp, use_acr=not (house or studio) or vocal_house, fade=house or studio_any)
             facts['lyrics_dup'] = lyrics_duplicate(t.get('lyrics') or '', t['id'], lyrics_db or [])
             if vocal_house:
                 heard = transcribe(out, lyric_language(t.get('lyrics') or ''))
@@ -809,7 +810,7 @@ def renorm(sb, limit: int = 5) -> int:
                 with open(src, 'wb') as f:
                     f.write(sb.storage.from_('uploads').download(path))
                 house = r.get('creator_id') == HOUSE_ID
-                studio = is_studio(r) and not (r.get('lyrics') or '').strip()
+                studio = is_studio(r)   # 스튜디오 곡 (연주곡 · 보컬곡 모두)
                 if studio:   # 고른 구간은 다시 만들 때도 그대로
                     src = trim_part(src, r.get('trim_start_sec'), r.get('trim_end_sec'), os.path.join(tmp, 'trimmed.wav'))
                 length = duration_sec(src)
