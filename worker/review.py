@@ -581,6 +581,16 @@ def decide(t: dict, facts: dict, dup: tuple[float, dict | None], trusted: bool, 
         if m < LYRIC_APPROVE:
             return 'HOLD', '', f'YARR 보컬 오리지널 · 가사가 일부만 들려요 (받아쓰기 일치 {m:.0%}) · 직접 들어 보고 판단해 주세요'
         return 'APPROVE', '', f'YARR 보컬 오리지널 (Lyria 3 Pro) · 기존 곡 대조 · 받아쓰기 일치 {m:.0%} · 중복 · 음량 검사 통과'
+    if is_studio(t) and (t.get('lyrics') or '').strip() and not recent_copy_reject:
+        # 야르 스튜디오 보컬곡 (2026-11-01): 음원은 YARR 서버가 그 자리에서 새로 만든 것(기존 녹음 복사 위험 낮음) ·
+        # 가사는 사용자가 '직접 쓴 창작 가사' 동의(시각 기록) + 금지어 · YARR 안 가사 중복(위에서 걸러요) + 받아쓰기로 실제로 그 가사를 불렀는지 확인.
+        # 승인 곡은 새 크리에이터면 전부, 아니면 10% 가 사후 점검으로 가요 (auto_decide_track). 유명곡 가사 베끼기는 신고 → 24시간 처리.
+        m = facts.get('lyric_match')
+        if m is None:
+            return 'HOLD', '', '스튜디오 보컬곡 · 가사 받아쓰기를 못 했어요 · 직접 들어 보고 승인해 주세요'
+        if m < LYRIC_APPROVE:
+            return 'HOLD', '', f'스튜디오 보컬곡 · 가사가 일부만 들려요 (받아쓰기 일치 {m:.0%}) · 직접 들어 보고 판단해 주세요'
+        return 'APPROVE', '', f'YARR 스튜디오 보컬곡 (YARR 서버 생성 · 창작 가사 동의) · YARR 가사 중복 · 받아쓰기 일치 {m:.0%} · 제목 · 음량 검사 통과'
     if is_studio(t) and not (t.get('lyrics') or '').strip() and not recent_copy_reject:
         # 야르 스튜디오 연주곡: 프롬프트는 서버가 버튼 값으로만 조립(사용자 문장 없음) · Stable Audio 3 · 제목 · 중복 · 음량 검사 통과
         return 'APPROVE', '', 'YARR 스튜디오 연주곡 (버튼 레시피 · Stable Audio 3) · YARR 중복 대조 · 제목 · 음량 검사 통과'
@@ -651,12 +661,13 @@ def process(sb, t: dict, known: list[dict], lyrics_db: list[dict] | None = None)
             studio_any = is_studio(t)   # 스튜디오 곡 (연주곡 · 보컬곡 모두): 고른 구간 자르기 + 앞뒤 페이드
             studio = studio_any and not (t.get('lyrics') or '').strip()   # 스튜디오 연주곡: 기존 곡 대조 생략
             vocal_house = house and bool((t.get('lyrics') or '').strip())
+            studio_vocal = studio_any and bool((t.get('lyrics') or '').strip())   # 스튜디오 보컬곡: 받아쓰기로 자동 승인 (2026-11-01)
             if studio_any:   # 사용자가 고른 구간만 남기고 (끝 5초 페이드아웃은 inspect_file 이 해요) · 2026-11-01 보컬곡도 (전엔 보컬곡만 구간이 무시됐어요)
                 src = trim_part(src, t.get('trim_start_sec'), t.get('trim_end_sec'), os.path.join(tmp, 'trimmed.wav'))
             # 오리지널 · 스튜디오 연주곡은 기존 곡 대조를 건너뛰고, 보컬 오리지널(Lyria 3 Pro)은 멜로디가 기존 곡과 겹칠 수 있어 대조해요
             row, out, facts = inspect_file(src, tmp, use_acr=not (house or studio) or vocal_house, fade=house or studio_any)
             facts['lyrics_dup'] = lyrics_duplicate(t.get('lyrics') or '', t['id'], lyrics_db or [])
-            if vocal_house:
+            if vocal_house or studio_vocal:
                 heard = transcribe(out, lyric_language(t.get('lyrics') or ''))
                 if heard is not None:
                     facts['lyric_match'] = lyric_match(t.get('lyrics') or '', heard)
