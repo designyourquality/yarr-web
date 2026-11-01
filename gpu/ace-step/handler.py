@@ -114,13 +114,31 @@ def load_models():
     return dit, llm
 
 
+def _drop_extra_dits(keep: str | None = None) -> None:
+    """24GB GPU 에서는 기본 모델 + XL 을 같이 올리면 메모리가 모자라요 (2026-11-01 음질 실험 · 커버 3곡 CUDA OOM)
+    → 기본 모델 말고 올려 둔 모델은 내려요 (48GB 이상이면 그대로 둬요)"""
+    import torch
+    if torch.cuda.get_device_properties(0).total_memory >= 40 * 1024 ** 3:
+        return
+    dropped = False
+    for k in [k for k in _DITS if k not in (DIT, keep)]:
+        del _DITS[k]
+        dropped = True
+    if dropped:
+        import gc
+        gc.collect()
+        torch.cuda.empty_cache()
+
+
 def get_dit(name: str | None):
-    """요청마다 다른 DiT (음질 실험) · 한 번 올린 모델은 같은 작업자에 남겨 둬요"""
+    """요청마다 다른 DiT (음질 실험) · 한 번 올린 모델은 같은 작업자에 남겨 둬요 (24GB GPU 는 하나만)"""
     dit, _ = load_models()
     if not name or name == DIT:
+        _drop_extra_dits()
         return dit
     if name in _DITS:
         return _DITS[name]
+    _drop_extra_dits(keep=name)
     from acestep.handler import AceStepHandler
     from acestep.model_downloader import ensure_dit_model
     ok, msg = ensure_dit_model(name, checkpoints_dir=__import__('pathlib').Path(CKPT), token=os.environ.get('HF_TOKEN') or None, prefer_source='huggingface')
