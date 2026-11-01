@@ -1,0 +1,32 @@
+# YARR 음질 실험: '전자음 같은 목소리' 줄이는 설정 9곡 블라인드 비교 (ACE-Step)
+# GPU 비용이 드는 실행이라 사람이 직접 눌러요 (예약 실행 없음)
+# 필요: Settings → Secrets and variables → Actions → RUNPOD_API_KEY
+# 결과: Artifacts 'quality-lab' (A~I.mp3 + 정답.json)
+name: YARR 음질 실험
+on:
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: '글로 만드는 곡 길이 (초)'
+        default: '120'
+jobs:
+  lab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+      LAB_SECONDS: ${{ inputs.seconds }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q 'numpy>=1.26'
+      - name: 9곡 만들기
+        run: python worker/quality_lab.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quality-lab
+          path: quality_lab_out/
+          retention-days: 7
