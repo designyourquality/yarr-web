@@ -198,7 +198,10 @@ def clean_input(inp: dict) -> dict:
             'dit': str(inp['dit']) if inp.get('dit') in DIT_CHOICES else None,
             'shift': float(inp['shift']) if isinstance(inp.get('shift'), (int, float)) and 1.0 <= inp['shift'] <= 5.0 else None,
             'steps': int(inp['steps']) if isinstance(inp.get('steps'), (int, float)) and 4 <= inp['steps'] <= 20 else 8,
-            'master': inp.get('master') is True}
+            'master': inp.get('master') is True,
+            # 조 고정 (실험 · 앞으로 직접 찍기 조 맞추기): 'C Major' · 'A Minor' · 'Am' 처럼 · 이상하면 무시
+            'keyscale': str(inp['keyscale']) if isinstance(inp.get('keyscale'), str)
+            and __import__('re').fullmatch(r'[A-G][#b]?(m| Major| Minor)?', inp['keyscale']) else ''}
 
 
 def encode_mp3(path: str, kbps: int = MP3_KBPS, master: bool = False) -> bytes:
@@ -240,7 +243,7 @@ def handler(job: dict) -> dict:
         params = GenerationParams(
             task_type='text2music', caption=p['caption'], lyrics=p['lyrics'], instrumental=p['instrumental'],
             vocal_language=p['vocal_language'], bpm=p['bpm'], duration=float(p['duration']), seed=p['seed'],
-            **tune, thinking=True,
+            **tune, thinking=True, **({'keyscale': p['keyscale']} if p.get('keyscale') else {}),
             # LM 이 곡 설명을 고쳐 쓰지 않게 (고쳐 쓰면 '여자 보컬' 같은 지시가 빠질 때가 있어요) · 구조 · 박자 계획은 그대로 LM 이 해요
             use_cot_caption=False,
         )
@@ -277,6 +280,7 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         'cover_strength': p['cover_strength'] if cover else None,
         'guide': p.get('guide', False),
         'dit': p.get('dit') or DIT, 'shift': p.get('shift') or 1.0, 'steps': p.get('steps', 8), 'master': p.get('master', False),
+        'keyscale': p.get('keyscale') or None,
     }
 
 
