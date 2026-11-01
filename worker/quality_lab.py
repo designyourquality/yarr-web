@@ -33,7 +33,7 @@ KEY = os.environ.get('RUNPOD_API_KEY', '')
 SECONDS = int(os.environ.get('LAB_SECONDS', '120'))
 OUT = os.environ.get('LAB_OUT', 'quality_lab_out')
 SEED = 1031
-ONLY = os.environ.get('LAB_ONLY', 'all').strip()   # all · t (글로 만든 곡만) · c (직접 찍기만) · v (목소리 노브 7곡)
+ONLY = os.environ.get('LAB_ONLY', 'all').strip()   # all · t (글로 만든 곡만) · c (직접 찍기만) · v (목소리 노브 7곡) · k (노브 확인 18곡)
 
 TEXTURE = 'natural human vocal, breathy, acoustic warmth, studio condenser mic'
 # 2026-11-01 '오후3시' 와 같은 곡 설명 · 가사 (모델에 보낸 모양 그대로)
@@ -133,6 +133,32 @@ def voice_plan() -> list[dict]:
     ]
 
 
+# ---- 노브 확인 실험 (LAB_ONLY=k): 굵기 · 숨소리 각각 3단계 × 시드 3개 = 18곡 · 조는 C Major 로 고정 (조가 달라 굵기처럼 들리는 착시 방지)
+# 파일: 굵기_1_A.mp3 … 같은 '노브_시드' 묶음 3곡을 서로 비교해 순서를 매겨요 (A·B·C 는 묶음마다 섞여요)
+KNOB_LEVELS = {
+    '굵기': {'weight': ['thin high-pitched vocal, light airy head voice, youthful bright timbre',
+                       VOICE_MID['weight'],
+                       'deep warm contralto, mature lower-pitched female voice, rich chest tone']},
+    '숨소리': {'air': ['crisp clear tone, no breathiness, firm focused diction',
+                      'lightly breathy tone',
+                      'very breathy whispery vocal, intimate close-mic air, soft sighing delivery']},
+}
+KNOB_SEEDS = [11, 22, 33]
+
+
+def knob_plan() -> list[dict]:
+    jobs = []
+    base = {'lyrics': VOICE_LYRICS, 'instrumental': False, 'vocal_language': 'ko', 'bpm': 90, 'duration': SECONDS,
+            'shift': 3.0, 'master': True, 'keyscale': 'C Major'}
+    for knob, slots in KNOB_LEVELS.items():
+        slot, words = next(iter(slots.items()))
+        for si, seed in enumerate(KNOB_SEEDS, start=1):
+            for lv, w in zip((0, 50, 100), words):
+                jobs.append({'key': f'{knob} {lv} (시드 {seed})', 'group': f'{knob}_{si}', 'level': lv,
+                             'input': {**base, 'seed': seed, 'caption': voice_caption(**{slot: w})}})
+    return jobs
+
+
 def call(method: str, path: str, body: dict | None = None) -> dict:
     req = urllib.request.Request(f'https://api.runpod.ai/v2/{ENDPOINT}/{path}', method=method,
                                  data=None if body is None else json.dumps(body).encode(),
@@ -145,11 +171,22 @@ def main() -> None:
     if not KEY:
         sys.exit('RUNPOD_API_KEY 가 없어요')
     os.makedirs(OUT, exist_ok=True)
-    jobs = voice_plan() if ONLY == 'v' else [j for j in plan() if ONLY in ('', 'all') or j['key'].startswith(ONLY)]
-    letters = [chr(ord('A') + i) for i in range(len(jobs))]
-    random.Random(int(time.time())).shuffle(letters)   # 블라인드: 실행마다 글자가 섞여요
-    for j, letter in zip(jobs, letters):
-        j['file'] = letter
+    jobs = knob_plan() if ONLY == 'k' else voice_plan() if ONLY == 'v' else [j for j in plan() if ONLY in ('', 'all') or j['key'].startswith(ONLY)]
+    rnd = random.Random(int(time.time()))
+    if ONLY == 'k':
+        # 묶음(노브_시드)마다 A · B · C 를 섞어요 → 묶음 안에서 순서 맞히기
+        for g in sorted({j['group'] for j in jobs}):
+            abc = ['A', 'B', 'C']
+            rnd.shuffle(abc)
+            for j, x in zip([j for j in jobs if j['group'] == g], abc):
+                j['file'] = f"{g}_{x}"
+    else:
+        letters = [chr(ord('A') + i) for i in range(len(jobs))]
+        rnd.shuffle(letters)   # 블라인드: 실행마다 글자가 섞여요
+        for j, letter in zip(jobs, letters):
+            j['file'] = letter
+    for j in jobs:
+        letter = j['file']
         r = call('POST', 'run', {'input': j['input']})
         j['id'] = r.get('id')
         print('보냄', letter, r.get('id'), flush=True)
@@ -164,7 +201,7 @@ def main() -> None:
                 o = st.get('output') or {}
                 with open(os.path.join(OUT, j['file'] + '.mp3'), 'wb') as f:
                     f.write(base64.b64decode(o.get('audio_b64', '')))
-                j['result'] = {k: o.get(k) for k in ('seconds', 'took', 'task', 'dit', 'shift', 'steps', 'master')}
+                j['result'] = {k: o.get(k) for k in ('seconds', 'took', 'task', 'dit', 'shift', 'steps', 'master', 'keyscale')}
                 print('완성', j['file'], j['result'], flush=True)
                 pending.remove(j)
             elif s in ('FAILED', 'CANCELLED', 'TIMED_OUT'):
