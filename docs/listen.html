@@ -98,6 +98,7 @@ h2.sec small{font-size:12.5px;color:var(--soft);font-weight:400}
 .spot .foot{margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:12.5px;color:var(--soft)}
 .cover{position:relative;flex-shrink:0;display:grid;place-items:center;border-radius:12px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),inset 0 1px 0 rgba(255,255,255,.22);filter:saturate(.88) contrast(1.04)}
 .cover::before{content:'';position:absolute;inset:10%;border-radius:50%;background:repeating-radial-gradient(circle,rgba(0,0,0,0) 0 3px,rgba(0,0,0,.14) 3px 4px);pointer-events:none}
+.cover.ph::before{display:none}
 .cover.lg{width:80px;height:80px;font-size:34px;border-radius:14px}
 .cover.md{width:48px;height:48px;font-size:22px}
 .cover.sm{width:44px;height:44px;font-size:20px}
@@ -570,6 +571,27 @@ footer a:hover{text-decoration:underline}
   const coverBg = (t) => { const x = hash(t.id), h = x % 360, a = 100 + (x >> 9) % 90; return `linear-gradient(${a}deg,hsl(${h} 62% 54%),hsl(${(h + 50 + (x >> 4) % 30) % 360} 58% 34%) 60%,hsl(${(h + 120) % 360} 50% 17%))`; };
   const stOf = (t) => (t.tags || []).map((c) => ST[c]).find(Boolean);
   const emojiOf = (t) => stOf(t)?.emoji || '🎵';
+  // 사진 커버 (yarrmusic.com/covers · 앱 CoverPool 과 같은 계산이라 같은 곡엔 같은 그림 · 2026-11-02)
+  const COVER_POOLS = { night_drive: 10, wood_cafe: 10, rainy_lofi: 10, focus_code: 10, gym_cardio: 10, study_cafe: 10, pub_lounge: 10, morning_bakery: 10, wine_bar: 10, boutique: 10, spa_yoga: 10, rooftop: 10, dawn_mood: 10, hangang_picnic: 10, summer_beach: 10, pocha_night: 10, mix: 40 };
+  const hash31 = (s) => { let h = 17; s = String(s); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0x7fffffff; return h; };
+  const poolOfCode = (c) => { const k = String(c || '').replace('#', '').toLowerCase(); return COVER_POOLS[k] ? k : 'mix'; };
+  const poolOf = (t) => {
+    for (const c of t.tags || []) { const k = String(c).replace('#', '').toLowerCase(); if (COVER_POOLS[k]) return k; }
+    const g = String(t.genre || '');
+    if (g.includes('로파이')) return 'rainy_lofi';
+    if (g.includes('시티팝')) return 'night_drive';
+    if (g.includes('재즈')) return 'wine_bar';
+    if (g.includes('트로트')) return 'pocha_night';
+    if (g.includes('레게') || g.includes('트로피컬')) return 'summer_beach';
+    if (g.includes('어쿠스틱') || g.includes('포크')) return 'hangang_picnic';
+    if (g.includes('피아노')) return 'dawn_mood';
+    return 'mix';
+  };
+  const coverUrlKey = (pool, key, small) => { const n = COVER_POOLS[pool] || 0; if (!n) return ''; const i = hash31(key) % n + 1; return `/covers/${pool}/${small ? 's/' : ''}${String(i).padStart(2, '0')}.webp`; };
+  const coverUrl = (t, small = true) => coverUrlKey(poolOf(t), 'srv-' + t.id, small);
+  const coverCss = (t, small = true) => { const u = coverUrl(t, small); return u ? `background:url('${u}') center/cover no-repeat,${coverBg(t)}` : `background:${coverBg(t)}`; };
+  const coverEmo = (t) => coverUrl(t) ? '' : emojiOf(t);
+  const stPhoto = (c, small = true) => coverUrlKey(poolOfCode(c), 'station', small);
   // 만든 곳 이름: 내부 엔진 · 라이선스 메모 대신 브랜드 이름 (서버 engineLabel 과 같은 규칙)
   const brand = (r) => {
     const plan = String(r.ai_plan || '');
@@ -628,7 +650,7 @@ footer a:hover{text-decoration:underline}
     const no = ranked && t.rank ? t.rank : i + 1;
     return `<div class="trk" data-i="${i}" tabindex="0" role="button" aria-label="${esc(t.title)} 재생">
       <span class="no${no <= 3 && ranked ? ' top' : ''}">${no}</span>
-      <span class="cover md" style="background:${coverBg(t)}">${emojiOf(t)}</span>
+      <span class="cover md ph" style="${coverCss(t)}">${coverEmo(t)}</span>
       <span style="min-width:0"><b>${esc(t.title)}</b><span class="sub">${esc(t.artist)}${t.genre ? ' · ' + esc(t.genre) : ''} · ${kindOf(t)}</span></span>
       <span class="right">${t.engine ? `<span class="eng">${esc(t.engine)}</span>` : ''}<span class="badge ${t.store ? 'store' : 'chart'}" title="${t.store ? '매장 BGM으로도 나와요' : '사람이 쓴 가사가 들어간 곡이라 매장 BGM에서는 빠지고, 차트 · 스테이션 듣기에만 나와요'}">${t.store ? '매장 가능' : '매장 제외'}</span></span>
     </div>`;
@@ -642,7 +664,7 @@ footer a:hover{text-decoration:underline}
     const list = opts.only ? STATIONS.slice(0, opts.only) : STATIONS;
     // 곡이 너무 적은 스테이션은 '준비 중'으로 (매장: 5곡 미만 · 듣기: 0곡) — 곡이 채워지면 자동으로 열려요
     const soon = (c) => counts[c] != null && counts[c] < (opts.min ?? 1) && opts.sel !== c;
-    el.innerHTML = list.map(([c, n, g, e]) => `<button class="st${opts.sel === c ? ' sel' : ''}${soon(c) ? ' soon' : ''}" data-st="${c}" style="background:${stBg(c)}"${soon(c) ? ' aria-disabled="true" title="곡을 채우는 중이에요"' : ''}>
+    el.innerHTML = list.map(([c, n, g, e]) => `<button class="st${opts.sel === c ? ' sel' : ''}${soon(c) ? ' soon' : ''}" data-st="${c}" style="background:linear-gradient(180deg,rgba(14,15,19,.35),rgba(14,15,19,.88)),url('${stPhoto(c)}') center/cover no-repeat,${stBg(c)}"${soon(c) ? ' aria-disabled="true" title="곡을 채우는 중이에요"' : ''}>
       <span><b style="display:block">${esc(n)}</b><span class="g">${esc(g)}</span></span>
       <span class="bot"><span class="cnt">${counts[c] == null ? '…' : soon(c) ? '준비 중' : counts[c] + '곡'}</span><span class="emo">${e}</span></span></button>`).join('');
     el.onclick = (ev) => { const b = ev.target.closest('[data-st]'); if (!b) return; if (b.classList.contains('soon')) return toast('이 스테이션은 곡을 채우는 중이에요. 곧 열려요'); opts.onPick(b.dataset.st); };
@@ -663,7 +685,7 @@ footer a:hover{text-decoration:underline}
   function spotlight(t, label) {
     if (!t) { $('spotWrap').innerHTML = ''; return; }
     $('spotWrap').innerHTML = `<div class="spot" data-id="${t.id}"><div class="top"><span class="tag">${label}</span><span class="mono">${t.bpm ? t.bpm + ' BPM' : ''}</span></div>
-      <div class="row"><button class="cover lg" id="spotPlay" style="background:${coverBg(t)}" aria-label="${esc(t.title)} 재생">${emojiOf(t)}<span class="ov"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span></button>
+      <div class="row"><button class="cover lg ph" id="spotPlay" style="${coverCss(t)}" aria-label="${esc(t.title)} 재생">${coverEmo(t)}<span class="ov"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span></button>
       <div style="min-width:0;flex:1"><div style="display:flex;align-items:center;gap:6px 8px;min-width:0;flex-wrap:wrap"><h3>${esc(t.title)}</h3>${t.store ? '<span class="badge store">매장 BGM 가능</span>' : ''}</div>
       <p class="meta">${esc(t.artist)}${t.genre ? ' · ' + esc(t.genre) : ''} · ${kindOf(t)}</p>${t.engine ? `<span class="eng">🎹 ${esc(t.engine)}</span>` : ''}</div></div>
       <div class="foot"><span>${stOf(t) ? `${stOf(t).emoji} ${esc(stOf(t).name)} 스테이션` : 'YARR AI 음악'}</span><span class="ctl"><span class="eq"><i></i><i></i><i></i></span><button class="pill-btn o" id="spotToggle"></button><button class="pill-btn" id="spotShare">링크 복사</button></span></div></div>`;
@@ -768,7 +790,7 @@ footer a:hover{text-decoration:underline}
     curStation = code; stationLoaded = true;
     const my = ++stationReq;   // 늦게 도착한 이전 스테이션 응답이 지금 화면을 덮지 않게
     const s = ST[code];
-    $('sBanner').style.background = stBanner(code);
+    $('sBanner').style.background = `linear-gradient(90deg,rgba(14,15,19,.92),rgba(14,15,19,.55)),url('${stPhoto(code, false)}') center/cover no-repeat,${stBanner(code)}`;
     $('sTitle').textContent = s.name; $('sEmoji').textContent = s.emoji; $('sGenre').textContent = `${s.genre} 중심 · 순서는 매번 섞여요`;
     $('sCount').textContent = counts[code] != null ? `${counts[code]}곡` : '…';
     $('sSub').textContent = '틀어 두기 좋은 곡을 이어서 들려줘요';
@@ -794,7 +816,7 @@ footer a:hover{text-decoration:underline}
   let webSec = 0, webLastT = 0, webSent = false;
   function setDock(t) {
     $('dock').classList.add('show');
-    $('dkArt').style.background = coverBg(t); $('dkArt').textContent = emojiOf(t);
+    $('dkArt').setAttribute('style', coverCss(t)); $('dkArt').classList.add('ph'); $('dkArt').textContent = coverEmo(t);
     $('dkTitle').textContent = t.title; $('dkBadge').textContent = t.genre || '';
     $('dkSub').textContent = `${t.artist}${t.engine && t.engine !== t.artist ? ' · ' + t.engine : ''}`;
     if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: mode === 'store' ? 'YARR 매장 BGM' : 'YARR' });
@@ -989,7 +1011,7 @@ footer a:hover{text-decoration:underline}
   const logout = async () => { storeStop(); await sb?.auth.signOut(); storeReady = false; showStore('storeLogin'); oauthButtons(); };
   $('logout').onclick = logout; $('logout2').onclick = logout;
 
-  function renderStoreStations() { stationCards($('storeStations'), { min: 5, sel: storeStationCode, onPick: (c) => { storeStationCode = c; store.set('yarr_web_station', c); renderStoreStations(); storeRestart(); } }); $('vLabel').style.background = stLabel(storeStationCode); }
+  function renderStoreStations() { stationCards($('storeStations'), { min: 5, sel: storeStationCode, onPick: (c) => { storeStationCode = c; store.set('yarr_web_station', c); renderStoreStations(); storeRestart(); } }); $('vLabel').style.background = `url('${stPhoto(storeStationCode)}') center/cover no-repeat,${stLabel(storeStationCode)}`; }
   document.querySelectorAll('.seg button').forEach((b) => { b.classList.toggle('on', (b.dataset.v === '1') === vocals); b.onclick = () => { vocals = b.dataset.v === '1'; store.set('yarr_web_vocals', vocals); document.querySelectorAll('.seg button').forEach((x) => x.classList.toggle('on', x === b)); storeRestart(); }; });
 
   const recentMap = () => { const m = store.get('yarr_store_recent', {}); const cut = Date.now() - RECENT_DAYS * 86400_000; for (const k in m) if (m[k] < cut) delete m[k]; return m; };
