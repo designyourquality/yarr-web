@@ -16,8 +16,8 @@
 <style>
 :root{
   --bg:#090A0F;--text:#F4F5F8;--soft:#A1A1AA;--dim:#71717A;--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
-  --glass:rgba(22,25,36,.65);--o1:#FF6B2C;--o2:#FF3D00;--orange:#FF5E1A;--ok:#34D399;--gold:#FBBF24;
-  --amb1:rgba(255,94,26,.16);--amb2:rgba(109,40,217,.12);--amb3:rgba(16,185,129,.08);
+  --glass:rgba(22,25,36,.65);--o1:#FF8A4C;--o2:#E8552A;--orange:#FF6B35;--ok:#34D399;--gold:#FBBF24;
+  --amb1:rgba(255,128,64,.15);--amb2:rgba(109,40,217,.12);--amb3:rgba(16,185,129,.08);
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
@@ -59,7 +59,7 @@ main{padding-top:24px}
 section.view{display:none}
 section.view.on{display:block}
 /* 공통 */
-.btn{display:inline-flex;align-items:center;gap:9px;padding:12px 22px;border-radius:12px;font-weight:700;font-size:14px;color:#fff;background:linear-gradient(90deg,var(--o1),var(--o2));box-shadow:0 10px 24px rgba(255,94,26,.3);text-decoration:none}
+.btn{display:inline-flex;align-items:center;gap:9px;padding:12px 22px;border-radius:12px;font-weight:700;font-size:14px;color:#fff;background:linear-gradient(135deg,var(--o1),var(--o2));box-shadow:0 10px 24px rgba(255,120,60,.28),inset 0 1px 0 rgba(255,255,255,.25);text-decoration:none}
 .btn:hover{filter:brightness(1.1)}
 .btn svg{width:16px;height:16px;fill:currentColor}
 .btn.sub{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);box-shadow:none;color:#E4E4E7;font-weight:600}
@@ -96,7 +96,8 @@ h2.sec small{font-size:12.5px;color:var(--soft);font-weight:400}
 .spot .meta{font-size:12.5px;color:#D4D4D8;margin:2px 0 8px}
 .spot .eng{display:inline-flex;padding:2px 10px;border-radius:999px;font-size:11.5px;background:rgba(255,255,255,.07);border:1px solid var(--line);color:#D4D4D8}
 .spot .foot{margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:12.5px;color:var(--soft)}
-.cover{position:relative;flex-shrink:0;display:grid;place-items:center;border-radius:12px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+.cover{position:relative;flex-shrink:0;display:grid;place-items:center;border-radius:12px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),inset 0 1px 0 rgba(255,255,255,.22);filter:saturate(.88) contrast(1.04)}
+.cover::before{content:'';position:absolute;inset:10%;border-radius:50%;background:repeating-radial-gradient(circle,rgba(0,0,0,0) 0 3px,rgba(0,0,0,.14) 3px 4px);pointer-events:none}
 .cover.lg{width:80px;height:80px;font-size:34px;border-radius:14px}
 .cover.md{width:48px;height:48px;font-size:22px}
 .cover.sm{width:44px;height:44px;font-size:20px}
@@ -134,12 +135,14 @@ body.paused .eq i{animation-play-state:paused}
 .stations{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 .st{position:relative;display:flex;flex-direction:column;justify-content:space-between;min-height:118px;padding:16px;border-radius:18px;color:#fff;text-decoration:none;overflow:hidden;border:1px solid rgba(255,255,255,.08);transition:transform .3s cubic-bezier(.22,1,.36,1),box-shadow .3s;text-align:left}
 .st:hover{transform:translateY(-4px);box-shadow:0 16px 32px -8px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.22)}
-.st.sel{box-shadow:0 0 0 2px #fff,0 0 0 5px var(--orange)}
+.st.sel{transform:translateY(-2px);border-color:rgba(255,170,120,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 0 0 1px rgba(255,140,80,.35),0 10px 28px -6px rgba(255,107,53,.5)}
+.st.sel::before{content:'';position:absolute;top:14px;right:14px;z-index:1;width:7px;height:7px;border-radius:50%;background:#FFB27A;box-shadow:0 0 10px #FF8A4C}
+.st.sel:after{border-color:rgba(255,160,110,.14)}
 .st b{font-size:16px;font-weight:800;line-height:1.3}
 .st span.g{font-size:12px;opacity:.85}
 .st .bot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:14px}
 .st .cnt{padding:2px 8px;border-radius:7px;background:rgba(0,0,0,.3);font-size:11.5px;font-weight:700}
-.st .emo{font-size:26px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.4))}
+.st .emo{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;font-size:22px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.12);backdrop-filter:blur(6px);filter:saturate(.85) contrast(1.05) drop-shadow(0 4px 8px rgba(0,0,0,.4))}
 .st:after{content:"";position:absolute;right:-22px;top:-22px;width:90px;height:90px;border-radius:50%;border:12px solid rgba(255,255,255,.07)}
 .sbanner{border-radius:28px;padding:clamp(22px,4vw,34px);border:1px solid rgba(255,255,255,.15);box-shadow:0 24px 60px rgba(0,0,0,.45);display:flex;justify-content:space-between;gap:24px;align-items:center;flex-wrap:wrap;transition:background .5s}
 .sbanner h1{margin:10px 0 6px;font-size:clamp(28px,4.5vw,40px);font-weight:800;letter-spacing:-.02em}
@@ -179,8 +182,9 @@ body.st-on .scard .mini{animation-play-state:running}
 .deck-grid{display:grid;grid-template-columns:7fr 5fr;gap:32px;align-items:center;padding:30px 0}
 .turn{display:flex;align-items:center;gap:28px}
 .vinyl-wrap{position:relative;width:176px;height:176px;flex-shrink:0;display:grid;place-items:center}
-.vinyl-glow{position:absolute;inset:0;border-radius:50%;background:rgba(16,185,129,.25);filter:blur(20px);opacity:.6;transition:opacity .7s}
-.vinyl{position:relative;width:100%;height:100%;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,rgba(255,255,255,.12) 0%,transparent 42%,transparent 58%,rgba(255,255,255,.12) 100%),repeating-radial-gradient(circle at center,#121318 0,#121318 2px,#1c1e26 3px,#121318 4px);box-shadow:0 18px 45px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.1);animation:spin 8s linear infinite;animation-play-state:paused}
+.vinyl-glow{position:absolute;inset:0;border-radius:50%;background:rgba(255,128,64,.22);filter:blur(22px);opacity:.6;transition:opacity .7s}
+.vinyl-wrap::after{content:'';position:absolute;inset:0;border-radius:50%;pointer-events:none;background:conic-gradient(from 20deg,transparent 0 30deg,rgba(255,255,255,.13) 48deg,transparent 70deg 200deg,rgba(255,255,255,.09) 222deg,transparent 245deg);mix-blend-mode:screen}
+.vinyl{position:relative;width:100%;height:100%;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at center,transparent 30%,rgba(0,0,0,.35) 31%,transparent 33%),repeating-radial-gradient(circle at center,#0f1014 0,#0f1014 1px,#1a1c23 1.6px,#0f1014 2.4px);box-shadow:0 18px 45px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.1);animation:spin 8s linear infinite;animation-play-state:paused}
 body.store-on .vinyl{animation-play-state:running}
 body.store-on .vinyl-glow{opacity:1}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -214,7 +218,7 @@ body.store-on .vinyl-glow{opacity:1}
 .st.soon{opacity:.42;filter:grayscale(.6);cursor:not-allowed}
 .st.soon .cnt{background:rgba(0,0,0,.55)}
 @media (max-width:700px){body{padding-bottom:190px}}
-.stations.five .st .emo{font-size:22px}
+.stations.five .st .emo{font-size:19px;width:36px;height:36px;border-radius:11px}
 .login{max-width:520px;margin:0 auto;border-radius:28px;padding:clamp(22px,4vw,36px)}
 .login h1{margin:12px 0 8px;font-size:28px;font-weight:800}
 .row{display:flex;gap:10px;flex-wrap:wrap}
@@ -551,8 +555,12 @@ footer a:hover{text-decoration:underline}
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   const fmt = (s) => !isFinite(s) || s < 0 ? '0:00' : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   const hash = (s) => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
-  const stBg = (c) => { const h = hash(c) % 360; return `linear-gradient(135deg,hsl(${h} 58% 40%),hsl(${(h + 40) % 360} 55% 24%))`; };
-  const coverBg = (t) => { const h = hash(t.id) % 360; return `linear-gradient(135deg,hsl(${h} 75% 55%),hsl(${(h + 60) % 360} 70% 35%) 60%,hsl(${(h + 120) % 360} 60% 18%))`; };
+  // 스테이션 색: 어두운 챠콜 바탕 + 오른쪽 아래에서 번지는 낮은 채도 빛 (원색 신호등 느낌을 줄여요 · 2026-11-02)
+  const stBg = (c) => { const h = hash(c) % 360; return `radial-gradient(120% 130% at 100% 100%,hsla(${h},48%,46%,.30),transparent 62%),radial-gradient(90% 90% at 0% 0%,hsla(${(h + 40) % 360},40%,40%,.14),transparent 60%),linear-gradient(160deg,#1A1C24,#121318)`; };
+  const stBanner = (c) => { const h = hash(c) % 360; return `radial-gradient(110% 140% at 100% 100%,hsla(${h},50%,46%,.42),transparent 65%),radial-gradient(80% 100% at 0% 0%,hsla(${(h + 30) % 360},55%,50%,.22),transparent 60%),linear-gradient(160deg,#1C1E27,#121318)`; };
+  const stLabel = (c) => { const h = hash(c) % 360; return `linear-gradient(135deg,hsl(${h} 50% 48%),hsl(${(h + 40) % 360} 45% 28%))`; };
+  // 커버: 곡마다 색 · 각도가 달라요 (같은 스테이션 곡이 이어져도 덜 단조롭게)
+  const coverBg = (t) => { const x = hash(t.id), h = x % 360, a = 100 + (x >> 9) % 90; return `linear-gradient(${a}deg,hsl(${h} 62% 54%),hsl(${(h + 50 + (x >> 4) % 30) % 360} 58% 34%) 60%,hsl(${(h + 120) % 360} 50% 17%))`; };
   const stOf = (t) => (t.tags || []).map((c) => ST[c]).find(Boolean);
   const emojiOf = (t) => stOf(t)?.emoji || '🎵';
   // 만든 곳 이름: 내부 엔진 · 라이선스 메모 대신 브랜드 이름 (서버 engineLabel 과 같은 규칙)
@@ -742,7 +750,7 @@ footer a:hover{text-decoration:underline}
     curStation = code; stationLoaded = true;
     const my = ++stationReq;   // 늦게 도착한 이전 스테이션 응답이 지금 화면을 덮지 않게
     const s = ST[code];
-    $('sBanner').style.background = `${stBg(code)}`;
+    $('sBanner').style.background = stBanner(code);
     $('sTitle').textContent = s.name; $('sEmoji').textContent = s.emoji; $('sGenre').textContent = `${s.genre} 중심 · 순서는 매번 섞여요`;
     $('sCount').textContent = counts[code] != null ? `${counts[code]}곡` : '…';
     $('sSub').textContent = '틀어 두기 좋은 곡을 이어서 들려줘요';
@@ -963,7 +971,7 @@ footer a:hover{text-decoration:underline}
   const logout = async () => { storeStop(); await sb?.auth.signOut(); storeReady = false; showStore('storeLogin'); oauthButtons(); };
   $('logout').onclick = logout; $('logout2').onclick = logout;
 
-  function renderStoreStations() { stationCards($('storeStations'), { min: 5, sel: storeStationCode, onPick: (c) => { storeStationCode = c; store.set('yarr_web_station', c); renderStoreStations(); storeRestart(); } }); $('vLabel').style.background = stBg(storeStationCode); }
+  function renderStoreStations() { stationCards($('storeStations'), { min: 5, sel: storeStationCode, onPick: (c) => { storeStationCode = c; store.set('yarr_web_station', c); renderStoreStations(); storeRestart(); } }); $('vLabel').style.background = stLabel(storeStationCode); }
   document.querySelectorAll('.seg button').forEach((b) => { b.classList.toggle('on', (b.dataset.v === '1') === vocals); b.onclick = () => { vocals = b.dataset.v === '1'; store.set('yarr_web_vocals', vocals); document.querySelectorAll('.seg button').forEach((x) => x.classList.toggle('on', x === b)); storeRestart(); }; });
 
   const recentMap = () => { const m = store.get('yarr_store_recent', {}); const cut = Date.now() - RECENT_DAYS * 86400_000; for (const k in m) if (m[k] < cut) delete m[k]; return m; };
