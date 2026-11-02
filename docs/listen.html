@@ -703,6 +703,27 @@ footer a:hover{text-decoration:underline}
     try { await startOn(t.url, false); }
     catch (e) { if (e.name === 'NotAllowedError') toast('재생 버튼을 한 번 더 눌러 주세요'); }
   }
+  // 목록 끝까지 들으면 멈추지 않고 이어서: 마지막 곡의 스테이션(없으면 다른 스테이션) 곡을 들은 곡 빼고 붙여서 계속 (2026-11-02)
+  let extending = false;
+  async function listenNext() {
+    if (idx < list.length - 1) return listenPlay(list, idx + 1);
+    if (extending || !list.length) return;
+    extending = true;
+    try {
+      const played = new Set(list.map((t) => t.id));
+      const first = stOf(list[list.length - 1])?.code;
+      const others = STATIONS.map((s) => s[0]).filter((c) => c !== first && (counts[c] ?? 1) > 0).sort(() => Math.random() - 0.5);
+      for (const code of [first, ...others].filter(Boolean).slice(0, 4)) {
+        const j = await api({ action: 'station', code, limit: 40 }).catch(() => null);
+        const more = (j?.tracks || []).filter((t) => !played.has(t.id));
+        if (more.length) {
+          toast(`목록을 다 들었어요 · ${ST[code].emoji} ${ST[code].name} 스테이션으로 이어서 들려드려요`);
+          return listenPlay(list.concat(more), idx + 1);
+        }
+      }
+      toast('이어서 들을 곡을 찾지 못했어요');
+    } finally { extending = false; }
+  }
   function markPlaying() {
     const cur = mode === 'listen' ? list[idx] : null;
     document.querySelectorAll('.trk').forEach((r) => {
@@ -714,7 +735,7 @@ footer a:hover{text-decoration:underline}
       else if (no.querySelector('.eq')) no.textContent = (host.id === 'chartList' && !shared && t?.rank) ? t.rank : +r.dataset.i + 1;
     });
     $('prev').disabled = mode !== 'listen' || idx <= 0;
-    $('next').disabled = mode === 'listen' ? idx >= list.length - 1 : !storeWant;
+    $('next').disabled = mode === 'listen' ? !list.length : !storeWant;
   }
   function setPlayingUi() {
     const playing = !audio().paused;
@@ -725,10 +746,10 @@ footer a:hover{text-decoration:underline}
   }
   A.forEach((el, k) => {
     el.addEventListener('play', setPlayingUi); el.addEventListener('pause', setPlayingUi);
-    el.addEventListener('ended', () => { if (k !== ai) return; mode === 'listen' ? (idx < list.length - 1 && listenPlay(list, idx + 1)) : storeNext(false); });
+    el.addEventListener('ended', () => { if (k !== ai) return; mode === 'listen' ? listenNext() : storeNext(false); });
     el.addEventListener('error', () => {
       if (k !== ai || !el.getAttribute('src')) return;
-      if (mode === 'listen') { toast('이 곡을 재생하지 못해 다음 곡으로 넘어가요'); if (idx < list.length - 1) setTimeout(() => listenPlay(list, idx + 1), 800); }
+      if (mode === 'listen') { toast('이 곡을 재생하지 못해 다음 곡으로 넘어가요'); setTimeout(listenNext, 800); }
       else storeError();
     });
     el.addEventListener('timeupdate', () => {
@@ -745,7 +766,7 @@ footer a:hover{text-decoration:underline}
     audio().paused ? audio().play() : audio().pause();
   };
   $('prev').onclick = () => mode === 'listen' && idx > 0 && listenPlay(list, idx - 1);
-  $('next').onclick = () => mode === 'listen' ? (idx < list.length - 1 && listenPlay(list, idx + 1)) : storeNext(true);
+  $('next').onclick = () => mode === 'listen' ? listenNext() : storeNext(true);
   $('tl').onclick = (e) => { const r = $('tl').getBoundingClientRect(); const el = audio(); if (el.duration && mode === 'listen') el.currentTime = ((e.clientX - r.left) / r.width) * el.duration; };
   $('shareSong').onclick = () => { const t = mode === 'listen' ? list[idx] : storeQueue[storeQi]; if (t) share(`${base()}?t=${t.id}`, t.title); };
   if ('mediaSession' in navigator) {
