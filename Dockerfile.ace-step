@@ -10,6 +10,10 @@ WORKDIR /app
 RUN git clone https://github.com/ACE-Step/ACE-Step-1.5 /app && git checkout ca1e85fe9430179831e6bc6be790c332190a3866
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python UV_LINK_MODE=copy
 RUN uv python install 3.11 && uv sync --frozen --no-dev --python 3.11 && uv pip install --python /app/.venv/bin/python "runpod>=1.7" && rm -rf /root/.cache
+# Vocal check (2026-11-02): faster-whisper base (CPU int8) in the image's own python (/opt/conda), NOT in the ACE venv,
+# so ACE-Step packages stay exactly as before. The handler calls it as a subprocess; if anything is missing it is skipped.
+RUN /opt/conda/bin/python -m pip install --no-cache-dir "faster-whisper==1.1.1" && /opt/conda/bin/python -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8', download_root='/opt/whisper')"
+COPY gpu/ace-step/vocal_check.py /app/yarr_vocal_check.py
 COPY gpu/ace-step/handler.py /app/yarr_handler.py
 COPY worker/guide.py /app/yarr_guide.py
 ENV ACE_CKPT=/tmp/ace_ckpt HF_HOME=/tmp/hf PYTHONUNBUFFERED=1 TOKENIZERS_PARALLELISM=false
