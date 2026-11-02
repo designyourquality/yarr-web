@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <!-- 빌드할 때 --base-href /app/ 로 바뀌어요 (yarrmusic.com/app/) -->
+  <base href="/app/">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="YARR · AI로 만든 곡의 차트, 상황별 스테이션, AI 작사 · 작곡 스튜디오">
+  <meta name="theme-color" content="#141315">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="YARR">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="manifest" href="manifest.json">
+  <title>YARR · AI 음악 차트와 스튜디오</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #141315; }
+    #boot { position: fixed; inset: 0; display: grid; place-items: center; color: #b3aca2; font: 14px -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+    #boot img { width: 72px; height: 72px; border-radius: 18px; display: block; margin: 0 auto 14px; animation: p 1.4s ease-in-out infinite; }
+    @keyframes p { 50% { opacity: .55; transform: scale(.96); } }
+  </style>
+</head>
+<body>
+  <div id="boot"><div><img src="icons/Icon-192.png" alt="">YARR 불러오는 중…</div></div>
+  <script>
+    // 첫 화면이 그려지면 불러오는 중 표시를 지워요
+    window.addEventListener('flutter-first-frame', function () { var b = document.getElementById('boot'); if (b) b.remove(); });
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
