@@ -21,7 +21,7 @@
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 "Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;word-break:keep-all;padding-bottom:130px;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 "Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;word-break:keep-all;padding-bottom:170px;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 ::selection{background:var(--orange);color:#fff}
 a{color:inherit}
 button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
@@ -147,7 +147,9 @@ body.paused .eq i{animation-play-state:paused}
 .sbanner .side{display:flex;gap:14px;align-items:center;padding:16px;border-radius:18px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(10px)}
 .sbanner .side .emo{width:56px;height:56px;border-radius:14px;background:rgba(255,255,255,.1);display:grid;place-items:center;font-size:30px}
 .sbanner .side small{display:block;font-size:12px;color:rgba(255,255,255,.75)}
-.stchips{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 14px;scrollbar-width:thin}
+.stchips{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 14px;scrollbar-width:none;-ms-overflow-style:none}
+.stchips::-webkit-scrollbar,.filters::-webkit-scrollbar{display:none}
+.filters{scrollbar-width:none}
 .stchips button{flex:none;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#E4E4E7;white-space:nowrap}
 .stchips button:hover{background:rgba(255,255,255,.1)}
 .stchips button.on{background:var(--orange);border-color:var(--orange);color:#fff}
@@ -372,7 +374,7 @@ footer a:hover{text-decoration:underline}
     <div class="scard">
       <div class="top"><div class="mini" id="sEmoji">📻</div><div style="min-width:0"><span class="lbl" id="sNowLbl">이 스테이션은</span><p class="now" id="sNow">-</p><small id="sGenre" style="color:rgba(255,255,255,.75);font-size:12px">-</small></div></div>
       <div class="stats"><div>평균 템포<b id="sBpm">-</b></div><div>연주곡<b id="sInst">-</b></div><div>매장 가능<b id="sStore">-</b></div></div>
-      <div class="row2"><span>✓ 매장 BGM 모드에서도 쓸 수 있어요</span><button class="pill-btn" id="sShuffle">🔀 다시 섞기</button></div>
+      <div class="row2"><span id="sStoreNote">✓ 매장 BGM 모드에서도 쓸 수 있어요</span><button class="pill-btn" id="sShuffle">🔀 다시 섞기</button></div>
     </div>
   </div>
   <div class="listhead"><h2 class="sec" style="font-size:21px">지금 나오는 곡 <small>섞을 때마다 순서가 바뀌어요</small></h2>
@@ -715,7 +717,11 @@ footer a:hover{text-decoration:underline}
     const bpms = stationTracks.map((t) => t.bpm).filter((x) => x > 0);
     $('sBpm').textContent = bpms.length ? `${Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length)} BPM` : '-';
     $('sInst').textContent = stationTracks.length ? `${stationTracks.filter((t) => t.instrumental).length}곡` : '-';
-    $('sStore').textContent = stationTracks.length ? `${stationTracks.filter((t) => t.store).length}곡` : '-';
+    const nStore = stationTracks.filter((t) => t.store).length;
+    $('sStore').textContent = stationTracks.length ? `${nStore}곡` : '-';
+    // 매장 탭은 매장 가능 곡이 5곡 이상일 때만 열려요 (renderStoreStations min: 5 와 같은 기준)
+    $('sStoreNote').textContent = nStore >= 5 ? '✓ 매장 BGM 모드에서도 쓸 수 있어요' : '매장 가능 곡이 5곡 이상 모이면 매장에서도 열려요';
+    $('sStoreNote').style.color = nStore >= 5 ? '#6EE7B7' : 'rgba(255,255,255,.6)';
     stationNow();
   }
   // 이 스테이션 곡이 나오는 중이면 카드에 곡 이름 (LP 가 돌아요)
