@@ -141,6 +141,21 @@ body.paused .eq i{animation-play-state:paused}
 .sbanner .side{display:flex;gap:14px;align-items:center;padding:16px;border-radius:18px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(10px)}
 .sbanner .side .emo{width:56px;height:56px;border-radius:14px;background:rgba(255,255,255,.1);display:grid;place-items:center;font-size:30px}
 .sbanner .side small{display:block;font-size:12px;color:rgba(255,255,255,.75)}
+.stchips{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 14px;scrollbar-width:thin}
+.stchips button{flex:none;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#E4E4E7;white-space:nowrap}
+.stchips button:hover{background:rgba(255,255,255,.1)}
+.stchips button.on{background:var(--orange);border-color:var(--orange);color:#fff}
+.stchips button.soon{opacity:.4}
+.sbanner .scard{flex:0 1 360px;min-width:260px;padding:18px;border-radius:20px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(10px)}
+.scard .top{display:flex;gap:14px;align-items:center}
+.scard .mini{width:64px;height:64px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:24px;background:repeating-radial-gradient(circle at center,#121318 0,#121318 2px,#1c1e26 3px,#121318 4px);box-shadow:0 0 0 1px rgba(255,255,255,.12),0 8px 20px rgba(0,0,0,.5);animation:spin 6s linear infinite;animation-play-state:paused}
+body.st-on .scard .mini{animation-play-state:running}
+.scard .lbl{font-size:11px;font-weight:700;letter-spacing:.08em;color:#FDE68A}
+.scard .now{font-size:16px;font-weight:800;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.scard .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0 12px}
+.scard .stats div{padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.06);font-size:11px;color:rgba(255,255,255,.7)}
+.scard .stats b{display:block;font-size:15px;color:#fff}
+.scard .row2{display:flex;gap:8px;align-items:center;justify-content:space-between;font-size:12px;color:#6EE7B7}
 .cta{margin-top:32px;border-radius:20px;padding:24px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;border-color:rgba(255,94,26,.2)}
 .cta h3{margin:0 0 4px;font-size:18px}
 .cta p{margin:0;font-size:13.5px;color:var(--soft)}
@@ -267,7 +282,7 @@ footer a:hover{text-decoration:underline}
   .trk{grid-template-columns:24px 44px minmax(0,1fr);padding:10px 12px;gap:10px}.trk .right .eng{display:none}.trk .right{grid-column:3;justify-self:start;margin-top:-4px}
   .kpis{grid-template-columns:1fr}.turn{flex-direction:column;text-align:center}.dctl{justify-content:center}
   .dock .in{gap:12px;padding:10px 12px}.dock .l{width:auto;flex:1}.dock .c{flex:0 0 auto;margin:0}.scrub,.dock .r{display:none}
-  .sbanner .side{display:none}
+  .sbanner .side{display:none}.sbanner .scard{flex-basis:100%}
 }
 @media (max-width:420px){.tabs .n{display:none}.hact .pill-btn span{display:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -336,6 +351,7 @@ footer a:hover{text-decoration:underline}
 
 <!-- 스테이션 -->
 <section class="view" id="v-stations">
+  <div class="stchips" id="stChips" role="tablist" aria-label="스테이션 바로 바꾸기"></div>
   <div class="sbanner" id="sBanner">
     <div>
       <span class="chipdark">📻 상황별 스테이션 · <span id="sCount">-</span></span>
@@ -346,9 +362,14 @@ footer a:hover{text-decoration:underline}
         <button class="btn sub" id="sCopy" style="background:rgba(0,0,0,.25);border-color:rgba(255,255,255,.15);color:#fff">링크 복사</button>
       </div>
     </div>
-    <div class="side"><div class="emo" id="sEmoji">📻</div><div><b style="font-size:13px">이 스테이션은</b><small id="sGenre">-</small><small style="color:#6EE7B7">✓ 매장 BGM 모드에서도 쓸 수 있어요</small></div></div>
+    <div class="scard">
+      <div class="top"><div class="mini" id="sEmoji">📻</div><div style="min-width:0"><span class="lbl" id="sNowLbl">이 스테이션은</span><p class="now" id="sNow">-</p><small id="sGenre" style="color:rgba(255,255,255,.75);font-size:12px">-</small></div></div>
+      <div class="stats"><div>평균 템포<b id="sBpm">-</b></div><div>연주곡<b id="sInst">-</b></div><div>매장 가능<b id="sStore">-</b></div></div>
+      <div class="row2"><span>✓ 매장 BGM 모드에서도 쓸 수 있어요</span><button class="pill-btn" id="sShuffle">🔀 다시 섞기</button></div>
+    </div>
   </div>
-  <div class="listhead"><h2 class="sec" style="font-size:21px">지금 나오는 곡 <small>새로 고치면 다른 곡이 섞여 나와요</small></h2></div>
+  <div class="listhead"><h2 class="sec" style="font-size:21px">지금 나오는 곡 <small>섞을 때마다 순서가 바뀌어요</small></h2>
+    <div class="filters" id="sFilters"><button data-sf="shuffle">🔀 섞기</button><button data-sf="all" class="on">전체</button><button data-sf="vocal">🎙️ 보컬 포함</button><button data-sf="inst">🎹 연주곡만</button><button data-sf="store" class="sf">🏪 매장 가능</button></div></div>
   <div class="list glass" id="stationList"><div class="empty">스테이션을 골라 주세요</div></div>
   <div class="listhead" style="margin-top:44px"><h2 class="sec" style="font-size:21px">전체 16개 스테이션 <small>카드를 누르면 바로 바뀌어요</small></h2></div>
   <div class="stations" id="allStations"></div>
@@ -651,7 +672,45 @@ footer a:hover{text-decoration:underline}
   $('copyPage').onclick = () => share(location.href, document.title);
 
   // ---------- 스테이션 ----------
-  let curStation = '#WOOD_CAFE', stationTracks = [], stationLoaded = false, stationReq = 0;
+  let curStation = '#WOOD_CAFE', stationTracks = [], stationShown = [], sFilter = 'all', stationLoaded = false, stationReq = 0;
+  // 맨 위 스테이션 바로 바꾸기 칩 (16개 · 곡이 없는 곳은 흐리게)
+  function renderChips() {
+    $('stChips').innerHTML = STATIONS.map(([c, n, , e]) => `<button role="tab" data-st="${c}" class="${c === curStation ? 'on' : ''}${counts[c] === 0 ? ' soon' : ''}" aria-selected="${c === curStation}">${e} ${esc(n)}</button>`).join('');
+    const on = $('stChips').querySelector('.on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  $('stChips').onclick = (e) => { const b = e.target.closest('[data-st]'); if (!b) return; if (b.classList.contains('soon')) return toast('이 스테이션은 곡을 채우는 중이에요. 곧 열려요'); loadStation(b.dataset.st); };
+  function renderStationList() {
+    stationShown = stationTracks.filter((t) => sFilter === 'all' || (sFilter === 'vocal' && !t.instrumental) || (sFilter === 'inst' && t.instrumental) || (sFilter === 'store' && t.store));
+    const el = $('stationList');
+    el.innerHTML = stationTracks.length
+      ? (stationShown.length ? stationShown.map((t, i) => rowHtml({ ...t, rank: null }, i, false)).join('') : '<div class="empty">조건에 맞는 곡이 없어요</div>')
+      : '<div class="empty">이 스테이션 곡은 지금 준비 중이에요. 다른 스테이션을 먼저 들어 보세요.</div>';
+    bindRows(el, () => stationShown); markPlaying();
+    document.querySelectorAll('#sFilters [data-sf]').forEach((b) => {
+      b.classList.toggle('on', b.dataset.sf === sFilter);
+      if (b.dataset.sf === 'all') b.textContent = `전체 ${stationTracks.length}곡`;
+    });
+    // 오른쪽 카드: 평균 템포 · 연주곡 · 매장 가능 곡 수
+    const bpms = stationTracks.map((t) => t.bpm).filter((x) => x > 0);
+    $('sBpm').textContent = bpms.length ? `${Math.round(bpms.reduce((a, b) => a + b, 0) / bpms.length)} BPM` : '-';
+    $('sInst').textContent = stationTracks.length ? `${stationTracks.filter((t) => t.instrumental).length}곡` : '-';
+    $('sStore').textContent = stationTracks.length ? `${stationTracks.filter((t) => t.store).length}곡` : '-';
+    stationNow();
+  }
+  // 이 스테이션 곡이 나오는 중이면 카드에 곡 이름 (LP 가 돌아요)
+  function stationNow() {
+    const t = mode === 'listen' ? list[idx] : null;
+    const here = !!t && stationTracks.some((x) => x.id === t.id) && !audio().paused;
+    document.body.classList.toggle('st-on', here);
+    $('sNowLbl').textContent = here ? 'NOW PLAYING' : '이 스테이션은';
+    $('sNow').textContent = here ? t.title : `${ST[curStation].name}`;
+  }
+  $('sFilters').onclick = (e) => {
+    const b = e.target.closest('[data-sf]'); if (!b) return;
+    if (b.dataset.sf === 'shuffle') return loadStation(curStation);
+    sFilter = b.dataset.sf; renderStationList();
+  };
+  $('sShuffle').onclick = () => loadStation(curStation);
   async function loadStation(code) {
     curStation = code; stationLoaded = true;
     const my = ++stationReq;   // 늦게 도착한 이전 스테이션 응답이 지금 화면을 덮지 않게
@@ -660,20 +719,18 @@ footer a:hover{text-decoration:underline}
     $('sTitle').textContent = s.name; $('sEmoji').textContent = s.emoji; $('sGenre').textContent = `${s.genre} 중심 · 순서는 매번 섞여요`;
     $('sCount').textContent = counts[code] != null ? `${counts[code]}곡` : '…';
     $('sSub').textContent = '틀어 두기 좋은 곡을 이어서 들려줘요';
-    stationCards($('allStations'), { sel: code, onPick: pickStation });
+    stationCards($('allStations'), { sel: code, onPick: pickStation }); renderChips();
     $('stationList').innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
     if (tab === 'stations') history.replaceState(null, '', `${base()}?s=${code.slice(1).toLowerCase()}`);
     try {
       const j = await api({ action: 'station', code, limit: 40 });
       if (my !== stationReq) return;
       stationTracks = j.tracks;
-      const el = $('stationList');
-      el.innerHTML = stationTracks.length ? stationTracks.map((t, i) => rowHtml({ ...t, rank: null }, i, false)).join('') : '<div class="empty">이 스테이션 곡은 지금 준비 중이에요. 다른 스테이션을 먼저 들어 보세요.</div>';
-      bindRows(el, () => stationTracks); markPlaying();
+      renderStationList();
     } catch { if (my === stationReq) $('stationList').innerHTML = '<div class="empty">곡 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>'; }
   }
   function pickStation(code) { if (tab !== 'stations') go('stations'); loadStation(code); }
-  $('sPlay').onclick = () => stationTracks.length && listenPlay(stationTracks, 0);
+  $('sPlay').onclick = () => stationShown.length && listenPlay(stationShown, 0);
   $('sCopy').onclick = () => share(`${base()}?s=${curStation.slice(1).toLowerCase()}`, ST[curStation].name);
 
   // ---------- 재생 엔진 (두 개의 오디오로 매장 모드 크로스페이드) ----------
@@ -735,7 +792,7 @@ footer a:hover{text-decoration:underline}
   function markPlaying() {
     const cur = mode === 'listen' ? list[idx] : null;
     document.querySelectorAll('.trk').forEach((r) => {
-      const host = r.parentElement; const arr = host.id === 'chartList' ? shown : host.id === 'stationList' ? stationTracks : [];
+      const host = r.parentElement; const arr = host.id === 'chartList' ? shown : host.id === 'stationList' ? stationShown : [];
       const t = arr[+r.dataset.i]; const on = !!cur && t && t.id === cur.id;
       r.classList.toggle('on', on);
       const no = r.querySelector('.no');
@@ -744,12 +801,14 @@ footer a:hover{text-decoration:underline}
     });
     $('prev').disabled = mode !== 'listen' || idx <= 0;
     $('next').disabled = mode === 'listen' ? !list.length : !storeWant;
+    if (stationLoaded) stationNow();
   }
   function setPlayingUi() {
     const playing = !audio().paused;
     document.body.classList.toggle('paused', !playing);
     $('tgIc').innerHTML = playing ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
     $('toggle').setAttribute('aria-label', playing ? '일시정지' : '재생');
+    if (stationLoaded) stationNow();
     storeUi();
   }
   A.forEach((el, k) => {
@@ -1029,7 +1088,7 @@ footer a:hover{text-decoration:underline}
 
   // ---------- 시작 ----------
   stationCards($('chartStations'), { only: 8, onPick: pickStation });
-  api({ action: 'stations' }).then((j) => { counts = j.counts || {}; stationCards($('chartStations'), { only: 8, onPick: pickStation }); if (stationLoaded) { stationCards($('allStations'), { sel: curStation, onPick: pickStation }); $('sCount').textContent = `${counts[curStation] ?? '-'}곡`; } if (storeReady) renderStoreStations(); }).catch(() => {});
+  api({ action: 'stations' }).then((j) => { counts = j.counts || {}; stationCards($('chartStations'), { only: 8, onPick: pickStation }); if (stationLoaded) { renderChips(); stationCards($('allStations'), { sel: curStation, onPick: pickStation }); $('sCount').textContent = `${counts[curStation] ?? '-'}곡`; } if (storeReady) renderStoreStations(); }).catch(() => {});
   const q = new URLSearchParams(location.search);
   const sParam = q.get('s');
   if (sParam && ST['#' + sParam.toUpperCase()]) curStation = '#' + sParam.toUpperCase();
