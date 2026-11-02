@@ -822,7 +822,7 @@ footer a:hover{text-decoration:underline}
   };
   $('code').onkeydown = (e) => { if (e.key === 'Enter') $('verify').click(); };
   $('email').onkeydown = (e) => { if (e.key === 'Enter') $('sendCode').click(); };
-  const logout = async () => { storeStop(); await sb?.auth.signOut(); storeReady = false; showStore('storeLogin'); };
+  const logout = async () => { storeStop(); await sb?.auth.signOut(); storeReady = false; showStore('storeLogin'); oauthButtons(); };
   $('logout').onclick = logout; $('logout2').onclick = logout;
 
   function renderStoreStations() { stationCards($('storeStations'), { sel: storeStationCode, onPick: (c) => { storeStationCode = c; store.set('yarr_web_station', c); renderStoreStations(); storeRestart(); } }); $('vLabel').style.background = stBg(storeStationCode); }
