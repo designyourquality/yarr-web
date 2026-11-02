@@ -791,6 +791,16 @@ def process(sb, t: dict, known: list[dict], lyrics_db: list[dict] | None = None)
         return row['inspection_note']
 
 
+def glitch_backlog(sb) -> int:
+    """아직 고장 검사를 안 한 YARR 오리지널 수 (이게 남아 있으면 검수 워커를 돌려요)"""
+    try:
+        r = (sb.table('tracks').select('id', count='exact').eq('creator_id', HOUSE_ID).in_('status', ['ACTIVE', 'REJECTED'])
+             .not_.like('inspection_note', '%품질검사%').limit(1).execute())
+        return int(r.count or 0)
+    except Exception:
+        return 0
+
+
 def glitch_scan(sb, limit: int = 40) -> tuple[int, int]:
     """이미 공개된 YARR 오리지널(하우스곡)도 한 번씩 고장 검사 → 걸리면 '검수 대기'로 돌려 관리자가 들어 보게 해요 (지우지 않아요)"""
     # 반려된 오리지널도 측정만 해요 (기준값 정하는 참고: 2026-11-02 '로그 스트림' 같은 곡)
@@ -1022,10 +1032,11 @@ def main():
     if a.count:
         redo = renorm_backlog(sb)
         chords_left = chord_backlog(sb)
-        print(f'검수할 곡: {len(todo)}개 · 음량 다시 맞출 곡: {redo}개 · 코드 채울 곡: {chords_left}개')
+        glitch_left = glitch_backlog(sb)
+        print(f'검수할 곡: {len(todo)}개 · 음량 다시 맞출 곡: {redo}개 · 코드 채울 곡: {chords_left}개 · 고장 검사 남은 오리지널: {glitch_left}개')
         if os.environ.get('GITHUB_OUTPUT'):
             with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                f.write(f'pending={len(todo) + redo + chords_left}\n')
+                f.write(f'pending={len(todo) + redo + chords_left + glitch_left}\n')
         return
     print(run(['ffmpeg', '-version']).stdout.splitlines()[0][:80], flush=True)
     known = known_fingerprints(sb)
@@ -1049,7 +1060,7 @@ def main():
     print(f'음량 다시 맞춤: {renorm(sb, int(os.environ.get("RENORM_BATCH", "5")))}곡')
     print(f'코드 · 조성 채움: {chord_backfill(sb, int(os.environ.get("CHORD_BATCH", "60")))}곡')
     try:
-        c, fl = glitch_scan(sb, int(os.environ.get('GLITCH_BATCH', '40')))
+        c, fl = glitch_scan(sb, int(os.environ.get('GLITCH_BATCH', '150')))
         print(f'공개 오리지널 고장 검사: {c}곡 · 걸림 {fl}곡')
     except Exception as e:
         print(f'고장 검사 건너뜀: {str(e)[:120]}', flush=True)
