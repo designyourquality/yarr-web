@@ -191,6 +191,76 @@ def normalize(src: str, dst: str) -> dict:
             'after_i': float(after['input_i']), 'after_tp': float(after['input_tp'])}
 
 
+# ---------------------------------------------------------------- 고장 난 곡 찾기 (2026-11-02 '로그 스트림': 소리가 깨지며 같은 소리만 반복)
+# AI 생성이 가끔 몇 초짜리 소리를 끝까지 되풀이하거나(멈춘 루프) 소리를 찌그러뜨려요. 음량 · 중복 검사로는 못 잡아서 따로 봐요.
+#  - 반복: 0.5초 묶음의 음색(대역별 에너지, 곡 평균을 뺀 값)이 1~4초 뒤 묶음과 거의 똑같은(0.95) 비율.
+#          멈춘 루프는 거의 전부 같아요. 기준값은 공개 오리지널 측정값 분포를 보고 정해요 (GLITCH_ACT=1 전까지는 측정만)
+#  - 정지: 곡 내내 음색 변화가 거의 없음 (같은 소리가 계속)
+#  - 찌그러짐: 원본에서 꽉 찬(±0.995 넘는) 샘플이 3개 넘게 이어지는 구간이 초당 여러 번
+# 걸리면 자동 승인하지 않고 '자동 보류'로 관리자에게 넘겨요 (직접 들어 보고 결정 · 잘못 걸려도 손해 없음)
+GLITCH_REPEAT = 0.85
+GLITCH_STATIC = 0.035
+GLITCH_CLIP_RUNS = 2.0
+
+
+def glitch_scores(x: 'np.ndarray', sr: int = 44100) -> dict:
+    mono = x.mean(axis=1) if x.ndim == 2 else x
+    peak = np.abs(x).max(axis=1) if x.ndim == 2 else np.abs(x)
+    hot = peak >= 0.995
+    # 3샘플 넘게 꽉 찬 구간 수 (진짜 클리핑) · 초당
+    edges = np.diff(np.concatenate([[0], hot.astype(np.int8), [0]]))
+    starts, ends = np.where(edges == 1)[0], np.where(edges == -1)[0]
+    runs = int(np.sum((ends - starts) >= 3))
+    secs = max(1.0, len(mono) / sr)
+    y = mono[::2]                       # 22.05kHz
+    sr2 = sr // 2
+    n_fft, hop = 2048, 1024
+    if len(y) < n_fft * 8:
+        return {'repeat': 0.0, 'lag': 0.0, 'static': 1.0, 'clip_runs': runs / secs}
+    win = np.hanning(n_fft)
+    frames = np.lib.stride_tricks.sliding_window_view(y, n_fft)[::hop] * win
+    mag = np.abs(np.fft.rfft(frames, axis=1))
+    freqs = np.fft.rfftfreq(n_fft, 1 / sr2)
+    edges_hz = np.geomspace(60, 10000, 33)
+    bands = np.stack([mag[:, (freqs >= lo) & (freqs < hi)].sum(axis=1) for lo, hi in zip(edges_hz[:-1], edges_hz[1:])], axis=1)
+    logb = np.log10(bands + 1e-6)
+    fps = sr2 / hop                               # 약 21.5 프레임/초
+    per = max(1, int(round(0.5 * fps)))           # 0.5초 이동 평균 (프레임 단위로 밀어서 어떤 길이의 루프도 맞춰요)
+    cs = np.cumsum(np.vstack([np.zeros((1, logb.shape[1])), logb]), axis=0)
+    sm = (cs[per:] - cs[:-per]) / per
+    cut = int(5 * fps)                            # 앞뒤 5초(페이드) 빼기
+    core = sm[cut:-cut] if len(sm) > 4 * cut else sm
+    c = core - core.mean(axis=0)
+    u = c / (np.linalg.norm(c, axis=1) + 1e-9)[:, None]
+    best, lag_best = 0.0, 0
+    for k in range(int(1 * fps), int(4 * fps) + 1):   # 1~4초 뒤
+        if len(u) <= k + int(8 * fps):
+            break
+        sim = np.sum(u[:-k] * u[k:], axis=1)
+        frac = float(np.mean(sim > 0.95))
+        if frac > best:
+            best, lag_best = frac, k
+    static = float(np.mean(np.std(core, axis=0)))
+    return {'repeat': round(best, 3), 'lag': round(lag_best / fps, 2), 'static': round(static, 3), 'clip_runs': round(runs / secs, 2)}
+
+
+def glitch_problems(g: dict) -> list[str]:
+    if os.environ.get('GLITCH_ACT', '0') != '1':
+        return []   # 측정만 (기준값을 실제 곡 분포로 정하기 전)
+    out = []
+    if g.get('repeat', 0) >= GLITCH_REPEAT:
+        out.append(f"같은 소리가 계속 반복돼요 ({g['lag']:.1f}초 간격 · {g['repeat']:.0%})")
+    if g.get('static', 1) < GLITCH_STATIC:
+        out.append(f"곡 내내 소리 변화가 거의 없어요 ({g['static']:.3f})")
+    if g.get('clip_runs', 0) >= GLITCH_CLIP_RUNS:
+        out.append(f"소리가 찌그러져요 (클리핑 초당 {g['clip_runs']:.1f}번)")
+    return out
+
+
+def glitch_file(path: str) -> dict:
+    return glitch_scores(_decode(path))
+
+
 def waveform(path: str, step_ms: int = 100) -> list[int]:
     """0.1초마다 음량(0~100) — 앱 LED 파형용"""
     r = subprocess.run(['ffmpeg', '-v', 'error', '-i', path, '-ac', '1', '-ar', '8000', '-f', 's16le', '-'],
@@ -459,8 +529,15 @@ def inspect_file(src: str, tmp: str, use_acr: bool = True, fade: bool = False) -
         'fingerprint_clean': bool(clean),
         'inspection_note': ' · '.join(notes)[:900],
     }
+    try:
+        g = glitch_file(src)
+        notes.append(f"품질검사 반복 {g['repeat']:.0%} · 변화 {g['static']:.3f} · 클리핑 {g['clip_runs']:.1f}/초")
+        row['inspection_note'] = ' · '.join(notes)[:900]
+    except Exception as e:
+        g = None
+        print(f'    품질검사 실패: {str(e)[:120]}', flush=True)
     facts = {'length': length, 'before_i': lv['before_i'], 'peak': lv['after_tp'], 'acr': clean, 'acr_score': acr_score, 'acr_note': acr_note,
-             'fp': chromaprint(out)}
+             'fp': chromaprint(out), 'glitch': g}
     return row, out, facts
 
 
@@ -562,6 +639,8 @@ def decide(t: dict, facts: dict, dup: tuple[float, dict | None], trusted: bool, 
     if lhit is not None and lsim >= LYRICS_HOLD:
         hold.append(f"'{lhit.get('title', '?')}' 가사와 {lsim:.0%} 같음")
 
+    for p in glitch_problems(facts.get('glitch') or {}):
+        hold.append(p)
     if facts.get('peak', -99) > TARGET_TP + 0.5:
         hold.append(f"변환 파일 피크 {facts['peak']:+.1f} dBTP (찌그러짐 확인)")
     if reject:
@@ -710,6 +789,39 @@ def process(sb, t: dict, known: list[dict], lyrics_db: list[dict] | None = None)
                                          'p_reason': verdict[1] or None, 'p_note': verdict[2]}).execute()
             return f"{'자동 승인' if verdict[0] == 'APPROVE' else '자동 반려 (' + verdict[1] + ')'}: {verdict[2]}"
         return row['inspection_note']
+
+
+def glitch_scan(sb, limit: int = 40) -> tuple[int, int]:
+    """이미 공개된 YARR 오리지널(하우스곡)도 한 번씩 고장 검사 → 걸리면 '검수 대기'로 돌려 관리자가 들어 보게 해요 (지우지 않아요)"""
+    # 반려된 오리지널도 측정만 해요 (기준값 정하는 참고: 2026-11-02 '로그 스트림' 같은 곡)
+    rows = (sb.table('tracks').select('id,title,status,original_url,normalized_url,inspection_note')
+            .eq('creator_id', HOUSE_ID).in_('status', ['ACTIVE', 'REJECTED'])
+            .not_.like('inspection_note', '%품질검사%')
+            .order('created_at', desc=True).limit(limit).execute().data) or []
+    checked = flagged = 0
+    for r in rows:
+        ref = r.get('original_url') or r.get('normalized_url') or ''
+        if not ref.startswith('storage:uploads/'):
+            continue
+        with tempfile.TemporaryDirectory() as tmp:
+            try:
+                src = os.path.join(tmp, 'a' + os.path.splitext(ref)[1])
+                with open(src, 'wb') as f:
+                    f.write(sb.storage.from_('uploads').download(ref[len('storage:uploads/'):]))
+                g = glitch_file(src)
+            except Exception as e:
+                print(f'    품질검사 실패 {r["title"]}: {str(e)[:100]}', flush=True)
+                continue
+        checked += 1
+        probs = glitch_problems(g) if r.get('status') == 'ACTIVE' else []
+        mark = f"품질검사 반복 {g['repeat']:.0%} · 변화 {g['static']:.3f} · 클리핑 {g['clip_runs']:.1f}/초"
+        upd = {'inspection_note': ((f"⚠ 자동 보류: {' · '.join(probs)} · " if probs else '') + mark + ' · ' + (r.get('inspection_note') or ''))[:900]}
+        if probs:
+            upd['status'] = 'PENDING'   # 공개에서 내리고 검수 대기로 (관리자가 들어 보고 승인 · 반려)
+            flagged += 1
+            print(f"  ⚠ {r['title']}: {' · '.join(probs)}", flush=True)
+        sb.table('tracks').update(upd).eq('id', r['id']).execute()
+    return checked, flagged
 
 
 def backfill(sb, known: list[dict], limit: int = 10) -> int:
@@ -899,6 +1011,7 @@ def main():
             dup = best_duplicate(facts['fp'], 'local', '', known) if facts['fp'] else (0.0, None)
             v = decide(t, facts, dup, trusted=False, recent_copy_reject=False)
             row['자동 결정'] = {'결과': v[0], '반려 이유': v[1], '설명': v[2], '음원 지문': f"{len(facts['fp'])}개 값"}
+            row['고장 검사'] = {'값': facts.get('glitch'), '문제': glitch_problems(facts.get('glitch') or {})}
             ch = chord_analyze(out, None)
             row['코드'] = {'조성': ch['key'], '처음 8개': [c['c'] for c in ch['chords'][:8]], '개수': len(ch['chords'])}
             print(json.dumps(row, ensure_ascii=False, indent=2))
@@ -935,6 +1048,11 @@ def main():
     print(f'지문 채움: {backfill(sb, known)}곡')
     print(f'음량 다시 맞춤: {renorm(sb, int(os.environ.get("RENORM_BATCH", "5")))}곡')
     print(f'코드 · 조성 채움: {chord_backfill(sb, int(os.environ.get("CHORD_BATCH", "60")))}곡')
+    try:
+        c, fl = glitch_scan(sb, int(os.environ.get('GLITCH_BATCH', '40')))
+        print(f'공개 오리지널 고장 검사: {c}곡 · 걸림 {fl}곡')
+    except Exception as e:
+        print(f'고장 검사 건너뜀: {str(e)[:120]}', flush=True)
     cleanup(sb)
     print(f'완료: {done}곡')
 
