@@ -33,7 +33,9 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -257,6 +259,27 @@ def handler(job: dict) -> dict:
             shutil.rmtree(src_dir, ignore_errors=True)
 
 
+VOCAL_CHECK = os.environ.get('VOCAL_CHECK', '1') == '1'
+VOCAL_PY = os.environ.get('VOCAL_CHECK_PY', '/opt/conda/bin/python')
+
+
+def vocal_check(path: str, lyrics: str, lang: str) -> dict | None:
+    """목소리가 실제로 들어갔는지 (2026-11-02 · ACE 가 가끔 반주만 만들어요) → vocal_check.py (따로 된 파이썬에서)
+    {'match': 넣은 가사 중 들린 비율, 'chars': 받아 적은 글자 수, ...} · 못 하면 None (서버는 그냥 완성으로 봐요)"""
+    if not VOCAL_CHECK or not lyrics or not os.path.exists(VOCAL_PY):
+        return None
+    try:
+        with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as fh:
+            fh.write(lyrics)
+        r = subprocess.run([VOCAL_PY, '/app/yarr_vocal_check.py', path, fh.name, lang], capture_output=True, text=True, timeout=120)
+        os.unlink(fh.name)
+        line = (r.stdout or '').strip().splitlines()[-1] if r.stdout.strip() else 'null'
+        return json.loads(line)
+    except Exception as e:  # noqa: BLE001  확인을 못 해도 곡은 그대로 돌려줘요
+        print(f'vocal check skipped: {str(e)[:120]}', flush=True)
+        return None
+
+
 def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) -> dict:
     from acestep.inference import generate_music
     result = generate_music(dit, llm, params, config, save_dir=out)
@@ -264,6 +287,7 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         raise RuntimeError(f'만들기 실패: {result.error or result.status_message}')
     a = result.audios[0]
     data = encode_mp3(a['path'], master=p.get('master', False))
+    vc = None if p.get('instrumental') else vocal_check(a['path'], p.get('lyrics') or '', p.get('vocal_language') or 'ko')
     seed = (a.get('params') or {}).get('seed')
     sr = a.get('sample_rate') or 48000
     t = a.get('tensor')
@@ -281,6 +305,7 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         'guide': p.get('guide', False),
         'dit': p.get('dit') or DIT, 'shift': p.get('shift') or 1.0, 'steps': p.get('steps', 8), 'master': p.get('master', False),
         'keyscale': p.get('keyscale') or None,
+        'vocal_check': vc,
     }
 
 
