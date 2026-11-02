@@ -1,0 +1,912 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>YARR 듣기 · AI 음악 차트와 매장 BGM</title>
+<meta name="description" content="설치 없이 바로 듣는 YARR AI 음악 차트, 상황별 스테이션, 매장 BGM 웹 플레이어">
+<meta property="og:title" content="YARR · 설치 없이 바로 듣는 AI 음악 차트">
+<meta property="og:description" content="AI로 만든 곡의 차트와 상황별 스테이션을 웹에서 바로 들어 보세요">
+<meta property="og:type" content="music.playlist">
+<meta property="og:site_name" content="YARR">
+<meta name="theme-color" content="#090A0F">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+:root{
+  --bg:#090A0F;--text:#F4F5F8;--soft:#A1A1AA;--dim:#71717A;--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
+  --glass:rgba(22,25,36,.65);--o1:#FF6B2C;--o2:#FF3D00;--orange:#FF5E1A;--ok:#34D399;--gold:#FBBF24;
+  --amb1:rgba(255,94,26,.16);--amb2:rgba(109,40,217,.12);--amb3:rgba(16,185,129,.08);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 "Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;word-break:keep-all;padding-bottom:130px;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+::selection{background:var(--orange);color:#fff}
+a{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:disabled{opacity:.4;cursor:default}
+:focus-visible{outline:2px solid var(--orange);outline-offset:2px;border-radius:8px}
+.mesh{position:fixed;inset:0;z-index:-2;background:radial-gradient(circle at 18% 18%,var(--amb1) 0,transparent 45%),radial-gradient(circle at 82% 22%,var(--amb2) 0,transparent 50%),radial-gradient(circle at 50% 80%,var(--amb3) 0,transparent 55%),var(--bg);transition:background 1.2s}
+.noise{position:fixed;inset:0;z-index:-1;opacity:.028;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.glass{background:var(--glass);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid var(--line);box-shadow:0 20px 50px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.08)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+/* 헤더 */
+header{position:sticky;top:0;z-index:40;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(9,10,15,.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+header .wrap{height:64px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo{width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,#FF7A3D,#FF3D00);display:grid;place-items:center;box-shadow:0 8px 20px rgba(255,94,26,.25),inset 0 0 0 1px rgba(255,255,255,.2)}
+.logo svg{width:20px;height:20px;fill:#fff}
+.brand b{font-weight:800;font-size:20px;letter-spacing:.08em}
+.tabs{display:flex;padding:4px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
+.tabs button{padding:6px 14px;border-radius:9px;font-size:14px;font-weight:600;color:var(--soft);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.tabs button:hover{color:#fff}
+.tabs button.on{background:linear-gradient(90deg,var(--o1),#FF4500);color:#fff;box-shadow:0 6px 16px rgba(255,94,26,.2)}
+.tabs .n{font-size:11px;opacity:.75;font-variant-numeric:tabular-nums}
+.dotlive{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:pulse 2s infinite}
+@keyframes pulse{50%{opacity:.4}}
+.hact{display:flex;gap:8px}
+.pill-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:12px;font-size:13px;font-weight:600;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);white-space:nowrap}
+.pill-btn:hover{background:rgba(255,255,255,.14)}
+.pill-btn.o{color:#FDBA74;background:rgba(255,94,26,.1);border-color:rgba(255,94,26,.25)}
+.pill-btn svg{width:14px;height:14px;fill:var(--orange)}
+main{padding-top:24px}
+section.view{display:none}
+section.view.on{display:block}
+/* 공통 */
+.btn{display:inline-flex;align-items:center;gap:9px;padding:12px 22px;border-radius:12px;font-weight:700;font-size:14px;color:#fff;background:linear-gradient(90deg,var(--o1),var(--o2));box-shadow:0 10px 24px rgba(255,94,26,.3);text-decoration:none}
+.btn:hover{filter:brightness(1.1)}
+.btn svg{width:16px;height:16px;fill:currentColor}
+.btn.sub{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);box-shadow:none;color:#E4E4E7;font-weight:600}
+.btn.sub:hover{background:rgba(255,255,255,.12)}
+.btn.gold{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);color:#FCD34D;box-shadow:none;font-weight:500;font-size:13px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.chip.o{background:rgba(255,94,26,.15);border:1px solid rgba(255,94,26,.3);color:#FB923C}
+.chip.g{background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.3);color:#6EE7B7}
+.chip .ping{width:8px;height:8px;border-radius:50%;background:currentColor;animation:pulse 1.4s infinite}
+.badge{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10.5px;font-weight:700;white-space:nowrap}
+.badge.store{background:rgba(52,211,153,.15);color:#6EE7B7;border:1px solid rgba(52,211,153,.3)}
+.badge.chart{background:rgba(255,255,255,.06);color:var(--soft);border:1px solid var(--line)}
+.soft{color:var(--soft)}
+.note{font-size:12.5px;color:var(--soft);margin:14px 0 0}
+h2.sec{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:0;font-size:24px;font-weight:800;letter-spacing:-.01em}
+h2.sec small{font-size:12.5px;color:var(--soft);font-weight:400}
+/* 히어로 */
+.hero{position:relative;border-radius:28px;overflow:hidden;padding:clamp(22px,4vw,40px)}
+.hero .glow1,.hero .glow2{position:absolute;border-radius:50%;filter:blur(60px);pointer-events:none}
+.hero .glow1{width:380px;height:380px;top:-100px;left:-100px;background:rgba(255,94,26,.2)}
+.hero .glow2{width:320px;height:320px;bottom:-110px;right:40px;background:rgba(147,51,234,.2)}
+.hero-grid{position:relative;display:grid;grid-template-columns:7fr 5fr;gap:32px;align-items:center}
+.hero h1{font-size:clamp(30px,5.2vw,50px);line-height:1.15;font-weight:800;letter-spacing:-.02em;margin:16px 0 14px}
+.hero h1 .grad{background:linear-gradient(90deg,#fff,#FFEDD5,#FB923C);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p.lead{color:#D4D4D8;max-width:560px;margin:0 0 20px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.spot{border-radius:18px;padding:20px;background:linear-gradient(135deg,rgba(255,255,255,.1),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.15);backdrop-filter:blur(30px);box-shadow:0 30px 60px rgba(0,0,0,.5);transform:perspective(1000px) rotateY(-8deg) rotateX(4deg);transition:transform .5s cubic-bezier(.22,1,.36,1)}
+.spot:hover{transform:perspective(1000px) rotateY(-2deg) rotateX(1deg) translateY(-4px)}
+.spot .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:8px}
+.spot .tag{padding:3px 10px;border-radius:6px;font-size:11px;font-weight:800;background:var(--orange);color:#fff}
+.spot .mono{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--soft)}
+.spot .row{display:flex;gap:16px;align-items:center}
+.spot h3{margin:0;font-size:19px;font-weight:800;line-height:1.3;overflow-wrap:anywhere}
+.spot .meta{font-size:12.5px;color:#D4D4D8;margin:2px 0 8px}
+.spot .eng{display:inline-flex;padding:2px 10px;border-radius:999px;font-size:11.5px;background:rgba(255,255,255,.07);border:1px solid var(--line);color:#D4D4D8}
+.spot .foot{margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:12.5px;color:var(--soft)}
+.cover{position:relative;flex-shrink:0;display:grid;place-items:center;border-radius:12px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+.cover.lg{width:80px;height:80px;font-size:34px;border-radius:14px}
+.cover.md{width:48px;height:48px;font-size:22px}
+.cover.sm{width:44px;height:44px;font-size:20px}
+.cover .ov{position:absolute;inset:0;background:rgba(0,0,0,.4);display:grid;place-items:center;opacity:0;transition:opacity .2s}
+.cover:hover .ov{opacity:1}
+.cover .ov svg{width:30px;height:30px;fill:#fff}
+/* 목록 */
+.listhead{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin:40px 0 16px}
+.filters{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;align-items:center;max-width:100%}
+.filters button{padding:6px 13px;border-radius:999px;font-size:12.5px;font-weight:600;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#D4D4D8;white-space:nowrap}
+.filters button.on{background:var(--orange);border-color:var(--orange);color:#fff}
+.filters button.sf{color:#6EE7B7;border-color:rgba(52,211,153,.25)}
+.filters button.sf.on{background:#059669;border-color:#059669;color:#fff}
+.list{border-radius:20px;overflow:hidden}
+.trk{display:grid;grid-template-columns:36px 48px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 18px;border-top:1px solid rgba(255,255,255,.06);cursor:pointer;transition:background .2s}
+.trk:first-child{border-top:0}
+.trk:hover{background:rgba(255,255,255,.04)}
+.trk.on{background:linear-gradient(90deg,rgba(255,94,26,.16),rgba(255,94,26,.04))}
+.trk .no{text-align:center;font-weight:800;color:var(--dim);font-variant-numeric:tabular-nums}
+.trk .no.top{color:var(--orange)}
+.trk b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trk.on b{color:#FB923C}
+.trk .sub{display:block;font-size:12.5px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trk .right{display:flex;align-items:center;gap:8px}
+.trk .eng{font-size:11.5px;padding:3px 9px;border-radius:7px;background:rgba(255,255,255,.04);border:1px solid var(--line);color:#D4D4D8;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.eq{display:inline-flex;gap:2px;align-items:flex-end;height:18px}
+.eq i{width:3px;border-radius:1px;background:var(--orange)}
+.eq i:nth-child(1){animation:e1 .8s ease-in-out infinite}.eq i:nth-child(2){animation:e2 .7s ease-in-out infinite}.eq i:nth-child(3){animation:e3 .9s ease-in-out infinite}
+@keyframes e1{0%,100%{height:4px}50%{height:18px}}@keyframes e2{0%,100%{height:16px}33%{height:5px}66%{height:18px}}@keyframes e3{0%,100%{height:8px}40%{height:18px}80%{height:4px}}
+body.paused .eq i{animation-play-state:paused}
+.skel{height:72px;border-top:1px solid rgba(255,255,255,.06);background:linear-gradient(90deg,transparent,rgba(255,255,255,.05),transparent);background-size:200% 100%;animation:sk 1.2s linear infinite}
+@keyframes sk{to{background-position:-200% 0}}
+.empty{padding:28px;text-align:center;color:var(--soft)}
+/* 스테이션 카드 */
+.stations{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.st{position:relative;display:flex;flex-direction:column;justify-content:space-between;min-height:118px;padding:16px;border-radius:18px;color:#fff;text-decoration:none;overflow:hidden;border:1px solid rgba(255,255,255,.08);transition:transform .3s cubic-bezier(.22,1,.36,1),box-shadow .3s;text-align:left}
+.st:hover{transform:translateY(-4px);box-shadow:0 16px 32px -8px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.22)}
+.st.sel{box-shadow:0 0 0 2px #fff,0 0 0 5px var(--orange)}
+.st b{font-size:16px;font-weight:800;line-height:1.3}
+.st span.g{font-size:12px;opacity:.85}
+.st .bot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:14px}
+.st .cnt{padding:2px 8px;border-radius:7px;background:rgba(0,0,0,.3);font-size:11.5px;font-weight:700}
+.st .emo{font-size:26px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.4))}
+.st:after{content:"";position:absolute;right:-22px;top:-22px;width:90px;height:90px;border-radius:50%;border:12px solid rgba(255,255,255,.07)}
+.sbanner{border-radius:28px;padding:clamp(22px,4vw,34px);border:1px solid rgba(255,255,255,.15);box-shadow:0 24px 60px rgba(0,0,0,.45);display:flex;justify-content:space-between;gap:24px;align-items:center;flex-wrap:wrap;transition:background .5s}
+.sbanner h1{margin:10px 0 6px;font-size:clamp(28px,4.5vw,40px);font-weight:800;letter-spacing:-.02em}
+.sbanner .chipdark{display:inline-flex;gap:8px;padding:3px 11px;border-radius:999px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.15);font-size:12px;font-weight:600;color:#FDE68A}
+.sbanner .side{display:flex;gap:14px;align-items:center;padding:16px;border-radius:18px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(10px)}
+.sbanner .side .emo{width:56px;height:56px;border-radius:14px;background:rgba(255,255,255,.1);display:grid;place-items:center;font-size:30px}
+.sbanner .side small{display:block;font-size:12px;color:rgba(255,255,255,.75)}
+.cta{margin-top:32px;border-radius:20px;padding:24px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;border-color:rgba(255,94,26,.2)}
+.cta h3{margin:0 0 4px;font-size:18px}
+.cta p{margin:0;font-size:13.5px;color:var(--soft)}
+/* 매장 */
+.deck{position:relative;border-radius:28px;padding:clamp(20px,4vw,32px);overflow:hidden}
+.deck .glow1{position:absolute;width:380px;height:380px;top:-100px;left:-100px;border-radius:50%;background:rgba(16,185,129,.15);filter:blur(60px);pointer-events:none}
+.deck .glow2{position:absolute;width:320px;height:320px;bottom:-100px;right:0;border-radius:50%;background:rgba(255,94,26,.1);filter:blur(60px);pointer-events:none}
+.deck > *{position:relative}
+.deck .bar1{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding-bottom:22px;border-bottom:1px solid rgba(255,255,255,.08)}
+.seg{display:flex;gap:4px;padding:4px;border-radius:12px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1)}
+.seg button{padding:6px 12px;border-radius:9px;font-size:12.5px;font-weight:600;color:var(--soft)}
+.seg button.on{background:var(--orange);color:#fff}
+.deck-grid{display:grid;grid-template-columns:7fr 5fr;gap:32px;align-items:center;padding:30px 0}
+.turn{display:flex;align-items:center;gap:28px}
+.vinyl-wrap{position:relative;width:176px;height:176px;flex-shrink:0;display:grid;place-items:center}
+.vinyl-glow{position:absolute;inset:0;border-radius:50%;background:rgba(16,185,129,.25);filter:blur(20px);opacity:.6;transition:opacity .7s}
+.vinyl{position:relative;width:100%;height:100%;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,rgba(255,255,255,.12) 0%,transparent 42%,transparent 58%,rgba(255,255,255,.12) 100%),repeating-radial-gradient(circle at center,#121318 0,#121318 2px,#1c1e26 3px,#121318 4px);box-shadow:0 18px 45px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.1);animation:spin 8s linear infinite;animation-play-state:paused}
+body.store-on .vinyl{animation-play-state:running}
+body.store-on .vinyl-glow{opacity:1}
+@keyframes spin{to{transform:rotate(360deg)}}
+.label{width:80px;height:80px;border-radius:50%;display:grid;place-items:center;box-shadow:inset 0 0 12px rgba(0,0,0,.5),0 0 0 4px rgba(0,0,0,.6)}
+.label i{width:14px;height:14px;border-radius:50%;background:var(--bg);border:1px solid rgba(255,255,255,.2)}
+.vinyl-tag{position:absolute;bottom:-8px;padding:2px 10px;border-radius:999px;background:rgba(0,0,0,.8);border:1px solid rgba(255,255,255,.15);font:11px ui-monospace,Menlo,monospace;color:var(--ok)}
+.now h2{margin:6px 0 4px;font-size:clamp(22px,3.4vw,30px);font-weight:800;letter-spacing:-.01em}
+.now .meta{font-size:14px;color:var(--soft)}
+.now .stline{font-size:12.5px;color:var(--ok);font-weight:600}
+.prog{height:6px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:14px}
+.prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ok),var(--orange));transition:width .4s linear}
+.dctl{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.fav.on{color:#FB7185;border-color:rgba(251,113,133,.4)}
+.vis{border-radius:18px;padding:18px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.07)}
+.vis .hd{display:flex;justify-content:space-between;font-size:12.5px;gap:8px}
+.vis .hd b{font-weight:600;color:#D4D4D8}
+.vis .hd span{font-family:ui-monospace,Menlo,monospace;color:var(--ok);font-size:11.5px}
+.bars{height:80px;display:flex;align-items:flex-end;justify-content:space-between;gap:4px;padding-top:10px}
+.bars i{flex:1;border-radius:2px 2px 0 0;background:linear-gradient(to top,rgba(52,211,153,.5),rgba(255,94,26,.8));height:6%;transition:height .25s ease}
+.vis p{font-size:11.5px;color:var(--soft);margin:12px 0 0;line-height:1.6}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.kpi{padding:16px;border-radius:18px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.kpi small{display:block;font-size:12px;color:var(--soft)}
+.kpi b{display:block;font-size:22px;font-weight:800;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:18px;flex-shrink:0}
+.panel{border-radius:24px;padding:clamp(20px,3vw,30px);margin-top:20px}
+.panel h3{margin:0;font-size:18px;font-weight:800}
+.panel .hd{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.stations.five{grid-template-columns:repeat(5,1fr);gap:12px}
+.stations.five .st{min-height:96px;padding:14px}
+.stations.five .st .emo{font-size:22px}
+.login{max-width:520px;margin:0 auto;border-radius:28px;padding:clamp(22px,4vw,36px)}
+.login h1{margin:12px 0 8px;font-size:28px;font-weight:800}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row input{flex:1;min-width:0;font:inherit;color:#fff;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:12px 14px}
+.row input:focus{outline:none;border-color:var(--orange)}
+.kakao{background:#FEE500;color:#191600;box-shadow:none}
+.google{background:#fff;color:#1f1f1f;box-shadow:none}
+.or{display:flex;align-items:center;gap:10px;color:var(--soft);font-size:13px;margin:18px 0}
+.or:before,.or:after{content:"";flex:1;height:1px;background:var(--line)}
+.msg{font-size:13.5px;color:var(--soft);margin:12px 0 0;min-height:1.4em}
+.msg.bad{color:#FCA5A5}
+ol.up{margin:0;padding-left:20px;color:#D4D4D8;font-size:14px}
+ol.up li{padding:3px 0}
+ol.up li span{color:var(--dim)}
+/* 하단 플레이어 */
+.dock{position:fixed;left:0;right:0;bottom:12px;z-index:50;padding:0 12px;pointer-events:none;transform:translateY(140%);transition:transform .35s cubic-bezier(.22,1,.36,1)}
+.dock.show{transform:none}
+.dock .in{pointer-events:auto;max-width:1024px;margin:0 auto;border-radius:20px;padding:12px 18px;display:flex;align-items:center;gap:20px;border-color:rgba(255,255,255,.15)}
+.dock .l{display:flex;align-items:center;gap:12px;min-width:0;width:260px}
+.dock .l b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dock .l .t{display:flex;align-items:center;gap:6px;min-width:0}
+.dock .l .t small{padding:1px 6px;border-radius:5px;background:rgba(255,255,255,.1);color:#D4D4D8;font-size:10.5px;white-space:nowrap}
+.dock .l p{margin:0;font-size:12px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dock .c{flex:1;display:flex;flex-direction:column;align-items:center;max-width:560px;margin:0 auto}
+.dock .tr{display:flex;align-items:center;gap:16px}
+.dock .tr .sk{color:var(--soft);padding:4px}.dock .tr .sk:hover{color:#fff}
+.dock .tr .sk svg{width:17px;height:17px;fill:currentColor}
+.play{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(90deg,var(--o1),var(--o2));box-shadow:0 8px 20px rgba(255,94,26,.3);transition:transform .15s}
+.play:hover{transform:scale(1.05)}
+.play svg{width:20px;height:20px;fill:#fff}
+.scrub{width:100%;display:flex;align-items:center;gap:10px;margin-top:6px;font:11px ui-monospace,Menlo,monospace;color:var(--soft)}
+.scrub .tl{flex:1;height:14px;display:flex;align-items:center;cursor:pointer}
+.scrub .tl div{width:100%;height:5px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
+.scrub .tl i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--o1),#FB923C)}
+.dock .r{display:flex;gap:8px;align-items:center}
+.iconbtn{padding:8px;border-radius:12px;color:var(--soft)}
+.iconbtn:hover{color:#fff;background:rgba(255,255,255,.1)}
+.iconbtn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2}
+/* 토스트 · 모달 */
+.toast{position:fixed;left:50%;bottom:104px;z-index:60;transform:translate(-50%,8px);opacity:0;pointer-events:none;transition:all .3s;padding:12px 16px;border-radius:16px;border:1px solid rgba(255,94,26,.4);background:rgba(20,22,34,.95);display:flex;gap:10px;align-items:center;font-size:13.5px;box-shadow:0 20px 40px rgba(0,0,0,.5)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.toast span{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(255,94,26,.2);border:1px solid rgba(255,94,26,.4);color:#FB923C;font-size:11px;flex-shrink:0}
+.modal{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.75);backdrop-filter:blur(8px)}
+.modal.on{display:flex}
+.modal .box{position:relative;width:100%;max-width:440px;border-radius:26px;padding:26px;max-height:90vh;overflow-y:auto}
+.modal .x{position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.1);display:grid;place-items:center}
+.modal h3{margin:6px 0 10px;font-size:19px;font-weight:800}
+.modal .kick{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.modal .card{padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);font-size:13.5px;color:#D4D4D8;margin:8px 0}
+.modal .card b{color:#fff}
+footer{max-width:1120px;margin:56px auto 0;padding:20px 16px;border-top:1px solid rgba(255,255,255,.06);font-size:12.5px;color:var(--dim)}
+footer p{margin:6px 0}
+footer a{color:#FB923C;text-decoration:none}
+footer a:hover{text-decoration:underline}
+.hidden{display:none!important}
+/* 반응형 */
+@media (max-width:980px){.hero-grid,.deck-grid{grid-template-columns:1fr}.spot{transform:none}.stations.five{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:760px){
+  .hact .o{display:none}.tabs button{padding:6px 10px;font-size:13px}.brand b{display:none}
+  .stations{grid-template-columns:repeat(2,1fr)}.stations.five{grid-template-columns:repeat(2,1fr)}
+  .trk{grid-template-columns:24px 44px minmax(0,1fr);padding:10px 12px;gap:10px}.trk .right .eng{display:none}.trk .right{grid-column:3;justify-self:start;margin-top:-4px}
+  .kpis{grid-template-columns:1fr}.turn{flex-direction:column;text-align:center}.dctl{justify-content:center}
+  .dock .in{gap:12px;padding:10px 12px}.dock .l{width:auto;flex:1}.dock .c{flex:0 0 auto;margin:0}.scrub,.dock .r{display:none}
+  .sbanner .side{display:none}
+}
+@media (max-width:420px){.tabs .n{display:none}.hact .pill-btn span{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body class="paused">
+<div class="mesh" id="mesh"></div><div class="noise"></div>
+
+<header>
+  <div class="wrap">
+    <a class="brand" href="listen.html" aria-label="YARR 듣기 처음으로">
+      <span class="logo"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-2 14.5v-9l6 4.5-6 4.5z"/></svg></span>
+      <b>YARR</b>
+    </a>
+    <nav class="tabs" aria-label="보기">
+      <button data-tab="chart" class="on">차트</button>
+      <button data-tab="stations">스테이션 <span class="n">16</span></button>
+      <button data-tab="store"><span class="dotlive"></span>YARR 매장</button>
+    </nav>
+    <div class="hact">
+      <button class="pill-btn o" data-modal="mStudio"><span>✨ AI로 내 곡 만들기</span></button>
+      <button class="pill-btn" data-modal="mApp"><svg viewBox="0 0 24 24"><path d="M3 20.5v-17c0-.83.94-1.3 1.6-.8l14 8.5c.6.37.6 1.23 0 1.6l-14 8.5c-.66.5-1.6.03-1.6-.8z"/></svg><span>앱 받기</span></button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- 차트 -->
+<section class="view on" id="v-chart">
+  <div class="hero glass">
+    <div class="glow1"></div><div class="glow2"></div>
+    <div class="hero-grid">
+      <div>
+        <span class="chip o" id="heroChip"><span class="ping"></span><span>지금 YARR 차트 · LIVE</span></span>
+        <h1 id="heroTitle">설치 없이 바로 듣는<br><span class="grad">AI 음악 차트</span></h1>
+        <p class="lead" id="heroLead">AI로 만든 곡 중 운영팀이 검수한 곡만 올라와요. 차트 곡부터 매장용 앰비언트 · 로파이까지 끊김 없이 들어 보세요.</p>
+        <div class="actions">
+          <button class="btn" id="playAll"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>전체 재생</button>
+          <button class="btn sub" id="copyPage">링크 복사</button>
+          <button class="btn gold" data-modal="mAward">🏆 월간 1~3위 보너스 안내</button>
+        </div>
+        <p class="note">• 웹에서 들은 곡은 아직 차트 순위와 크리에이터 정산에 들어가지 않아요. 앱에서 들으면 차트에 반영돼요.</p>
+      </div>
+      <div id="spotWrap"></div>
+    </div>
+  </div>
+
+  <div class="listhead">
+    <h2 class="sec" id="listTitle">TOP <span id="topN">30</span> <small id="listSub">지난 24시간 재생 기준</small></h2>
+    <div class="filters" id="filters">
+      <button data-f="all" class="on">전체</button>
+      <button data-f="vocal">🎙️ 보컬곡</button>
+      <button data-f="inst">🎹 연주곡</button>
+      <button data-f="store" class="sf">🏪 매장 재생 가능</button>
+    </div>
+  </div>
+  <div class="list glass" id="chartList"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+
+  <div class="listhead" style="margin-top:48px">
+    <h2 class="sec" style="font-size:21px">상황별 스테이션 <small>틀어 두기 좋은 곡을 이어서</small></h2>
+    <button class="pill-btn o" data-tab="stations">16개 스테이션 전체 보기 →</button>
+  </div>
+  <div class="stations" id="chartStations"></div>
+</section>
+
+<!-- 스테이션 -->
+<section class="view" id="v-stations">
+  <div class="sbanner" id="sBanner">
+    <div>
+      <span class="chipdark">📻 상황별 스테이션 · <span id="sCount">-</span></span>
+      <h1 id="sTitle">스테이션</h1>
+      <p style="margin:0;color:rgba(255,255,255,.82);font-size:14px" id="sSub">순서는 매번 섞여요</p>
+      <div class="actions" style="margin-top:18px">
+        <button class="btn" id="sPlay"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>스테이션 재생</button>
+        <button class="btn sub" id="sCopy" style="background:rgba(0,0,0,.25);border-color:rgba(255,255,255,.15);color:#fff">링크 복사</button>
+      </div>
+    </div>
+    <div class="side"><div class="emo" id="sEmoji">📻</div><div><b style="font-size:13px">이 스테이션은</b><small id="sGenre">-</small><small style="color:#6EE7B7">✓ 매장 BGM 모드에서도 쓸 수 있어요</small></div></div>
+  </div>
+  <div class="listhead"><h2 class="sec" style="font-size:21px">지금 나오는 곡 <small>새로 고치면 다른 곡이 섞여 나와요</small></h2></div>
+  <div class="list glass" id="stationList"><div class="empty">스테이션을 골라 주세요</div></div>
+  <div class="listhead" style="margin-top:44px"><h2 class="sec" style="font-size:21px">전체 16개 스테이션 <small>카드를 누르면 바로 바뀌어요</small></h2></div>
+  <div class="stations" id="allStations"></div>
+  <div class="cta glass">
+    <div><h3>앱에서는 더 많이 할 수 있어요</h3><p>좋아요 · 매장 BGM 영업시간 예약 · 안내방송 · AI 작사 도우미로 내 곡 만들기</p></div>
+    <button class="btn" data-modal="mApp">Google Play에서 받기</button>
+  </div>
+</section>
+
+<!-- 매장 -->
+<section class="view" id="v-store">
+  <div id="storeLoading" class="login glass"><p class="soft" style="margin:0">매장 정보를 확인하는 중…</p></div>
+
+  <div id="storeLogin" class="login glass hidden">
+    <span class="chip g">🏪 YARR 매장 BGM</span>
+    <h1>PC에서 바로 매장 BGM</h1>
+    <p class="soft" style="margin:0 0 20px">앱에서 매장 등록이 승인된 계정으로 로그인하면, 포스기나 카운터 PC에서 바로 틀 수 있어요.</p>
+    <div class="row"><button class="btn kakao" data-oauth="kakao">카카오로 로그인</button><button class="btn google" data-oauth="google">구글로 로그인</button></div>
+    <div class="or">또는 이메일 코드</div>
+    <div class="row" id="emailStep"><input type="email" id="email" placeholder="앱에 연결한 이메일" autocomplete="email"><button class="btn" id="sendCode">코드 받기</button></div>
+    <div class="row hidden" id="codeStep"><input type="text" id="code" inputmode="numeric" autocomplete="one-time-code" placeholder="메일로 받은 6자리 코드"><button class="btn" id="verify">확인</button><button class="btn sub" id="back">이메일 다시</button></div>
+    <p class="msg" id="loginMsg"></p>
+  </div>
+
+  <div id="storeNo" class="login glass hidden">
+    <span class="chip o">승인 대기</span>
+    <h1>아직 승인된 매장이 아니에요</h1>
+    <p class="soft" id="storeNoWhy">YARR 앱 → 설정 → 매장 모드에서 매장 등록을 신청해 주세요. 운영팀이 승인하면 여기서 바로 틀 수 있어요.</p>
+    <button class="btn sub" id="logout2">다른 계정으로 로그인</button>
+  </div>
+
+  <div id="storeDeck" class="hidden">
+    <div class="deck glass">
+      <div class="glow1"></div><div class="glow2"></div>
+      <div class="bar1">
+        <div class="row" style="align-items:center">
+          <span class="chip g" id="onair"><span class="ping"></span><span id="onairText">대기 중</span></span>
+          <button class="pill-btn" data-modal="mCert">📜 매장 음악 이용 확인서</button>
+          <button class="pill-btn" id="logout">로그아웃</button>
+        </div>
+        <div class="seg" role="group" aria-label="보컬곡 설정">
+          <button data-v="1" class="on">✓ 보컬곡도 틀기 (AI 작사)</button>
+          <button data-v="0">연주곡만</button>
+        </div>
+      </div>
+      <div class="deck-grid">
+        <div class="turn">
+          <div class="vinyl-wrap">
+            <div class="vinyl-glow"></div>
+            <div class="vinyl"><div class="label" id="vLabel"><i></i></div></div>
+            <span class="vinyl-tag">CROSSFADE 3s</span>
+          </div>
+          <div class="now" style="flex:1;min-width:0">
+            <span class="stline" id="dStation">스테이션 · 음악 신탁단체 비등록 곡</span>
+            <h2 id="dTitle">스테이션을 고르고 재생을 눌러 주세요</h2>
+            <div class="meta" id="dMeta">곡이 끝나면 3초 동안 겹치며 자연스럽게 넘어가요</div>
+            <div class="prog"><i id="dProg"></i></div>
+            <div class="dctl">
+              <button class="btn" id="dPlay"><svg viewBox="0 0 24 24" id="dPlayIc"><path d="M8 5v14l11-7z"/></svg><span id="dPlayTx">재생</span></button>
+              <button class="btn sub" id="dNext" disabled>다음 곡 ›</button>
+              <button class="btn sub fav" id="dFav" disabled title="선호곡은 한 바퀴에 한 번 더 나와요 (약 2배)"><span id="dFavIc">♡</span> 선호곡 (약 2배)</button>
+            </div>
+          </div>
+        </div>
+        <div class="vis">
+          <div class="hd"><b>매장 송출 상태</b><span id="visState">READY</span></div>
+          <div class="bars" id="bars" aria-hidden="true"></div>
+          <p>💡 브라우저 창을 최소화해도 계속 재생돼요. 이 탭을 닫거나 PC가 절전 모드로 들어가면 멈춰요.</p>
+        </div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><div><small>오늘 이 PC에서 튼 시간</small><b id="kMin">0분</b></div><div class="ic" style="background:rgba(255,94,26,.1);border:1px solid rgba(255,94,26,.2)">⏱️</div></div>
+        <div class="kpi"><div><small>오늘 튼 곡</small><b id="kSongs">0곡</b></div><div class="ic" style="background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.2)">🎵</div></div>
+        <div class="kpi"><div><small>최근 3일 안 겹치게</small><b id="kFresh" style="color:#6EE7B7">-</b></div><div class="ic" style="background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.2)">🛡️</div></div>
+      </div>
+    </div>
+    <div class="panel glass">
+      <div class="hd"><div><h3>매장 스테이션</h3><p class="soft" style="margin:2px 0 0;font-size:12.5px">업종과 시간대에 맞는 채널로 바로 바꿀 수 있어요</p></div><span style="font-size:12.5px;color:#6EE7B7">✓ 바꾸면 부드럽게 넘어가요</span></div>
+      <div class="stations five" id="storeStations"></div>
+    </div>
+    <div class="panel glass">
+      <div class="hd"><h3 style="font-size:15px">다음 곡 · 매장 재생 규칙</h3></div>
+      <ol class="up" id="upNext"></ol>
+      <p class="soft" style="font-size:12.5px;margin:14px 0 0;line-height:1.7">매장 BGM에는 운영팀 검수를 통과한 매장용 곡만 나와요 (연주곡, 그리고 가사까지 AI가 만든 곡). 사람이 직접 쓴 가사가 들어간 곡은 매장에서 빠져요. 앱에서 ‘매장에서 빼기’ 한 곡은 여기서도 빠져요. 영업시간 예약 · 안내방송 · 오프라인 재생은 앱에서 쓸 수 있어요.</p>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <p>YARR (야르) · 상호: 디와이큐 · 대표: 원대연 · 사업자등록번호: 734-15-02973 · 문의: <a href="mailto:contact@yarrmusic.com">contact@yarrmusic.com</a></p>
+  <p><a href="privacy.html">개인정보 처리방침</a> · <a href="terms.html">이용약관</a> · <a href="index.html">YARR 소개</a> · YARR의 곡은 모두 AI로 만든 곡이에요.</p>
+</footer>
+
+<!-- 하단 플레이어 -->
+<div class="dock" id="dock" aria-label="플레이어">
+  <div class="in glass">
+    <div class="l">
+      <div class="cover sm" id="dkArt">🎵</div>
+      <div style="min-width:0"><div class="t"><b id="dkTitle">-</b><small id="dkBadge"></small></div><p id="dkSub"></p></div>
+    </div>
+    <div class="c">
+      <div class="tr">
+        <button class="sk" id="prev" aria-label="이전 곡"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
+        <button class="play" id="toggle" aria-label="재생"><svg viewBox="0 0 24 24" id="tgIc"><path d="M8 5v14l11-7z"/></svg></button>
+        <button class="sk" id="next" aria-label="다음 곡"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
+      </div>
+      <div class="scrub"><span id="cur">0:00</span><div class="tl" id="tl"><div><i id="fill"></i></div></div><span id="dur">0:00</span></div>
+    </div>
+    <div class="r">
+      <button class="pill-btn" id="shareSong">📤 곡 링크 공유</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"><span>✓</span><b id="toastMsg" style="font-weight:500"></b></div>
+
+<!-- 모달 -->
+<div class="modal" id="mApp"><div class="box glass"><button class="x" data-close aria-label="닫기">✕</button>
+  <span class="kick" style="color:#FB923C">YARR 앱</span><h3>앱에서는 이런 걸 더 할 수 있어요</h3>
+  <div class="card"><b>차트에 반영되는 재생</b> · 좋아요 · 내 보관함</div>
+  <div class="card"><b>AI로 내 곡 만들기</b> · AI 작사 도우미 · 여러 목소리 · 직접 멜로디 찍기</div>
+  <div class="card"><b>매장 BGM 모드</b> · 영업시간 예약 · 안내방송 · 오프라인 재생 · 이용 확인서</div>
+  <p class="soft" style="font-size:12.5px">Android 앱이에요. Google Play 정식 출시를 준비하고 있어요.</p>
+  <a class="btn" style="width:100%;justify-content:center" href="https://play.google.com/store/apps/details?id=kr.dyq.yarr" rel="noopener">Google Play에서 보기</a>
+</div></div>
+
+<div class="modal" id="mAward"><div class="box glass" style="border-color:rgba(245,158,11,.3)"><button class="x" data-close aria-label="닫기">✕</button>
+  <span class="kick" style="color:#FBBF24">YARR 크리에이터 보상</span><h3>🏆 월간 차트 1~3위 보너스</h3>
+  <div class="card">매달 차트에서 정산 인정 재생이 가장 많은 곡 <b>1위 · 2위 · 3위</b>에게 스튜디오 보너스 만들기 횟수 <b>30곡 · 20곡 · 10곡</b>과 차트 배지를 드려요.</div>
+  <div class="card">부정 재생을 막기 위해 운영팀이 들은 사람 수와 재생 분포를 확인한 뒤 지급해요. 웹에서 들은 재생은 아직 포함되지 않아요.</div>
+  <button class="btn sub" style="width:100%;justify-content:center" data-close>확인</button>
+</div></div>
+
+<div class="modal" id="mStudio"><div class="box glass" style="border-color:rgba(255,94,26,.3)"><button class="x" data-close aria-label="닫기">✕</button>
+  <span class="kick" style="color:#FB923C">YARR 스튜디오</span><h3>✨ AI로 내 곡 만들기 (앱)</h3>
+  <div class="card"><b>AI 작사 도우미</b> · 주제 한 줄을 적으면 절 · 후렴 가사를 써 줘요. 한국어 · 영어 · 일본어. 브릿지만 따로 써 달라고 할 수도 있어요.</div>
+  <div class="card"><b>여러 목소리 · 장르 · 분위기</b>를 고르면 한 번에 두 가지 버전을 만들어요. 버전마다 시작 방식이 달라요.</div>
+  <div class="card"><b>매장에서도 틀려면</b> 가사까지 AI가 만든 곡이어야 해요. AI가 쓴 가사를 직접 고치면 ‘직접 쓴 가사’가 되어 차트에만 올라가요.</div>
+  <div class="card">무료: 가입 후 7일 동안 하루 1곡, 그 뒤로 한 달 5곡</div>
+  <button class="btn" style="width:100%;justify-content:center" data-modal="mApp">앱에서 만들기</button>
+</div></div>
+
+<div class="modal" id="mCert"><div class="box glass" style="border-color:rgba(52,211,153,.3)"><button class="x" data-close aria-label="닫기">✕</button>
+  <span class="kick" style="color:#6EE7B7">YARR 매장 BGM</span><h3>📜 매장 음악 이용 확인서</h3>
+  <div class="card" id="certStore">매장: -</div>
+  <div class="card">확인서는 <b>YARR 앱 → 매장 모드 → 이용 확인서</b>에서 발급해요. 우리 매장이 YARR 매장 모드로 검수된 AI 곡을 튼다는 내용과 곡별 정보가 담겨요.</div>
+  <button class="btn sub" style="width:100%;justify-content:center" data-close>확인</button>
+</div></div>
+
+<audio id="aA" preload="auto"></audio><audio id="aB" preload="auto"></audio>
+
+<script>
+(() => {
+  'use strict';
+  const API = 'https://ixgwiwohdczeklnurmon.supabase.co/functions/v1/house-music/web';
+  const SB_URL = 'https://ixgwiwohdczeklnurmon.supabase.co';
+  const SB_KEY = 'sb_publishable_bTO5xn7Gv3B8rTQxGbopww_qNH6cqkd';   // 공개 키 (앱에도 들어 있어요 · 권한은 서버 규칙이 막아요)
+  const SB_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';
+  const STATIONS = [
+    ['#WOOD_CAFE', '우드톤 카페', '앰비언트', '☕'], ['#MORNING_BAKERY', '모닝 베이커리', '앰비언트', '🥐'], ['#STUDY_CAFE', '스터디 카페', '로파이', '📖'],
+    ['#PUB_LOUNGE', '펍 · 라운지', '시티팝', '🍸'], ['#WINE_BAR', '와인 · 다이닝 바', '재즈', '🍷'], ['#BOUTIQUE', '힙한 편집샵', '하우스', '🕶️'],
+    ['#GYM_CARDIO', '헬스장 유산소', '하우스', '💪'], ['#SPA_YOGA', '힐링 요가 · 스파', '앰비언트', '🧘'], ['#ROOFTOP', '루프탑 · 선셋', '하우스', '🌇'],
+    ['#POCHA_NIGHT', '포차 · 퇴근길', '트로트', '🏮'], ['#NIGHT_DRIVE', '야간 드라이브', '시티팝', '🌃'], ['#RAINY_LOFI', '비 오는 날', '로파이', '🌧️'],
+    ['#FOCUS_CODE', '코딩 집중', '앰비언트', '💻'], ['#DAWN_MOOD', '새벽 감성', '피아노', '🌙'], ['#HANGANG_PICNIC', '한강 피크닉', '어쿠스틱', '🧺'],
+    ['#SUMMER_BEACH', '여름 바다', '트로피컬', '🏖️'],
+  ];
+  const ST = Object.fromEntries(STATIONS.map((s) => [s[0], { code: s[0], name: s[1], genre: s[2], emoji: s[3] }]));
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+  const fmt = (s) => !isFinite(s) || s < 0 ? '0:00' : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  const hash = (s) => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+  const stBg = (c) => { const h = hash(c) % 360; return `linear-gradient(135deg,hsl(${h} 58% 40%),hsl(${(h + 40) % 360} 55% 24%))`; };
+  const coverBg = (t) => { const h = hash(t.id) % 360; return `linear-gradient(135deg,hsl(${h} 75% 55%),hsl(${(h + 60) % 360} 70% 35%) 60%,hsl(${(h + 120) % 360} 60% 18%))`; };
+  const stOf = (t) => (t.tags || []).map((c) => ST[c]).find(Boolean);
+  const emojiOf = (t) => stOf(t)?.emoji || '🎵';
+  const kindOf = (t) => t.instrumental ? '연주곡' : (t.aiLyrics ? 'AI 작사' : '직접 작사');
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* 저장 못 해도 재생은 돼요 */ } },
+  };
+  const toast = (m) => { $('toastMsg').textContent = m; $('toast').classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => $('toast').classList.remove('on'), 2400); };
+
+  async function api(body) {
+    const r = await fetch(API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(j.error || 'FAILED'), { status: r.status });
+    return j;
+  }
+  async function share(url, title) {
+    try {
+      if (navigator.share && matchMedia('(pointer:coarse)').matches) { await navigator.share({ title, url }); return; }
+      await navigator.clipboard.writeText(url); toast('링크를 복사했어요');
+    } catch (e) { if (e && e.name !== 'AbortError') toast('링크를 복사하지 못했어요'); }
+  }
+  const base = () => `${location.origin}${location.pathname}`;
+
+  // ---------- 모달 · 탭 ----------
+  document.addEventListener('click', (e) => {
+    const m = e.target.closest('[data-modal]'); if (m) { document.querySelectorAll('.modal.on').forEach((x) => x.classList.remove('on')); $(m.dataset.modal).classList.add('on'); return; }
+    if (e.target.closest('[data-close]') || e.target.classList.contains('modal')) e.target.closest('.modal')?.classList.remove('on');
+    const t = e.target.closest('[data-tab]'); if (t) { e.preventDefault(); go(t.dataset.tab); }
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.querySelectorAll('.modal.on').forEach((x) => x.classList.remove('on')); });
+  const MESH = {
+    chart: ['rgba(255,94,26,.16)', 'rgba(109,40,217,.12)', 'rgba(16,185,129,.08)'],
+    stations: ['rgba(245,158,11,.14)', 'rgba(59,130,246,.12)', 'rgba(16,185,129,.08)'],
+    store: ['rgba(16,185,129,.16)', 'rgba(255,94,26,.1)', 'rgba(109,40,217,.08)'],
+  };
+  let tab = 'chart';
+  function go(name, push = true) {
+    tab = name;
+    document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+    document.querySelectorAll('section.view').forEach((s) => s.classList.toggle('on', s.id === 'v-' + name));
+    const [a, b, c] = MESH[name]; const r = document.documentElement.style;
+    r.setProperty('--amb1', a); r.setProperty('--amb2', b); r.setProperty('--amb3', c);
+    if (push) history.replaceState(null, '', name === 'chart' ? base() : name === 'stations' ? `${base()}?s=${curStation.slice(1).toLowerCase()}` : `${base()}?tab=store`);
+    if (name === 'stations' && !stationLoaded) loadStation(curStation);
+    if (name === 'store') storeBoot();
+    scrollTo({ top: 0 });
+  }
+
+  // ---------- 목록 그리기 ----------
+  function rowHtml(t, i, ranked) {
+    const no = ranked && t.rank ? t.rank : i + 1;
+    return `<div class="trk" data-i="${i}" tabindex="0" role="button" aria-label="${esc(t.title)} 재생">
+      <span class="no${no <= 3 && ranked ? ' top' : ''}">${no}</span>
+      <span class="cover md" style="background:${coverBg(t)}">${emojiOf(t)}</span>
+      <span style="min-width:0"><b>${esc(t.title)}</b><span class="sub">${esc(t.artist)}${t.genre ? ' · ' + esc(t.genre) : ''} · ${kindOf(t)}</span></span>
+      <span class="right">${t.engine ? `<span class="eng">${esc(t.engine)}</span>` : ''}<span class="badge ${t.store ? 'store' : 'chart'}">${t.store ? '매장 가능' : '차트 전용'}</span></span>
+    </div>`;
+  }
+  function bindRows(el, getList) {
+    el.onclick = (e) => { const r = e.target.closest('.trk'); if (r) listenPlay(getList(), +r.dataset.i); };
+    el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { const r = e.target.closest('.trk'); if (r) { e.preventDefault(); listenPlay(getList(), +r.dataset.i); } } };
+  }
+  function stationCards(el, opts = {}) {
+    const list = opts.only ? STATIONS.slice(0, opts.only) : STATIONS;
+    el.innerHTML = list.map(([c, n, g, e]) => `<button class="st${opts.sel === c ? ' sel' : ''}" data-st="${c}" style="background:${stBg(c)}">
+      <span><b style="display:block">${esc(n)}</b><span class="g">${esc(g)}</span></span>
+      <span class="bot"><span class="cnt">${counts[c] != null ? counts[c] + '곡' : '…'}</span><span class="emo">${e}</span></span></button>`).join('');
+    el.onclick = (ev) => { const b = ev.target.closest('[data-st]'); if (b) opts.onPick(b.dataset.st); };
+  }
+
+  // ---------- 차트 ----------
+  let chart = [], shown = [], filter = 'all', counts = {}, shared = null;
+  function renderChart() {
+    shown = chart.filter((t) => filter === 'all' || (filter === 'vocal' && !t.instrumental) || (filter === 'inst' && t.instrumental) || (filter === 'store' && t.store));
+    const el = $('chartList');
+    el.innerHTML = shown.length ? shown.map((t, i) => rowHtml(t, i, !shared)).join('') : '<div class="empty">조건에 맞는 곡이 없어요</div>';
+    bindRows(el, () => shown);
+    $('topN').textContent = chart.length;
+    document.querySelectorAll('#filters button').forEach((b) => { const n = b.dataset.f === 'all' ? chart.length : null; b.classList.toggle('on', b.dataset.f === filter); if (n != null) b.textContent = `전체 (${n})`; });
+    markPlaying();
+  }
+  $('filters').onclick = (e) => { const b = e.target.closest('[data-f]'); if (b) { filter = b.dataset.f; renderChart(); } };
+  function spotlight(t, label) {
+    if (!t) { $('spotWrap').innerHTML = ''; return; }
+    $('spotWrap').innerHTML = `<div class="spot"><div class="top"><span class="tag">${label}</span><span class="mono">${t.bpm ? t.bpm + ' BPM' : ''}</span></div>
+      <div class="row"><button class="cover lg" id="spotPlay" style="background:${coverBg(t)}" aria-label="${esc(t.title)} 재생">${emojiOf(t)}<span class="ov"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span></button>
+      <div style="min-width:0;flex:1"><div style="display:flex;align-items:center;gap:6px 8px;min-width:0;flex-wrap:wrap"><h3>${esc(t.title)}</h3>${t.store ? '<span class="badge store">매장 BGM 가능</span>' : ''}</div>
+      <p class="meta">${esc(t.artist)}${t.genre ? ' · ' + esc(t.genre) : ''} · ${kindOf(t)}</p>${t.engine ? `<span class="eng">🎹 ${esc(t.engine)}</span>` : ''}</div></div>
+      <div class="foot"><span>${stOf(t) ? `${stOf(t).emoji} ${esc(stOf(t).name)} 스테이션` : 'YARR AI 음악'}</span><button class="pill-btn" id="spotShare">링크 복사</button></div></div>`;
+    $('spotPlay').onclick = () => { const i = chart.indexOf(t); listenPlay(chart, i < 0 ? 0 : i); };
+    $('spotShare').onclick = () => share(`${base()}?t=${t.id}`, t.title);
+  }
+  async function loadChart() {
+    const id = new URLSearchParams(location.search).get('t');
+    try {
+      if (id) {
+        const j = await api({ action: 'track', id });
+        shared = j.tracks[0]; chart = j.tracks;
+        document.title = `${shared.title} · ${shared.artist} | YARR`;
+        $('heroChip').innerHTML = '<span class="ping"></span><span>공유된 곡</span>';
+        $('heroTitle').innerHTML = `${esc(shared.title)}<br><span class="grad" style="font-size:.6em">${esc(shared.artist)}</span>`;
+        $('heroLead').textContent = '설치 없이 바로 들어 보세요. 아래에 같은 스테이션 곡이 이어서 나와요.';
+        $('listTitle').innerHTML = `이어서 듣기 <small>${j.code && ST[j.code] ? esc(ST[j.code].name) + ' 스테이션' : ''}</small>`;
+        spotlight(shared, '공유된 곡');
+      } else {
+        const j = await api({ action: 'chart', limit: 30 });
+        chart = j.tracks; spotlight(chart[0], 'NOW #1');
+      }
+      renderChart();
+    } catch (e) {
+      $('chartList').innerHTML = e.status === 404
+        ? '<div class="empty">이 곡은 지금 들을 수 없어요. 비공개로 바뀌었거나 주소가 잘못됐을 수 있어요. <a href="listen.html" style="color:#FB923C">차트 보기</a></div>'
+        : '<div class="empty">곡 목록을 불러오지 못했어요. 인터넷 연결을 확인하고 <a href="" style="color:#FB923C">다시 시도</a>해 주세요.</div>';
+    }
+  }
+  $('playAll').onclick = () => chart.length && listenPlay(shown.length ? shown : chart, 0);
+  $('copyPage').onclick = () => share(location.href, document.title);
+
+  // ---------- 스테이션 ----------
+  let curStation = '#WOOD_CAFE', stationTracks = [], stationLoaded = false;
+  async function loadStation(code) {
+    curStation = code; stationLoaded = true;
+    const s = ST[code];
+    $('sBanner').style.background = `${stBg(code)}`;
+    $('sTitle').textContent = s.name; $('sEmoji').textContent = s.emoji; $('sGenre').textContent = `${s.genre} 중심 · 순서는 매번 섞여요`;
+    $('sCount').textContent = counts[code] != null ? `${counts[code]}곡` : '…';
+    $('sSub').textContent = '틀어 두기 좋은 곡을 이어서 들려줘요';
+    stationCards($('allStations'), { sel: code, onPick: pickStation });
+    $('stationList').innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
+    if (tab === 'stations') history.replaceState(null, '', `${base()}?s=${code.slice(1).toLowerCase()}`);
+    try {
+      const j = await api({ action: 'station', code, limit: 40 });
+      stationTracks = j.tracks;
+      const el = $('stationList');
+      el.innerHTML = stationTracks.length ? stationTracks.map((t, i) => rowHtml({ ...t, rank: null }, i, false)).join('') : '<div class="empty">아직 이 스테이션에 공개된 곡이 없어요</div>';
+      bindRows(el, () => stationTracks); markPlaying();
+    } catch { $('stationList').innerHTML = '<div class="empty">곡 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>'; }
+  }
+  function pickStation(code) { if (tab !== 'stations') go('stations'); loadStation(code); }
+  $('sPlay').onclick = () => stationTracks.length && listenPlay(stationTracks, 0);
+  $('sCopy').onclick = () => share(`${base()}?s=${curStation.slice(1).toLowerCase()}`, ST[curStation].name);
+
+  // ---------- 재생 엔진 (두 개의 오디오로 매장 모드 크로스페이드) ----------
+  const A = [$('aA'), $('aB')]; let ai = 0;
+  const audio = () => A[ai];
+  let mode = 'listen', list = [], idx = -1, dragging = false;
+  function setDock(t) {
+    $('dock').classList.add('show');
+    $('dkArt').style.background = coverBg(t); $('dkArt').textContent = emojiOf(t);
+    $('dkTitle').textContent = t.title; $('dkBadge').textContent = t.genre || '';
+    $('dkSub').textContent = `${t.artist}${t.engine ? ' · ' + t.engine : ''}`;
+    if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: mode === 'store' ? 'YARR 매장 BGM' : 'YARR' });
+  }
+  function fade(el, to, ms) {
+    return new Promise((res) => {
+      const from = el.volume, t0 = performance.now();
+      const step = (now) => { const k = Math.min(1, (now - t0) / ms); el.volume = Math.max(0, Math.min(1, from + (to - from) * k)); k < 1 ? requestAnimationFrame(step) : res(); };
+      requestAnimationFrame(step);
+    });
+  }
+  async function startOn(url, cross) {
+    const old = audio(); ai = 1 - ai; const el = audio();
+    el.src = url; el.volume = cross ? 0 : 1;
+    try { await el.play(); } catch (e) { ai = 1 - ai; throw e; }
+    if (cross && !old.paused) { fade(el, 1, 3000); fade(old, 0, 3000).then(() => { old.pause(); old.removeAttribute('src'); old.load(); }); }
+    else { el.volume = 1; old.pause(); }
+  }
+  async function listenPlay(l, i) {
+    if (mode === 'store') storeStop(true);
+    mode = 'listen'; list = l; idx = i; const t = list[i]; if (!t) return;
+    setDock(t); markPlaying();
+    try { await startOn(t.url, false); }
+    catch (e) { if (e.name === 'NotAllowedError') toast('재생 버튼을 한 번 더 눌러 주세요'); }
+  }
+  function markPlaying() {
+    const cur = mode === 'listen' ? list[idx] : null;
+    document.querySelectorAll('.trk').forEach((r) => {
+      const host = r.parentElement; const arr = host.id === 'chartList' ? shown : host.id === 'stationList' ? stationTracks : [];
+      const t = arr[+r.dataset.i]; const on = !!cur && t && t.id === cur.id;
+      r.classList.toggle('on', on);
+      const no = r.querySelector('.no');
+      if (on) no.innerHTML = '<span class="eq"><i></i><i></i><i></i></span>';
+      else if (no.querySelector('.eq')) no.textContent = (host.id === 'chartList' && !shared && t?.rank) ? t.rank : +r.dataset.i + 1;
+    });
+    $('prev').disabled = mode !== 'listen' || idx <= 0;
+    $('next').disabled = mode === 'listen' ? idx >= list.length - 1 : !storeWant;
+  }
+  function setPlayingUi() {
+    const playing = !audio().paused;
+    document.body.classList.toggle('paused', !playing);
+    $('tgIc').innerHTML = playing ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+    $('toggle').setAttribute('aria-label', playing ? '일시정지' : '재생');
+    storeUi();
+  }
+  A.forEach((el, k) => {
+    el.addEventListener('play', setPlayingUi); el.addEventListener('pause', setPlayingUi);
+    el.addEventListener('ended', () => { if (k !== ai) return; mode === 'listen' ? (idx < list.length - 1 && listenPlay(list, idx + 1)) : storeNext(false); });
+    el.addEventListener('error', () => {
+      if (k !== ai || !el.getAttribute('src')) return;
+      if (mode === 'listen') { toast('이 곡을 재생하지 못해 다음 곡으로 넘어가요'); if (idx < list.length - 1) setTimeout(() => listenPlay(list, idx + 1), 800); }
+      else storeError();
+    });
+    el.addEventListener('timeupdate', () => {
+      if (k !== ai) return;
+      const d = el.duration, c = el.currentTime;
+      $('cur').textContent = fmt(c); $('dur').textContent = fmt(d);
+      if (!dragging && d) $('fill').style.width = `${(c / d) * 100}%`;
+      if (mode === 'store') storeTick(el);
+    });
+  });
+  $('toggle').onclick = () => {
+    if (mode === 'store') return storeWant && !audio().paused ? storeStop() : storeStart();
+    if (idx < 0) return chart.length && listenPlay(chart, 0);
+    audio().paused ? audio().play() : audio().pause();
+  };
+  $('prev').onclick = () => mode === 'listen' && idx > 0 && listenPlay(list, idx - 1);
+  $('next').onclick = () => mode === 'listen' ? (idx < list.length - 1 && listenPlay(list, idx + 1)) : storeNext(true);
+  $('tl').onclick = (e) => { const r = $('tl').getBoundingClientRect(); const el = audio(); if (el.duration && mode === 'listen') el.currentTime = ((e.clientX - r.left) / r.width) * el.duration; };
+  $('shareSong').onclick = () => { const t = mode === 'listen' ? list[idx] : storeQueue[storeQi]; if (t) share(`${base()}?t=${t.id}`, t.title); };
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.setActionHandler('play', () => $('toggle').click());
+    navigator.mediaSession.setActionHandler('pause', () => $('toggle').click());
+    navigator.mediaSession.setActionHandler('nexttrack', () => $('next').click());
+    navigator.mediaSession.setActionHandler('previoustrack', () => $('prev').click());
+  }
+  document.addEventListener('keydown', (e) => { if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); $('toggle').click(); } });
+
+  // ---------- 매장 모드 ----------
+  let sb = null, storeReady = false, storeWant = false, storeQueue = [], storeQi = -1, storeStationCode = store.get('yarr_web_station', '#WOOD_CAFE');
+  let exclusions = new Set(), favorites = new Set(), session = null, listened = 0, lastT = 0, loadedAt = 0, errors = 0, pinged = null, crossing = false, myStore = null, uid = null;
+  let device = store.get('yarr_device', null);
+  if (!device) { device = 'web-' + Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join(''); store.set('yarr_device', device); }
+  let vocals = store.get('yarr_web_vocals', true);
+  const RECENT_DAYS = 3, VALID_SEC = 60, CROSS = 3;
+  const loadSb = () => sb ? Promise.resolve(sb) : new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = SB_JS; s.async = true;
+    s.onload = () => { sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, detectSessionInUrl: true, flowType: 'pkce' } }); res(sb); };
+    s.onerror = rej; document.head.appendChild(s);
+  });
+  const showStore = (id) => ['storeLoading', 'storeLogin', 'storeNo', 'storeDeck'].forEach((v) => $(v).classList.toggle('hidden', v !== id));
+  const loginMsg = (t, bad) => { $('loginMsg').textContent = t || ''; $('loginMsg').classList.toggle('bad', !!bad); };
+  const authErr = (e) => {
+    const m = String(e?.message || e);
+    if (/Signups not allowed|not found|Invalid login/i.test(m)) return '이 이메일로 연결된 YARR 계정이 없어요. 앱 설정에서 이메일을 먼저 연결해 주세요.';
+    if (/expired|invalid/i.test(m)) return '코드가 맞지 않거나 시간이 지났어요. 다시 받아 주세요.';
+    if (/rate|too many|seconds/i.test(m)) return '잠시 후 다시 시도해 주세요.';
+    if (/provider is not enabled|Unsupported provider/i.test(m)) return '이 로그인 방법이 아직 켜지지 않았어요.';
+    return '로그인하지 못했어요. 잠시 후 다시 시도해 주세요.';
+  };
+  async function storeBoot() {
+    if (storeReady) return;
+    showStore('storeLoading');
+    try { await loadSb(); } catch { $('storeLoading').innerHTML = '<p class="soft" style="margin:0">로그인 도구를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>'; return; }
+    const { data: { session: s } } = await sb.auth.getSession();
+    if (!s || s.user.is_anonymous) { showStore('storeLogin'); return; }
+    uid = s.user.id;
+    const [ent, st] = await Promise.all([
+      sb.rpc('my_entitlements').then((r) => (r.data && r.data[0]) || null, () => null),
+      sb.from('stores').select('name, status').eq('owner_id', uid).maybeSingle().then((r) => r.data, () => null),
+    ]);
+    myStore = st;
+    if (!(ent ? ent.store === true : st?.status === 'APPROVED')) {
+      if (st?.status === 'PENDING') $('storeNoWhy').textContent = `‘${st.name}’ 매장 신청을 운영팀이 확인하고 있어요. 승인되면 여기서 바로 틀 수 있어요.`;
+      showStore('storeNo'); return;
+    }
+    const [ex, fv] = await Promise.all([sb.from('store_exclusions').select('track_id'), sb.from('store_favorites').select('track_id')]);
+    exclusions = new Set((ex.data || []).map((r) => r.track_id)); favorites = new Set((fv.data || []).map((r) => r.track_id));
+    $('certStore').innerHTML = `매장: <b>${esc(st?.name || '내 매장')}</b>`;
+    storeReady = true; renderStoreStations(); storeUi(); kpis(); showStore('storeDeck');
+  }
+  document.querySelectorAll('[data-oauth]').forEach((b) => b.addEventListener('click', async () => {
+    loginMsg('로그인 창으로 이동해요…');
+    const { error } = await sb.auth.signInWithOAuth({ provider: b.dataset.oauth, options: { redirectTo: `${base()}?tab=store` } });
+    if (error) loginMsg(authErr(error), true);
+  }));
+  $('sendCode').onclick = async () => {
+    const email = $('email').value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return loginMsg('이메일 주소를 확인해 주세요.', true);
+    $('sendCode').disabled = true; loginMsg('코드를 보내는 중…');
+    const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+    $('sendCode').disabled = false;
+    if (error) return loginMsg(authErr(error), true);
+    $('emailStep').classList.add('hidden'); $('codeStep').classList.remove('hidden'); $('code').focus(); loginMsg('메일로 보낸 6자리 코드를 입력해 주세요.');
+  };
+  $('back').onclick = () => { $('codeStep').classList.add('hidden'); $('emailStep').classList.remove('hidden'); loginMsg(''); };
+  $('verify').onclick = async () => {
+    const { error } = await sb.auth.verifyOtp({ email: $('email').value.trim(), token: $('code').value.trim(), type: 'email' });
+    if (error) return loginMsg(authErr(error), true);
+    storeBoot();
+  };
+  $('code').onkeydown = (e) => { if (e.key === 'Enter') $('verify').click(); };
+  $('email').onkeydown = (e) => { if (e.key === 'Enter') $('sendCode').click(); };
+  const logout = async () => { storeStop(); await sb?.auth.signOut(); storeReady = false; showStore('storeLogin'); };
+  $('logout').onclick = logout; $('logout2').onclick = logout;
+
+  function renderStoreStations() { stationCards($('storeStations'), { sel: storeStationCode, onPick: (c) => { storeStationCode = c; store.set('yarr_web_station', c); renderStoreStations(); storeRestart(); } }); $('vLabel').style.background = stBg(storeStationCode); }
+  document.querySelectorAll('.seg button').forEach((b) => { b.classList.toggle('on', (b.dataset.v === '1') === vocals); b.onclick = () => { vocals = b.dataset.v === '1'; store.set('yarr_web_vocals', vocals); document.querySelectorAll('.seg button').forEach((x) => x.classList.toggle('on', x === b)); storeRestart(); }; });
+
+  const recentMap = () => { const m = store.get('yarr_store_recent', {}); const cut = Date.now() - RECENT_DAYS * 86400_000; for (const k in m) if (m[k] < cut) delete m[k]; return m; };
+  const markRecent = (id) => { const m = recentMap(); m[id] = Date.now(); store.set('yarr_store_recent', m); };
+  async function loadStoreQueue() {
+    const recent = Object.keys(recentMap()).slice(-500);
+    const { data, error } = await sb.rpc('station_tracks', { p_tag: storeStationCode, p_store: true, p_vocals: vocals, p_limit: 200, p_recent: recent });
+    if (error) throw error;
+    const rows = (data || []).filter((r) => !exclusions.has(r.id) && String(r.audio_url || '').startsWith('storage:uploads/'));
+    const paths = rows.map((r) => r.audio_url.slice('storage:uploads/'.length));
+    const urls = {};
+    for (let i = 0; i < paths.length; i += 200) { const { data: d } = await sb.functions.invoke('house-music/audio-urls', { body: { paths: paths.slice(i, i + 200) } }); Object.assign(urls, d?.urls || {}); }
+    const q = rows.map((r) => ({ id: r.id, title: r.title, artist: r.creator_nickname || 'YARR', genre: r.genre, engine: r.ai_plan || r.ai_engine, tags: [storeStationCode], url: urls[r.audio_url.slice('storage:uploads/'.length)] })).filter((t) => t.url);
+    // 선호곡 ♥: 한 바퀴에 한 번 더 (목록 반대편에 · 앱과 같은 방식)
+    if (q.length >= 4) for (const f of q.filter((t) => favorites.has(t.id))) q.splice((q.indexOf(f) + Math.floor(q.length / 2)) % q.length, 0, f);
+    storeQueue = q; storeQi = -1; loadedAt = Date.now();
+    const m = recentMap(); const uniq = new Set(q.map((t) => t.id));
+    $('kFresh').textContent = uniq.size ? `${[...uniq].filter((id) => !m[id]).length} / ${uniq.size}곡` : '-';
+  }
+  function flush() {
+    const s = session; session = null; const secs = Math.round(listened); listened = 0;
+    if (s && secs >= VALID_SEC) s.then((id) => id && sb.rpc('finish_stream', { p_session_id: id, p_played_seconds: secs }));
+  }
+  async function storeNext(cross) {
+    flush(); crossing = false;
+    if (storeQi >= storeQueue.length - 1 || Date.now() - loadedAt > 6 * 3600_000) {
+      try { await loadStoreQueue(); } catch { return storeFail('곡 목록을 받지 못했어요. 인터넷 연결을 확인해 주세요.'); }
+      if (!storeQueue.length) return storeFail('이 스테이션에는 아직 매장용 곡이 없어요. 다른 스테이션을 골라 주세요.');
+    }
+    const t = storeQueue[++storeQi];
+    $('dTitle').textContent = t.title; $('dMeta').textContent = `${t.artist}${t.genre ? ' · ' + t.genre : ''}${t.engine ? ' · ' + t.engine : ''}`;
+    $('dStation').textContent = `${ST[storeStationCode].emoji} ${ST[storeStationCode].name} · 음악 신탁단체 비등록 곡`;
+    setDock(t);
+    try { await startOn(t.url, cross); }
+    catch (e) { if (e.name === 'NotAllowedError') return storeFail('브라우저가 자동 재생을 막았어요. 재생 버튼을 한 번 더 눌러 주세요.'); return; }
+    markRecent(t.id); listened = 0; lastT = 0; errors = 0;
+    session = sb.rpc('start_stream', { p_track_id: t.id, p_stream_type: 'B2B_STORE', p_device_fingerprint: device }).then((r) => r.data || null, () => null);
+    const d = today(); d.songs++; store.set('yarr_web_today', d); kpis();
+    $('upNext').innerHTML = storeQueue.slice(storeQi + 1, storeQi + 6).map((x) => `<li>${esc(x.title)} <span>· ${esc(x.artist)}</span></li>`).join('') || '<li>목록 끝 · 새 목록을 받아요</li>';
+    $('dFav').disabled = false; favUi(); storeUi(); ping(true);
+  }
+  function storeTick(el) {
+    const c = el.currentTime, step = c - lastT; lastT = c;
+    if (!el.paused && step > 0 && step < 1.5) { listened += step; const d = today(); d.sec += step; store.set('yarr_web_today', d); }
+    if (el.duration) $('dProg').style.width = `${(c / el.duration) * 100}%`;
+    // 끝 3초 전에 다음 곡을 겹쳐서 시작 (크로스페이드)
+    if (storeWant && !crossing && el.duration && el.duration - c < CROSS && el.duration > 20) { crossing = true; storeNext(true); }
+  }
+  function storeError() { if (!storeWant) return; if (++errors >= 3) return storeFail('곡을 연달아 재생하지 못했어요. 인터넷 연결을 확인해 주세요.'); setTimeout(() => storeNext(false), 1200); }
+  function storeFail(m) { toast(m); $('dMeta').textContent = m; storeUi(); ping(true); }
+  async function storeStart() {
+    if (!storeReady) return go('store');
+    if (mode === 'listen') { audio().pause(); }
+    mode = 'store'; storeWant = true;
+    if (storeQi < 0 || !audio().getAttribute('src')) await storeNext(false); else await audio().play().catch(() => {});
+    storeUi(); ping(true);
+  }
+  function storeStop(silent) { if (mode !== 'store') return; storeWant = false; A.forEach((el) => el.pause()); flush(); if (!silent) { storeUi(); ping(true); } }
+  async function storeRestart() { flush(); storeQueue = []; storeQi = -1; if (storeWant) await storeNext(true); }
+  function storeUi() {
+    const on = mode === 'store' && storeWant && !audio().paused;
+    document.body.classList.toggle('store-on', on);
+    $('dPlayTx').textContent = on ? '일시정지' : '재생';
+    $('dPlayIc').innerHTML = on ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+    $('dNext').disabled = !(mode === 'store' && storeWant);
+    $('onairText').textContent = on ? `ON AIR · ${myStore?.name || '내 매장'} · 이 PC에서 송출` : `${myStore?.name || '내 매장'} · 대기 중`;
+    $('visState').textContent = on ? 'ON AIR · STORE STREAM' : (storeWant && errors >= 3 ? 'ERROR' : 'READY');
+  }
+  $('dPlay').onclick = () => (mode === 'store' && storeWant && !audio().paused ? storeStop() : storeStart());
+  $('dNext').onclick = () => storeNext(true);
+  function favUi() { const t = storeQueue[storeQi]; const on = !!t && favorites.has(t.id); $('dFav').classList.toggle('on', on); $('dFavIc').textContent = on ? '♥' : '♡'; }
+  $('dFav').onclick = async () => {
+    const t = storeQueue[storeQi]; if (!t) return;
+    const on = !favorites.has(t.id);
+    on ? favorites.add(t.id) : favorites.delete(t.id); favUi();
+    const r = on ? await sb.from('store_favorites').upsert({ owner_id: uid, track_id: t.id }, { ignoreDuplicates: true }) : await sb.from('store_favorites').delete().eq('track_id', t.id);
+    if (r.error) { on ? favorites.delete(t.id) : favorites.add(t.id); favUi(); toast('선호곡을 저장하지 못했어요'); }
+    else toast(on ? '선호곡으로 저장했어요 · 앱에서도 같이 적용돼요' : '선호곡에서 뺐어요');
+  };
+  const today = () => { const k = new Date().toLocaleDateString('sv-SE'); const s = store.get('yarr_web_today', {}); return s.day === k ? s : { day: k, sec: 0, songs: 0 }; };
+  function kpis() { const s = today(); const m = Math.floor(s.sec / 60); $('kMin').textContent = m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분` : `${m}분`; $('kSongs').textContent = `${s.songs}곡`; }
+  setInterval(kpis, 30_000);
+  function ping(force) {
+    if (!sb || !storeReady) return;
+    const st = mode === 'store' && storeWant && !audio().paused ? 'PLAYING' : (storeWant && errors >= 3 ? 'ERROR' : 'PAUSED');
+    if (!force && st === pinged) return; pinged = st;
+    sb.rpc('store_ping', { p_state: st, p_station: storeStationCode, p_cached: 0, p_version: 'web-2' }).then(() => {}, () => {});
+  }
+  setInterval(() => { pinged = null; ping(false); }, 5 * 60_000);
+  window.addEventListener('pagehide', flush);
+  // 장식용 막대 (실제 소리 분석 아님 · 재생 중일 때만 움직여요)
+  $('bars').innerHTML = '<i></i>'.repeat(28);
+  const barsEl = [...$('bars').children];
+  setInterval(() => { const on = document.body.classList.contains('store-on'); barsEl.forEach((b, i) => { b.style.height = on ? `${12 + Math.abs(Math.sin(Date.now() / 420 + i * 0.7)) * 70 * (0.5 + Math.random() * 0.5)}%` : '6%'; }); }, 260);
+
+  // ---------- 시작 ----------
+  stationCards($('chartStations'), { only: 8, onPick: pickStation });
+  api({ action: 'stations' }).then((j) => { counts = j.counts || {}; stationCards($('chartStations'), { only: 8, onPick: pickStation }); if (stationLoaded) { stationCards($('allStations'), { sel: curStation, onPick: pickStation }); $('sCount').textContent = `${counts[curStation] ?? '-'}곡`; } if (storeReady) renderStoreStations(); }).catch(() => {});
+  const q = new URLSearchParams(location.search);
+  const sParam = q.get('s');
+  if (sParam && ST['#' + sParam.toUpperCase()]) curStation = '#' + sParam.toUpperCase();
+  loadChart();
+  if (q.get('tab') === 'store' || q.has('code')) go('store', false);
+  else if (sParam) go('stations', false);
+})();
+</script>
+</body>
+</html>
