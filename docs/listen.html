@@ -591,7 +591,8 @@ footer a:hover{text-decoration:underline}
   const coverUrl = (t, small = true) => coverUrlKey(poolOf(t), 'srv-' + t.id, small);
   const coverCss = (t, small = true) => { const u = coverUrl(t, small); return u ? `background:url('${u}') center/cover no-repeat,${coverBg(t)}` : `background:${coverBg(t)}`; };
   const coverEmo = (t) => coverUrl(t) ? '' : emojiOf(t);
-  const stPhoto = (c, small = true) => coverUrlKey(poolOfCode(c), 'station', small);
+  // 스테이션 대표 그림: 그 풀의 1번 (넓은 장면 · 앱과 같게)
+  const stPhoto = (c, small = true) => `/covers/${poolOfCode(c)}/${small ? 's/' : ''}01.webp`;
   // 만든 곳 이름: 내부 엔진 · 라이선스 메모 대신 브랜드 이름 (서버 engineLabel 과 같은 규칙)
   const brand = (r) => {
     const plan = String(r.ai_plan || '');
