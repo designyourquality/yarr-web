@@ -350,8 +350,8 @@ footer a:hover{text-decoration:underline}
     <span class="chip g">🏪 YARR 매장 BGM</span>
     <h1>PC에서 바로 매장 BGM</h1>
     <p class="soft" style="margin:0 0 20px">앱에서 매장 등록이 승인된 계정으로 로그인하면, 포스기나 카운터 PC에서 바로 틀 수 있어요.</p>
-    <div class="row"><button class="btn kakao" data-oauth="kakao">카카오로 로그인</button><button class="btn google" data-oauth="google">구글로 로그인</button></div>
-    <div class="or">또는 이메일 코드</div>
+    <div class="row hidden" id="oauthRow"><button class="btn kakao hidden" data-oauth="kakao">카카오로 로그인</button><button class="btn google hidden" data-oauth="google">구글로 로그인</button></div>
+    <div class="or hidden" id="oauthOr">또는 이메일 코드</div>
     <div class="row" id="emailStep"><input type="email" id="email" placeholder="앱에 연결한 이메일" autocomplete="email"><button class="btn" id="sendCode">코드 받기</button></div>
     <div class="row hidden" id="codeStep"><input type="text" id="code" inputmode="numeric" autocomplete="one-time-code" placeholder="메일로 받은 6자리 코드"><button class="btn" id="verify">확인</button><button class="btn sub" id="back">이메일 다시</button></div>
     <p class="msg" id="loginMsg"></p>
@@ -508,6 +508,13 @@ footer a:hover{text-decoration:underline}
   const coverBg = (t) => { const h = hash(t.id) % 360; return `linear-gradient(135deg,hsl(${h} 75% 55%),hsl(${(h + 60) % 360} 70% 35%) 60%,hsl(${(h + 120) % 360} 60% 18%))`; };
   const stOf = (t) => (t.tags || []).map((c) => ST[c]).find(Boolean);
   const emojiOf = (t) => stOf(t)?.emoji || '🎵';
+  // 만든 곳 이름: 내부 엔진 · 라이선스 메모 대신 브랜드 이름 (서버 engineLabel 과 같은 규칙)
+  const brand = (r) => {
+    const plan = String(r.ai_plan || '');
+    if (r.is_house) return 'YARR Originals';
+    if (plan.startsWith('YARR 스튜디오') || plan.startsWith('YARR Studio')) return 'YARR Studio';
+    return plan.replace(/\s*\([^)]*\)/g, '').replace(/\s*·\s*YARR GPU/gi, '').trim() || null;
+  };
   const kindOf = (t) => t.instrumental ? '연주곡' : (t.aiLyrics ? 'AI 작사' : '직접 작사');
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
@@ -625,9 +632,10 @@ footer a:hover{text-decoration:underline}
   $('copyPage').onclick = () => share(location.href, document.title);
 
   // ---------- 스테이션 ----------
-  let curStation = '#WOOD_CAFE', stationTracks = [], stationLoaded = false;
+  let curStation = '#WOOD_CAFE', stationTracks = [], stationLoaded = false, stationReq = 0;
   async function loadStation(code) {
     curStation = code; stationLoaded = true;
+    const my = ++stationReq;   // 늦게 도착한 이전 스테이션 응답이 지금 화면을 덮지 않게
     const s = ST[code];
     $('sBanner').style.background = `${stBg(code)}`;
     $('sTitle').textContent = s.name; $('sEmoji').textContent = s.emoji; $('sGenre').textContent = `${s.genre} 중심 · 순서는 매번 섞여요`;
@@ -638,11 +646,12 @@ footer a:hover{text-decoration:underline}
     if (tab === 'stations') history.replaceState(null, '', `${base()}?s=${code.slice(1).toLowerCase()}`);
     try {
       const j = await api({ action: 'station', code, limit: 40 });
+      if (my !== stationReq) return;
       stationTracks = j.tracks;
       const el = $('stationList');
-      el.innerHTML = stationTracks.length ? stationTracks.map((t, i) => rowHtml({ ...t, rank: null }, i, false)).join('') : '<div class="empty">아직 이 스테이션에 공개된 곡이 없어요</div>';
+      el.innerHTML = stationTracks.length ? stationTracks.map((t, i) => rowHtml({ ...t, rank: null }, i, false)).join('') : '<div class="empty">이 스테이션 곡은 지금 준비 중이에요. 다른 스테이션을 먼저 들어 보세요.</div>';
       bindRows(el, () => stationTracks); markPlaying();
-    } catch { $('stationList').innerHTML = '<div class="empty">곡 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>'; }
+    } catch { if (my === stationReq) $('stationList').innerHTML = '<div class="empty">곡 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>'; }
   }
   function pickStation(code) { if (tab !== 'stations') go('stations'); loadStation(code); }
   $('sPlay').onclick = () => stationTracks.length && listenPlay(stationTracks, 0);
@@ -760,7 +769,7 @@ footer a:hover{text-decoration:underline}
     showStore('storeLoading');
     try { await loadSb(); } catch { $('storeLoading').innerHTML = '<p class="soft" style="margin:0">로그인 도구를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>'; return; }
     const { data: { session: s } } = await sb.auth.getSession();
-    if (!s || s.user.is_anonymous) { showStore('storeLogin'); return; }
+    if (!s || s.user.is_anonymous) { showStore('storeLogin'); oauthButtons(); return; }
     uid = s.user.id;
     const [ent, st] = await Promise.all([
       sb.rpc('my_entitlements').then((r) => (r.data && r.data[0]) || null, () => null),
@@ -776,9 +785,24 @@ footer a:hover{text-decoration:underline}
     $('certStore').innerHTML = `매장: <b>${esc(st?.name || '내 매장')}</b>`;
     storeReady = true; renderStoreStations(); storeUi(); kpis(); showStore('storeDeck');
   }
+  // 서버에서 켜진 로그인 방법만 버튼을 보여요 (카카오 · 구글이 꺼져 있으면 이메일 코드만)
+  async function oauthButtons() {
+    try {
+      const j = await fetch(`${SB_URL}/auth/v1/settings`, { headers: { apikey: SB_KEY } }).then((r) => r.json());
+      let any = false;
+      document.querySelectorAll('[data-oauth]').forEach((b) => { const on = j?.external?.[b.dataset.oauth] === true; b.classList.toggle('hidden', !on); any = any || on; });
+      $('oauthRow').classList.toggle('hidden', !any); $('oauthOr').classList.toggle('hidden', !any);
+    } catch { /* 모르면 이메일 코드만 */ }
+  }
   document.querySelectorAll('[data-oauth]').forEach((b) => b.addEventListener('click', async () => {
     loginMsg('로그인 창으로 이동해요…');
-    const { error } = await sb.auth.signInWithOAuth({ provider: b.dataset.oauth, options: { redirectTo: `${base()}?tab=store` } });
+    // 로그인 방법이 서버에서 꺼져 있으면 오류 화면으로 넘어가지 않게 먼저 확인하고 이동해요
+    const { data, error } = await sb.auth.signInWithOAuth({ provider: b.dataset.oauth, options: { redirectTo: `${base()}?tab=store`, skipBrowserRedirect: true } });
+    if (!error && data?.url) {
+      const ok = await fetch(data.url, { redirect: 'manual' }).then((r) => r.type === 'opaqueredirect' || r.ok, () => true);
+      if (!ok) return loginMsg(`${b.dataset.oauth === 'kakao' ? '카카오' : '구글'} 로그인은 아직 준비 중이에요. 이메일 코드로 로그인해 주세요.`, true);
+      location.href = data.url; return;
+    }
     if (error) loginMsg(authErr(error), true);
   }));
   $('sendCode').onclick = async () => {
@@ -814,7 +838,7 @@ footer a:hover{text-decoration:underline}
     const paths = rows.map((r) => r.audio_url.slice('storage:uploads/'.length));
     const urls = {};
     for (let i = 0; i < paths.length; i += 200) { const { data: d } = await sb.functions.invoke('house-music/audio-urls', { body: { paths: paths.slice(i, i + 200) } }); Object.assign(urls, d?.urls || {}); }
-    const q = rows.map((r) => ({ id: r.id, title: r.title, artist: r.creator_nickname || 'YARR', genre: r.genre, engine: r.ai_plan || r.ai_engine, tags: [storeStationCode], url: urls[r.audio_url.slice('storage:uploads/'.length)] })).filter((t) => t.url);
+    const q = rows.map((r) => ({ id: r.id, title: r.title, artist: r.creator_nickname || 'YARR', genre: r.genre, engine: brand(r), tags: [storeStationCode], url: urls[r.audio_url.slice('storage:uploads/'.length)] })).filter((t) => t.url);
     // 선호곡 ♥: 한 바퀴에 한 번 더 (목록 반대편에 · 앱과 같은 방식)
     if (q.length >= 4) for (const f of q.filter((t) => favorites.has(t.id))) q.splice((q.indexOf(f) + Math.floor(q.length / 2)) % q.length, 0, f);
     storeQueue = q; storeQi = -1; loadedAt = Date.now();
