@@ -11,7 +11,7 @@
 .st-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
 .st-grid.one{grid-template-columns:minmax(0,1fr)}
 @media (max-width:900px){.st-grid{grid-template-columns:minmax(0,1fr)}}
-.st-card{padding:20px;border-radius:20px;background:linear-gradient(180deg,#1B1D23,#121318);border:1px solid rgba(255,140,0,.22);box-shadow:0 18px 40px rgba(0,0,0,.45)}
+.st-card{padding:20px;border-radius:20px;background:linear-gradient(180deg,#1E1E22,#1A1A1E);border:1px solid rgba(255,255,255,.06);box-shadow:0 18px 40px rgba(0,0,0,.45)}
 .st-card + .st-card{margin-top:16px}
 .st-card h3{margin:0 0 4px;font-size:16px}
 .st-q{font-size:12px;font-weight:800;letter-spacing:.06em;color:#B9B3AA;margin:18px 0 8px;display:flex;align-items:center;gap:8px}
@@ -77,7 +77,7 @@
 .drop b{font-size:15px}.drop small{color:var(--soft)}
 
 /* ---------------- 시퀀서 (하드웨어 느낌) ---------------- */
-.seq{padding:16px;border-radius:20px;background:linear-gradient(180deg,#1B1D23,#121318);border:1px solid rgba(255,140,0,.33);box-shadow:0 0 24px rgba(255,140,0,.13),0 8px 18px rgba(0,0,0,.66);color:var(--text);user-select:none;-webkit-user-select:none}
+.seq{padding:16px;border-radius:20px;background:linear-gradient(180deg,#202025,#19191D);border:1px solid rgba(255,140,0,.33);box-shadow:0 0 24px rgba(255,140,0,.13),0 8px 18px rgba(0,0,0,.66);color:var(--text);user-select:none;-webkit-user-select:none}
 .seq .hidden{display:none!important}
 .seq-head{display:flex;align-items:center;gap:6px;margin-bottom:10px}
 .seq-title{flex:1;min-width:0;font-size:13px;font-weight:900;letter-spacing:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
