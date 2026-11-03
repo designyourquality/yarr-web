@@ -20,7 +20,7 @@ export const GENRES = [
 ];
 export const GENRE = Object.fromEntries(GENRES);
 export const LEADS = [['auto', '자동'], ['piano', '피아노'], ['guitar', '기타'], ['sax', '색소폰 · 트럼펫'], ['synth', '신디사이저'], ['strings', '현악기'], ['korean', '전통악기']];
-export const FLOWS = [['auto', '자동'], ['steady', '잔잔하게 유지'], ['build', '점점 고조'], ['groove', '리듬감 있게']];
+export const FLOWS = [['auto', '자동'], ['steady', '잔잔하게 유지'], ['build', '점점 고조'], ['groove', '리듬감 있게'], ['drop', '잔잔하다 터지게'], ['dreamy', '몽환적으로'], ['catchy', '귀에 꽂히는 후크'], ['emotional', '감정 폭발'], ['cinematic', '영화처럼 웅장하게'], ['minimal', '미니멀하게'], ['calmdown', '점점 차분하게'], ['loop', '끊김 없이 반복용']];
 export const WEATHERS = [['none', '상관없음'], ['sunny', '☀️ 맑음'], ['rain', '🌧 비'], ['snow', '❄️ 눈'], ['cloudy', '☁️ 흐림']];
 export const TIMES = [['none', '상관없음'], ['morning', '아침'], ['afternoon', '오후'], ['evening', '저녁'], ['night', '밤'], ['fridaynight', '🌙 금요일 밤']];
 export const DURATIONS = [120, 150, 180];

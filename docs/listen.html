@@ -1110,7 +1110,7 @@ html,body{background:var(--bg)}
   async function studioBoot() {
     if (studioMod) return studioMod.show?.();
     try {
-      studioMod = await import('./studio/studio.js?v=20261106');
+      studioMod = await import('./studio/studio.js?v=20261107');
       await studioMod.mount($('studioRoot'), {
         loadSb, SB_URL, SB_KEY, STATIONS, ST, toast, esc, stPhoto, base, coverCss,
         pauseMain: () => { A.forEach((a) => a.pause()); },
