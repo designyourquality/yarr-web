@@ -28,9 +28,20 @@ th{background:#232125;color:var(--soft);font-weight:700}
 .btn{display:inline-block;background:var(--orange);color:#fff;text-decoration:none;font-weight:800;padding:12px 18px;border-radius:12px}
 .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
 footer{margin-top:48px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--soft)}
-@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--bg:#f6f3ee;--panel:#fff;--line:#e3ddd4;--text:#1e1d1b;--soft:#5d5950}th{background:#f0ebe3}.logo span{border-color:#fff}.logo span:after{border-left-color:#fff}}
 .card h3{margin-top:0}.card p{margin:6px 0 10px}
 
 /* 2026-11-02 새 앱 아이콘 (라디오) */
 .logo{background:url(icon.png) center/cover no-repeat;box-shadow:none}
 .logo span{display:none}
+
+/* ===== YARR 전역 디자인 규칙 (2026-11-03): 항상 다크 · 차콜 카드 + 앰버 보더 · 넉넉한 여백 · 호버 글로우 ===== */
+:root{--bg:#0F1014;--panel:#181A20;--card2:#14161C;--line:rgba(255,140,0,.2);--edge-hi:rgba(255,140,0,.55)}
+.card{background:linear-gradient(180deg,var(--panel),var(--card2));border:1px solid var(--line);border-radius:18px;padding:27px 27px 14px;margin:21px 0}
+.grid{gap:18px;margin:21px 0}.grid .card{margin:0}
+th{background:#14161C}
+h2{border-top-color:rgba(255,255,255,.06)}
+.btn,.btn.ghost,a.card,nav.top a{transition:transform .25s cubic-bezier(.22,1,.36,1),box-shadow .25s,border-color .25s,color .2s}
+@media (hover:hover){
+  .btn:hover,.btn.ghost:hover,a.card:hover{transform:translateY(-2px);border-color:var(--edge-hi);box-shadow:0 0 0 1px rgba(255,140,0,.45),0 0 24px -2px rgba(255,120,30,.45),0 14px 30px -10px rgba(0,0,0,.75)}
+  nav.top a:hover{color:#FF9A5C;text-shadow:0 0 12px rgba(255,120,30,.6)}
+}

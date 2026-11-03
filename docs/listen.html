@@ -133,18 +133,19 @@ body.paused .eq i{animation-play-state:paused}
 @keyframes sk{to{background-position:-200% 0}}
 .empty{padding:28px;text-align:center;color:var(--soft)}
 /* 스테이션 카드 */
-.stations{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-.st{position:relative;display:flex;flex-direction:column;justify-content:space-between;min-height:118px;padding:16px;border-radius:18px;color:#fff;text-decoration:none;overflow:hidden;border:1px solid rgba(255,255,255,.08);transition:transform .3s cubic-bezier(.22,1,.36,1),box-shadow .3s;text-align:left}
-.st:hover{transform:translateY(-4px);box-shadow:0 16px 32px -8px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.22)}
+.stations{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.st{position:relative;display:flex;flex-direction:column;justify-content:flex-end;min-height:168px;padding:18px;border-radius:18px;color:#fff;text-decoration:none;overflow:hidden;border:1px solid rgba(255,255,255,.08);transition:transform .3s cubic-bezier(.22,1,.36,1),box-shadow .3s;text-align:left}
+.st:hover{transform:translateY(-6px);border-color:rgba(255,150,90,.6);box-shadow:0 18px 36px -10px rgba(0,0,0,.7),0 0 0 1px rgba(255,140,80,.45),0 0 26px -2px rgba(255,107,53,.45)}
 .st.sel{transform:translateY(-2px);border-color:rgba(255,170,120,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 0 0 1px rgba(255,140,80,.35),0 10px 28px -6px rgba(255,107,53,.5)}
 .st.sel::before{content:'';position:absolute;top:14px;right:14px;z-index:1;width:7px;height:7px;border-radius:50%;background:#FFB27A;box-shadow:0 0 10px #FF8A4C}
 .st.sel:after{border-color:rgba(255,160,110,.14)}
-.st b{font-size:16px;font-weight:800;line-height:1.3}
+.st b{font-size:19px;font-weight:800;line-height:1.3;text-shadow:0 2px 10px rgba(0,0,0,.6)}
 .st span.g{font-size:12px;opacity:.85}
-.st .bot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:14px}
-.st .cnt{padding:2px 8px;border-radius:7px;background:rgba(0,0,0,.3);font-size:11.5px;font-weight:700}
+.st .bot{display:flex;align-items:center;gap:8px;margin-top:6px}
+.st .cnt{font-size:12.5px;font-weight:700;opacity:.85}
 .st .emo{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;font-size:22px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.12);backdrop-filter:blur(6px);filter:saturate(.85) contrast(1.05) drop-shadow(0 4px 8px rgba(0,0,0,.4))}
-.st:after{content:"";position:absolute;right:-22px;top:-22px;width:90px;height:90px;border-radius:50%;border:12px solid rgba(255,255,255,.07)}
+.st:after{content:none}
+.st .emo{display:none}
 .sbanner{border-radius:28px;padding:clamp(22px,4vw,34px);border:1px solid rgba(255,255,255,.15);box-shadow:0 24px 60px rgba(0,0,0,.45);display:flex;justify-content:space-between;gap:24px;align-items:center;flex-wrap:wrap;transition:background .5s}
 .sbanner h1{margin:10px 0 6px;font-size:clamp(28px,4.5vw,40px);font-weight:800;letter-spacing:-.02em}
 .sbanner .chipdark{display:inline-flex;gap:8px;padding:3px 11px;border-radius:999px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.15);font-size:12px;font-weight:600;color:#FDE68A}
@@ -221,8 +222,8 @@ body.store-on .vinyl-glow{opacity:1}
 .panel{border-radius:24px;padding:clamp(20px,3vw,30px);margin-top:20px}
 .panel h3{margin:0;font-size:18px;font-weight:800}
 .panel .hd{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
-.stations.five{grid-template-columns:repeat(5,1fr);gap:12px}
-.stations.five .st{min-height:96px;padding:14px}
+.stations.five{grid-template-columns:repeat(4,1fr);gap:16px}
+.stations.five .st{min-height:132px;padding:16px}
 .st.soon{opacity:.42;filter:grayscale(.6);cursor:not-allowed}
 .st.soon .cnt{background:rgba(0,0,0,.55)}
 @media (max-width:700px){body{padding-bottom:190px}}
@@ -295,7 +296,7 @@ footer a{color:#FB923C;text-decoration:none}
 footer a:hover{text-decoration:underline}
 .hidden{display:none!important}
 /* 반응형 */
-@media (max-width:980px){.hero-grid,.deck-grid{grid-template-columns:1fr}.spot{transform:none}.stations.five{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:980px){.hero-grid,.deck-grid{grid-template-columns:1fr}.spot{transform:none}.stations,.stations.five{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:760px){
   .hact .o{display:none}.tabs button{padding:6px 10px;font-size:13px}.brand b{display:none}
   .stations{grid-template-columns:repeat(2,1fr)}.stations.five{grid-template-columns:repeat(2,1fr)}
@@ -306,6 +307,61 @@ footer a:hover{text-decoration:underline}
 }
 @media (max-width:420px){.tabs .n{display:none}.hact .pill-btn span{display:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ===== YARR 전역 디자인 규칙 (2026-11-03) =====
+   카드: 다크 차콜 #14161C~#181A20 + 1px rgba(255,140,0,.2) 보더
+   간격: 기존보다 1.5배 · 호버: 오렌지 네온 글로우 + 2px 떠오름 */
+:root{--card:#181A20;--card2:#14161C;--edge:rgba(255,140,0,.2);--edge-hi:rgba(255,140,0,.55);
+  --glow:0 0 0 1px rgba(255,140,0,.45),0 0 24px -2px rgba(255,120,30,.45),0 14px 30px -10px rgba(0,0,0,.75);
+  --lift:translateY(-2px);--ease:cubic-bezier(.22,1,.36,1)}
+.glass,.panel,.kpi,.vis,.cta,.deck,.login,.hero,.modal .box,.modal .card,.sbanner .scard,.sbanner .side,ul.all,.scard .stats div,.seg,.tabs{
+  background:linear-gradient(180deg,var(--card),var(--card2))!important;border:1px solid var(--edge)!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:0 18px 40px -18px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.04)!important}
+.hero .glow1,.hero .glow2,.deck .glow1,.deck .glow2{opacity:.45}
+.mesh{background:radial-gradient(circle at 18% 12%,rgba(255,128,64,.10) 0,transparent 45%),var(--bg)!important}
+/* 여백 1.5배 */
+main.wrap{padding-top:36px}
+.listhead{margin:60px 0 24px}
+.stations{gap:30px}
+.stations.five{gap:24px}
+.st{min-height:196px;padding:26px}
+.stations.five .st{min-height:160px;padding:22px}
+.kpis{gap:22px}.kpi{padding:24px}
+.panel{padding:clamp(28px,4.5vw,44px);margin-top:30px}
+.panel .hd{margin-bottom:24px}
+.cta{margin-top:48px;padding:34px}
+.modal .box{padding:36px}.modal .card{padding:16px 20px;margin:12px 0}
+.vis{padding:26px}
+.actions,.dctl{gap:14px}
+/* 차트 목록: 한 줄씩 떨어진 카드 */
+.list{display:flex;flex-direction:column;gap:12px;overflow:visible;background:none!important;border:0!important;box-shadow:none!important;padding:0}
+.trk{grid-template-columns:40px 56px minmax(0,1fr) auto;gap:20px;padding:16px 24px;border:1px solid var(--edge)!important;border-radius:16px;background:linear-gradient(180deg,var(--card),var(--card2))}
+.trk .cover.md{width:56px;height:56px}
+.skel{border:1px solid var(--edge);border-radius:16px;border-top:1px solid var(--edge);height:88px}
+.trk.on{background:linear-gradient(90deg,rgba(255,110,30,.16),var(--card2))!important;border-color:var(--edge-hi)!important}
+/* 노이즈 덜기: 엔진 꼬리표 · '매장 제외' 배지 · 커버 LP 줄무늬 · 이모지 장식 */
+.trk .eng,.spot .eng,.badge.chart,.cover::before,.st .emo,.sbanner .side .emo{display:none!important}
+/* 호버: 클릭되는 카드 · 버튼 전부 */
+.trk,.st,.btn,.pill-btn,.filters button,.stchips button,.seg button,.tabs button,.iconbtn,ul.all button,.play,.starrow,.modal .x,.cover,.spot,a.card,.kpi[onclick]{
+  transition:transform .25s var(--ease),box-shadow .25s var(--ease),border-color .25s,background .25s,filter .25s}
+@media (hover:hover){
+  .trk:hover,.btn:hover,.pill-btn:hover,.filters button:hover,.stchips button:hover,.seg button:hover,ul.all button:hover,.modal .x:hover,a.card:hover{
+    transform:var(--lift);box-shadow:var(--glow)!important;border-color:var(--edge-hi)!important}
+  .trk:hover{background:linear-gradient(180deg,#1D1F26,var(--card2))}
+  .st:hover{transform:translateY(-4px);box-shadow:var(--glow)!important;border-color:var(--edge-hi)!important}
+  .play:hover,.iconbtn:hover,.starrow:hover{transform:scale(1.06);box-shadow:0 0 0 1px rgba(255,140,0,.5),0 0 20px rgba(255,120,30,.5)}
+  .tabs button:hover{box-shadow:0 0 14px -2px rgba(255,120,30,.45)}
+}
+.btn.sub,.pill-btn,.filters button,.stchips button,ul.all button{background:var(--card)!important;border:1px solid var(--edge)!important}
+.filters button.on,.stchips button.on,.seg button.on{background:var(--orange)!important;border-color:var(--orange)!important}
+.filters button.sf.on{background:#059669!important;border-color:#059669!important}
+.st{border:1px solid var(--edge)}
+.row input{background:var(--card2);border-color:var(--edge)}
+@media (max-width:760px){
+  .stations{gap:16px}.st{min-height:150px;padding:18px}
+  .trk{grid-template-columns:28px 48px minmax(0,1fr);gap:14px;padding:14px 16px}.trk .cover.md{width:48px;height:48px}
+  .panel{padding:22px}.listhead{margin:44px 0 18px}
+}
 </style>
 </head>
 <body class="paused">
@@ -665,9 +721,9 @@ footer a:hover{text-decoration:underline}
     const list = opts.only ? STATIONS.slice(0, opts.only) : STATIONS;
     // 곡이 너무 적은 스테이션은 '준비 중'으로 (매장: 5곡 미만 · 듣기: 0곡) — 곡이 채워지면 자동으로 열려요
     const soon = (c) => counts[c] != null && counts[c] < (opts.min ?? 1) && opts.sel !== c;
-    el.innerHTML = list.map(([c, n, g, e]) => `<button class="st${opts.sel === c ? ' sel' : ''}${soon(c) ? ' soon' : ''}" data-st="${c}" style="background:linear-gradient(180deg,rgba(14,15,19,.35),rgba(14,15,19,.88)),url('${stPhoto(c)}') center/cover no-repeat,${stBg(c)}"${soon(c) ? ' aria-disabled="true" title="곡을 채우는 중이에요"' : ''}>
-      <span><b style="display:block">${esc(n)}</b><span class="g">${esc(g)}</span></span>
-      <span class="bot"><span class="cnt">${counts[c] == null ? '…' : soon(c) ? '준비 중' : counts[c] + '곡'}</span><span class="emo">${e}</span></span></button>`).join('');
+    el.innerHTML = list.map(([c, n, g, e]) => `<button class="st${opts.sel === c ? ' sel' : ''}${soon(c) ? ' soon' : ''}" data-st="${c}" style="background:linear-gradient(180deg,rgba(14,15,19,0) 30%,rgba(14,15,19,.55) 62%,rgba(14,15,19,.92)),url('${stPhoto(c)}') center/cover no-repeat,${stBg(c)}"${soon(c) ? ' aria-disabled="true" title="곡을 채우는 중이에요"' : ''}>
+      <span><b style="display:block">${esc(n)}</b></span>
+      <span class="bot"><span class="g">${esc(g)}</span><span class="cnt">· ${counts[c] == null ? '…' : soon(c) ? '준비 중' : counts[c] + '곡'}</span></span></button>`).join('');
     el.onclick = (ev) => { const b = ev.target.closest('[data-st]'); if (!b) return; if (b.classList.contains('soon')) return toast('이 스테이션은 곡을 채우는 중이에요. 곧 열려요'); opts.onPick(b.dataset.st); };
   }
 
