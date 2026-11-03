@@ -13,8 +13,22 @@ guide = {
   "bpm": 100,
   "chords": ["C", "G", "Am", "F"],              # 마디마다 하나 (1~8마디)
   "notes": [{"beat": 0, "pitch": 2, "len": 1}],  # beat: 0부터 (4마디면 0~15), pitch: 음계 칸 (0=도 … 7=높은 도), len: 박 수
-  "key": "C"                                      # 음계 기준 (도의 위치) · 기본 C
+  "key": "C",                                     # 음계 기준 (도의 위치) · 기본 C
+  "pro": {...}                                    # (선택) 시퀀서 v2 · 아래
 }
+
+시퀀서 v2 (pro · 2026-11-03) — 앱의 피아노롤 · 드럼 머신 · 믹서를 그대로 소리로
+  "pro": {
+    "tracks": {"lead": [{"s": 0, "m": 64, "l": 2, "v": 100}], "piano": [...], "synth": [...], "bass": [...]},
+        # s: 박(0부터) · m: MIDI 음높이(24~108, 반음까지) · l: 박 수 · v: 세기 1~127
+    "drum": {"kick": [16칸], "snare": [16칸], "hat": [16칸], "clap": [16칸]},   # 한 마디 16분음표 · 값=세기 0~127 (0=쉼)
+    "lead": "guitar" | "piano" | "strings" | "synth",                         # 리드 음색
+    "mix": {"lead": {"vol": 0.8, "mute": false, "solo": false}, ..., "drums": {...}},
+    "swing": 0.0~1.0                                                          # 홀수 16분음표를 늦게
+  }
+  pro 가 있으면 트랙마다 찍은 음을 그대로 (세기 = 크기 + 밝기), 비어 있는 파트만 예전 방식(코드 패드 · 근음 베이스 · 기본 드럼)으로 채워요.
+  리드(멜로디)는 melody_gain 을 따라요 → 보컬곡 'gaps' 에서도 피아노 · 베이스 · 드럼은 그대로 남아 반주 단서가 돼요.
+  팬 · 리버브 · 딜레이 · 컷오프는 모노 가이드라 넣지 않아요 (AI 커버가 음색은 새로 만들어요).
 """
 from __future__ import annotations
 
@@ -100,11 +114,116 @@ def hat(amp: float, rng: np.random.Generator) -> np.ndarray:
     return amp * noise * np.exp(-np.arange(n) / SR * 80)
 
 
+def snare(amp: float, rng: np.random.Generator) -> np.ndarray:
+    """스네어: 몸통(190Hz 정도) + 잡음 줄"""
+    n = int(0.16 * SR)
+    t = np.arange(n) / SR
+    body = np.sin(2 * np.pi * (185 * np.exp(-t * 8) + 15) * t) * np.exp(-t * 30)
+    noise = rng.standard_normal(n)
+    noise = noise - np.convolve(noise, np.ones(3) / 3, mode='same')
+    return amp * (0.55 * body + 0.6 * noise * np.exp(-t * 22))
+
+
+def clap(amp: float, rng: np.random.Generator) -> np.ndarray:
+    """박수: 아주 짧은 잡음 세 번 + 꼬리"""
+    n = int(0.2 * SR)
+    t = np.arange(n) / SR
+    noise = rng.standard_normal(n)
+    noise = np.convolve(noise, np.array([1, 0, -1]) / 2, mode='same')   # 가운데 음역만
+    env = np.zeros(n)
+    for d in (0.0, 0.011, 0.022):
+        k = t >= d
+        env[k] = np.maximum(env[k], np.exp(-(t[k] - d) * (220 if d < 0.02 else 28)))
+    return amp * noise * env
+
+
 def _add(buf: np.ndarray, x: np.ndarray, at: int) -> None:
     if at >= len(buf):
         return
     end = min(len(buf), at + len(x))
     buf[at:end] += x[: end - at]
+
+
+# 리드 음색 (배음 · 어택 · 감쇠) — 커버 AI가 '어떤 악기로 연주한 선율인지' 알아듣는 단서
+LEAD_VOICE = {
+    'guitar': dict(partials=(1, .6, .35, .2, .1), attack=0.004, decay=2.4),
+    'piano': dict(partials=(1, .5, .25, .125), attack=0.008, decay=1.4),
+    'strings': dict(partials=(1, .55, .4, .25, .15), attack=0.09, decay=0.25),
+    'synth': dict(partials=(1, .5, .33, .25, .2), attack=0.012, decay=0.6),
+}
+PRO_TRACKS = ('lead', 'piano', 'synth', 'bass')
+PRO_LANES = ('kick', 'snare', 'hat', 'clap')
+
+
+def _audible(pro: dict) -> dict:
+    """믹서: 솔로가 하나라도 있으면 솔로만, 아니면 뮤트 뺀 전부 → {트랙: 크기}"""
+    mix = pro.get('mix') or {}
+    solo = any((mix.get(t) or {}).get('solo') for t in (*PRO_TRACKS, 'drums'))
+    out = {}
+    for t in (*PRO_TRACKS, 'drums'):
+        m = mix.get(t) or {}
+        on = m.get('solo') if solo else not m.get('mute')
+        out[t] = float(m.get('vol', 0.8)) / 0.8 if on else 0.0   # 기본 0.8 = 1배
+    return out
+
+
+def _vel_tone(f: float, dur: float, amp: float, vel: int, voice: dict) -> np.ndarray:
+    """세기 → 크기 + 밝기 (세게 칠수록 높은 배음이 더 살아요)"""
+    v = max(1, min(127, int(vel))) / 127
+    bright = 0.45 + 0.55 * v
+    parts = tuple(a * (bright ** k) for k, a in enumerate(voice['partials']))
+    return tone(f, dur, amp * (0.25 + 0.75 * v), attack=voice['attack'], decay=voice['decay'], partials=parts)
+
+
+def _render_pro(buf: np.ndarray, guide: dict, pro: dict, beat: float, melody_gain: float, drums: bool, rng: np.random.Generator) -> set:
+    """pro 트랙 · 드럼을 buf 에 더하고, 직접 채운 파트 이름을 돌려줘요 (나머지는 예전 방식으로 채움)"""
+    bars = len(guide.get('chords') or [1])
+    vol = _audible(pro)
+    tracks = pro.get('tracks') or {}
+    done = set()
+    spec = {
+        'lead': (0.42 * melody_gain, LEAD_VOICE.get(pro.get('lead'), LEAD_VOICE['guitar'])),
+        'piano': (0.26, dict(partials=(1, .5, .25, .125), attack=0.008, decay=1.2)),
+        'synth': (0.16, dict(partials=(1, .45, .3, .2), attack=0.12, decay=0.2)),
+        'bass': (0.32, dict(partials=(1, .4, .1), attack=0.01, decay=1.6)),
+    }
+    for t in PRO_TRACKS:
+        notes = tracks.get(t) or []
+        if not notes:
+            continue
+        done.add(t)   # 찍어 둔 트랙은 뮤트여도 '내가 정한 파트' → 예전 방식으로 채우지 않아요
+        amp, voice = spec[t]
+        amp *= vol[t]
+        if amp <= 0:
+            continue
+        for n in notes:
+            s, m, ln = n['s'], n['m'], n['l']
+            if not 0 <= s < bars * 4:
+                continue
+            _add(buf, _vel_tone(hz(m), ln * beat * 0.98, amp, n['v'], voice), int(s * beat * SR))
+    pattern = pro.get('drum') or {}
+    if any(any(pattern.get(l) or []) for l in PRO_LANES):
+        done.add('drums')
+        g = vol['drums'] if drums else 0.0
+        if g > 0:
+            six = beat / 4
+            swing = float(pro.get('swing') or 0)
+            make = {
+                'kick': lambda a: kick(a),
+                'snare': lambda a: snare(a, rng),
+                'hat': lambda a: hat(a, rng),
+                'clap': lambda a: clap(a, rng),
+            }
+            level = {'kick': 0.30, 'snare': 0.16, 'hat': 0.05, 'clap': 0.12}
+            for bar in range(bars):
+                base = bar * 4 * beat
+                for lane in PRO_LANES:
+                    for i, v in enumerate((pattern.get(lane) or [])[:16]):
+                        if v <= 0:
+                            continue
+                        at = base + i * six + (swing * six * 0.33 if i % 2 else 0)   # 앱 미리듣기와 같은 스윙
+                        _add(buf, make[lane](level[lane] * g * (0.2 + 0.8 * v / 127)), int(at * SR))
+    return done
 
 
 def render_bars(guide: dict, melody_gain: float = 1.0, drums: bool = True, seed: int = 7) -> np.ndarray:
@@ -117,19 +236,23 @@ def render_bars(guide: dict, melody_gain: float = 1.0, drums: bool = True, seed:
     n = int(bars * 4 * beat * SR)
     buf = np.zeros(n)
     rng = np.random.default_rng(seed)
+    pro = guide.get('pro')
+    done = _render_pro(buf, guide, pro, beat, melody_gain, drums, rng) if pro else set()
     for i, c in enumerate(chords):
         r, iv = parse_chord(c)
         start = int(i * 4 * beat * SR)
         # 코드: 가운데 음역 패드 + 베이스 근음 (1 · 3박)
         mids = [hz(48 + ((r + v) % 12) + (12 if (r + v) % 12 < 5 else 0)) for v in iv]
-        _add(buf, pad(mids, 4 * beat, 0.22), start)
-        for b in (0, 2):
-            _add(buf, tone(hz(36 + r), beat * 1.8, 0.30, attack=0.01, decay=1.6, partials=(1, .4, .1)), start + int(b * beat * SR))
-        if drums:
+        if not done & {'piano', 'synth'}:
+            _add(buf, pad(mids, 4 * beat, 0.22), start)
+        if 'bass' not in done:
+            for b in (0, 2):
+                _add(buf, tone(hz(36 + r), beat * 1.8, 0.30, attack=0.01, decay=1.6, partials=(1, .4, .1)), start + int(b * beat * SR))
+        if drums and 'drums' not in done:
             for b in range(4):
                 _add(buf, kick(0.22 if b % 2 == 0 else 0.12), start + int(b * beat * SR))
                 _add(buf, hat(0.035, rng), start + int((b + 0.5) * beat * SR))
-    for note in guide.get('notes') or []:
+    for note in ([] if pro else guide.get('notes') or []):   # pro 면 리드 트랙이 멜로디 (반음 · 세기까지)
         b0 = float(note.get('beat', 0))
         ln = max(0.25, float(note.get('len', 1)))
         p = int(note.get('pitch', 0))
@@ -209,7 +332,53 @@ def check(guide: dict) -> dict:
             continue
         if 0 <= b < len(out_chords) * 4 and 0 <= p < len(MAJOR) and 0.25 <= ln <= 8:
             out_notes.append({'beat': float(b), 'pitch': int(p), 'len': float(ln)})
-    return {'bpm': float(bpm), 'key': key, 'chords': out_chords, 'notes': out_notes, 'drums': guide.get('drums', True) is not False}
+    out = {'bpm': float(bpm), 'key': key, 'chords': out_chords, 'notes': out_notes, 'drums': guide.get('drums', True) is not False}
+    pro = check_pro(guide.get('pro'), len(out_chords))
+    if pro:
+        out['pro'] = pro
+    return out
+
+
+def _num(x, lo: float, hi: float, default: float) -> float:
+    if isinstance(x, bool) or not isinstance(x, (int, float)) or x != x:
+        return default
+    return float(min(hi, max(lo, x)))
+
+
+def check_pro(v, bars: int) -> dict | None:
+    """시퀀서 v2 값 확인 (서버 checkPro 와 같은 규칙) · 이상한 음은 빼고, 형식이 아예 다르면 None (예전 방식으로)"""
+    if not isinstance(v, dict):
+        return None
+    steps = bars * 4
+    total = 0
+    tracks = {}
+    raw_tracks = v.get('tracks') if isinstance(v.get('tracks'), dict) else {}
+    for t in PRO_TRACKS:
+        raw = raw_tracks.get(t) if isinstance(raw_tracks.get(t), list) else []
+        out = []
+        for n in raw:
+            if total >= 256:
+                break
+            if not isinstance(n, dict):
+                continue
+            s, m = n.get('s'), n.get('m')
+            if not all(isinstance(x, int) and not isinstance(x, bool) for x in (s, m)) or not 0 <= s < steps or not 24 <= m <= 108:
+                continue
+            out.append({'s': s, 'm': m, 'l': int(round(_num(n.get('l'), 1, steps - s, 1))), 'v': int(round(_num(n.get('v'), 1, 127, 100)))})
+            total += 1
+        tracks[t] = out
+    raw_drum = v.get('drum') if isinstance(v.get('drum'), dict) else {}
+    drum = {}
+    for l in PRO_LANES:
+        raw = raw_drum.get(l) if isinstance(raw_drum.get(l), list) else []
+        drum[l] = [int(round(_num(raw[i] if i < len(raw) else 0, 0, 127, 0))) for i in range(16)]
+    raw_mix = v.get('mix') if isinstance(v.get('mix'), dict) else {}
+    mix = {}
+    for t in (*PRO_TRACKS, 'drums'):
+        m = raw_mix.get(t) if isinstance(raw_mix.get(t), dict) else {}
+        mix[t] = {'vol': _num(m.get('vol'), 0, 1, 0.8), 'mute': m.get('mute') is True, 'solo': m.get('solo') is True}
+    lead = v.get('lead') if v.get('lead') in LEAD_VOICE else 'guitar'
+    return {'tracks': tracks, 'drum': drum, 'lead': lead, 'mix': mix, 'swing': _num(v.get('swing'), 0, 1, 0)}
 
 
 def to_wav_bytes(x: np.ndarray) -> bytes:
@@ -236,8 +405,31 @@ DEMO = {
     ],
 }
 
+# 시퀀서 v2 데모: 리드(반음 · 세기) + 피아노 코드 + 베이스 + 16분 드럼 + 스윙
+DEMO_PRO = {
+    **DEMO,
+    'pro': {
+        'tracks': {
+            'lead': [{'s': 0, 'm': 64, 'l': 1, 'v': 110}, {'s': 1, 'm': 66, 'l': 1, 'v': 60}, {'s': 2, 'm': 67, 'l': 2, 'v': 120},
+                     {'s': 6, 'm': 71, 'l': 2, 'v': 90}, {'s': 8, 'm': 69, 'l': 3, 'v': 100}, {'s': 12, 'm': 65, 'l': 4, 'v': 70}],
+            'piano': [{'s': b * 4, 'm': m, 'l': 4, 'v': 80} for b, ch in enumerate(([60, 64, 67], [59, 62, 67], [57, 60, 64], [57, 60, 65])) for m in ch],
+            'synth': [],
+            'bass': [{'s': b * 4 + o, 'm': r, 'l': 1, 'v': 100 if o == 0 else 70} for b, r in enumerate((36, 43, 45, 41)) for o in (0, 2, 3)],
+        },
+        'drum': {
+            'kick': [120, 0, 0, 0, 0, 0, 0, 0, 120, 0, 90, 0, 0, 0, 0, 0],
+            'snare': [0, 0, 0, 0, 110, 0, 0, 0, 0, 0, 0, 0, 110, 0, 0, 40],
+            'hat': [90, 40, 70, 40] * 4,
+            'clap': [0] * 12 + [80, 0, 0, 0],
+        },
+        'lead': 'synth',
+        'mix': {'drums': {'vol': 0.7, 'mute': False, 'solo': False}},
+        'swing': 0.5,
+    },
+}
+
 if __name__ == '__main__':
     import sys
     secs = float(sys.argv[2]) if len(sys.argv) > 2 else 60
     with open(sys.argv[1] if len(sys.argv) > 1 else 'guide.wav', 'wb') as f:
-        f.write(to_wav_bytes(render(DEMO, secs)))
+        f.write(to_wav_bytes(render(check(DEMO_PRO if '--pro' in sys.argv else DEMO), secs)))
