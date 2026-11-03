@@ -77,6 +77,69 @@ def duration_sec(path: str) -> float:
         raise RuntimeError('오디오 파일이 아니거나 손상됐어요')
 
 
+# ---- 파일 DNA (2026-11-03 보안 3단계) ----------------------------------------
+# 앱이 신고한 형식(content-type) · 확장자는 믿지 않고, 파일 앞부분(매직 바이트)과 ffprobe 로 진짜 오디오인지 확인해요.
+# 오디오가 아니거나(실행 파일 · 압축 파일 · 문서 · 이미지), 영상이 들어 있거나, 확장자와 실제 형식이 다르면 자동 반려.
+R_NOT_AUDIO = '음질 불량 (잡음 · 끊김)'   # 관리자 콘솔의 반려 이유 목록 안에서 고름 (설명에 정확한 이유를 적어요)
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+_EXT_KIND = {'mp3': 'mp3', 'wav': 'wav', 'm4a': 'mp4', 'aac': {'aac', 'mp4'}, 'flac': 'flac', 'ogg': 'ogg', 'mp4': 'mp4'}
+
+
+class NotAudio(Exception):
+    pass
+
+
+def sniff_audio(head: bytes) -> str | None:
+    """파일 앞 64바이트 → 'mp3' | 'wav' | 'flac' | 'ogg' | 'mp4' | 'aac' | None (오디오 아님)"""
+    if len(head) < 12:
+        return None
+    if head[:3] == b'ID3':
+        return 'mp3'
+    if head[:4] == b'RIFF' and head[8:12] in (b'WAVE', b'RF64'):
+        return 'wav'
+    if head[:4] == b'RF64' or head[:4] == b'BW64':
+        return 'wav'
+    if head[:4] == b'fLaC':
+        return 'flac'
+    if head[:4] == b'OggS':
+        return 'ogg'
+    if head[4:8] == b'ftyp':
+        return 'mp4'
+    if head[0] == 0xFF and (head[1] & 0xF6) == 0xF0:   # ADTS AAC (MPEG layer 비트 00)
+        return 'aac'
+    if head[0] == 0xFF and (head[1] & 0xE0) == 0xE0:   # MPEG 오디오 프레임 동기 (ID3 없는 mp3)
+        return 'mp3'
+    return None
+
+
+def check_audio_file(path: str, ext: str = '') -> str:
+    """진짜 오디오 파일인지 확인 → 형식 이름. 아니면 NotAudio(이유)"""
+    size = os.path.getsize(path)
+    if size < 1024:
+        raise NotAudio('파일이 비어 있거나 너무 작아요')
+    if size > MAX_UPLOAD_BYTES:
+        raise NotAudio(f'파일이 너무 커요 ({size // (1024 * 1024)}MB · 50MB까지)')
+    with open(path, 'rb') as f:
+        kind = sniff_audio(f.read(64))
+    if kind is None:
+        raise NotAudio('오디오 파일이 아니에요 (파일 내용이 mp3 · wav · m4a · flac · ogg 형식이 아님)')
+    want = _EXT_KIND.get(ext.lower().lstrip('.'))
+    if want is not None and kind not in (want if isinstance(want, set) else {want}):
+        raise NotAudio(f'확장자(.{ext.lstrip(".")})와 실제 파일 형식({kind})이 달라요')
+    r = run(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type:stream_disposition=attached_pic', '-of', 'json', path])
+    try:
+        streams = json.loads(r.stdout or '{}').get('streams') or []
+    except ValueError:
+        streams = []
+    audio = [x for x in streams if x.get('codec_type') == 'audio']
+    video = [x for x in streams if x.get('codec_type') == 'video' and not (x.get('disposition') or {}).get('attached_pic')]
+    if not audio:
+        raise NotAudio('소리 트랙이 없어요 (오디오로 읽을 수 없는 파일)')
+    if video:
+        raise NotAudio('영상이 들어 있는 파일이에요 (음원 파일만 올려 주세요)')
+    return kind
+
+
 def loudness(path: str, extra: str = '') -> dict:
     """loudnorm 측정값 (input_i, input_tp, input_lra, input_thresh, target_offset)"""
     af = f'loudnorm=I={TARGET_I}:TP={TARGET_TP}:LRA={TARGET_LRA}{extra}:print_format=json'
@@ -736,6 +799,9 @@ def process(sb, t: dict, known: list[dict], lyrics_db: list[dict] | None = None)
             src = os.path.join(tmp, 'original' + os.path.splitext(path)[1])
             with open(src, 'wb') as f:
                 f.write(sb.storage.from_('uploads').download(path))
+            # 파일 DNA: 아니면 NotAudio → 자동 반려. 확장자 대조는 사람이 올린 파일만 (서버가 만든 곡은 공급처 형식을 .mp3 로 저장할 수 있어요)
+            server_made = t.get('creator_id') == HOUSE_ID or is_studio(t)
+            check_audio_file(src, '' if server_made else os.path.splitext(path)[1])
             house = t.get('creator_id') == HOUSE_ID
             studio_any = is_studio(t)   # 스튜디오 곡 (연주곡 · 보컬곡 모두): 고른 구간 자르기 + 앞뒤 페이드
             studio = studio_any and not (t.get('lyrics') or '').strip()   # 스튜디오 연주곡: 기존 곡 대조 생략
@@ -775,6 +841,9 @@ def process(sb, t: dict, known: list[dict], lyrics_db: list[dict] | None = None)
                 row.update({'chords': ch, 'musical_key': ch.get('key') or None})
             except Exception as e:
                 print(f'    코드 분석 실패: {str(e)[:120]}', flush=True)
+        except NotAudio as e:   # 파일 DNA 불합격: 곡으로 쓸 수 없는 파일 → 자동 반려 (이유가 크리에이터 화면에 보여요)
+            row = {'inspected_at': now, 'inspection_note': f'⚠ 파일 검사 불합격: {e}'}
+            verdict = ('REJECT', R_NOT_AUDIO, f'파일 검사: {e}')
         except Exception as e:  # 실패해도 관리자가 볼 수 있게 기록하고 다음 곡으로
             row = {'inspected_at': now, 'inspection_note': f'⚠ 자동 검수 실패: {str(e)[:300]} · 관리자가 직접 확인해 주세요'}
         try:
