@@ -919,6 +919,8 @@ main.wrap{padding-top:36px}
           if (code !== curStation || listSrc !== `station:${code}`) {
             // 다른 스테이션으로 넘어가면 화면(이름 · 배너 · 곡 목록 · 주소)도 그 스테이션으로 바꿔요 (2026-11-03)
             loadStation(code, j.tracks);
+            // 차트를 다 듣고 스테이션으로 이어지면 화면도 스테이션 탭으로 (지금 나오는 곡이 어디서 왔는지 보이게)
+            if (tab === 'chart') { go('stations'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
             return listenPlay(more, 0, `station:${code}`);
           }
           return listenPlay(list.concat(more), idx + 1);
