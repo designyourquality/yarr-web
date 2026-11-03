@@ -38,6 +38,16 @@
 .st-fold .ic{margin-left:auto;transition:transform .2s}.st-fold.open .ic{transform:rotate(180deg)}
 .st-range{display:flex;align-items:center;gap:12px}
 .st-range input{flex:1;accent-color:#FF8C00}
+/* 얇은 선 + 핸들만 네온 */
+.st-range input[type=range]{-webkit-appearance:none;appearance:none;height:18px;background:transparent;cursor:pointer;--p:50%}
+.st-range input[type=range]::-webkit-slider-runnable-track{height:3px;border-radius:2px;background:linear-gradient(90deg,#FF8C00 0 var(--p),rgba(255,255,255,.12) var(--p) 100%)}
+.st-range input[type=range]::-moz-range-track{height:3px;border-radius:2px;background:rgba(255,255,255,.12)}
+.st-range input[type=range]::-moz-range-progress{height:3px;border-radius:2px;background:#FF8C00}
+.st-range input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;margin-top:-6.5px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#FFE0B8,#FF8C00 60%);border:none;box-shadow:0 0 0 3px rgba(255,140,0,.18),0 0 12px rgba(255,140,0,.85);transition:transform .12s,box-shadow .12s}
+.st-range input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#FFE0B8,#FF8C00 60%);border:none;box-shadow:0 0 0 3px rgba(255,140,0,.18),0 0 12px rgba(255,140,0,.85)}
+.st-range input[type=range]:hover::-webkit-slider-thumb,.st-range input[type=range]:focus-visible::-webkit-slider-thumb{transform:scale(1.15);box-shadow:0 0 0 5px rgba(255,140,0,.22),0 0 20px rgba(255,140,0,1)}
+.st-range input[type=range]:active::-webkit-slider-thumb{transform:scale(1.25)}
+.st-range input[type=range]:focus{outline:none}
 .st-range .lcdv{min-width:64px;text-align:center}
 .lcdv{padding:6px 10px;border-radius:8px;background:#0A0703;color:#FFB067;font:600 13px ui-monospace,Menlo,monospace;box-shadow:inset 0 2px 6px rgba(0,0,0,.7)}
 /* 결과 (테이크) */
@@ -54,6 +64,16 @@
 .lyr{white-space:pre-wrap;font-size:14px;line-height:1.75;background:#0E0F13;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;max-height:340px;overflow:auto}
 .drop{display:grid;place-items:center;text-align:center;gap:6px;padding:26px;border:1.5px dashed rgba(255,140,0,.45);border-radius:16px;background:rgba(255,140,0,.04);cursor:pointer}
 .drop.over{background:rgba(255,140,0,.12)}
+.drop-q{margin:0 0 8px}
+.drop.big{min-height:180px;margin-bottom:18px;padding:28px 20px;border:2px dashed rgba(255,140,0,.5);border-radius:20px;background:radial-gradient(ellipse at 50% 0%,rgba(255,140,0,.10),rgba(255,140,0,.02) 70%);transition:border-color .2s,background .2s,box-shadow .2s}
+.drop.big:hover{border-color:rgba(255,160,60,.85);box-shadow:0 0 0 4px rgba(255,140,0,.08),0 0 28px rgba(255,140,0,.15)}
+.drop.big.over{border-style:solid;border-color:#FF8C00;background:rgba(255,140,0,.14);box-shadow:0 0 0 6px rgba(255,140,0,.12),0 0 40px rgba(255,140,0,.3);transform:scale(1.005)}
+.drop.big b{font-size:17px}
+.drop.big.has{min-height:130px;border-style:solid;border-color:rgba(255,140,0,.4)}
+.drop-ic{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-size:24px;color:#FFB067;background:rgba(255,140,0,.12);border:1px solid rgba(255,140,0,.35);box-shadow:0 0 18px rgba(255,140,0,.25)}
+.drop.over .drop-ic{animation:dropPulse .9s ease-in-out infinite}
+@keyframes dropPulse{50%{transform:translateY(-4px);box-shadow:0 0 28px rgba(255,140,0,.55)}}
+.drop-prev{margin-top:4px;padding:8px 14px;font-size:12.5px}
 .drop b{font-size:15px}.drop small{color:var(--soft)}
 
 /* ---------------- 시퀀서 (하드웨어 느낌) ---------------- */

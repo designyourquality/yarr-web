@@ -1,6 +1,6 @@
 // ⬆ 곡 올리기 · 📂 내 곡 (웹 스튜디오 · 앱 업로드 시트 + 검수 화면과 같은 규칙 · 2026-11-03)
 //   become_creator → house-music/upload-url (1회용 주소) → 저장소에 바로 올리기 → tracks 등록 (검수 대기)
-import { STATIONS, errText } from './studio-data.js';
+import { STATIONS, errText } from './studio-data.js?v=20261104';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
@@ -47,15 +47,16 @@ export function mountUpload(el, { sb, B, call, onDone }) {
   function draw() {
     const step = !F.file ? 1 : !F.title.trim() ? 2 : 3;
     const [pc, pt] = planNote();
-    el.innerHTML = `<div class="st-grid">
+    el.innerHTML = `<div class="st-q drop-q">01 · 음원</div>
+    <label class="drop big${F.file ? ' has' : ''}" id="uDrop"><input type="file" accept=".mp3,.wav,.m4a,.aac,.flac,.ogg,audio/*" id="uFile" hidden>
+      <span class="drop-ic">${F.file ? '🎵' : '⬆'}</span>
+      ${F.file ? `<b>${esc(F.file.name)}</b><small>${(F.file.size / 1048576).toFixed(1)}MB · ${esc(F.file.name.split('.').pop().toUpperCase())}${F.dur ? ' · ' + fmt(F.dur) : ''}${F.dur && F.dur < 60 ? ' · ⚠ 60초 미만 (재생 집계 안 됨)' : ''} · 눌러서 바꾸기</small>` : '<b>음원 파일을 여기로 끌어다 놓으세요</b><small>또는 눌러서 고르기 · MP3 · WAV · M4A · FLAC · 50MB 이하 · 60초 이상</small>'}
+      ${F.file ? `<button type="button" class="btn sub drop-prev" id="uPrev">${audio && !audio.paused ? '■ 멈춤' : '▶ 미리 듣기'}</button>` : ''}
+    </label>
+    <div class="st-grid">
       <div class="st-card">
         <div class="seq-row"><h3 style="flex:1">트랙 업로드</h3><span class="st-count">UPLOAD ${step}/3</span></div>
         <p class="st-note" style="margin-top:0">올리면 자동 검수를 거쳐 다음 0시에 공개돼요. 다른 곳(Suno · ElevenLabs · Stable Audio)에서 만든 곡을 올려 차트에 도전해요.</p>
-        <div class="st-q">01 · 음원</div>
-        <label class="drop" id="uDrop"><input type="file" accept=".mp3,.wav,.m4a,.aac,.flac,.ogg,audio/*" id="uFile" hidden>
-          ${F.file ? `<b>🎵 ${esc(F.file.name)}</b><small>${(F.file.size / 1048576).toFixed(1)}MB · ${esc(F.file.name.split('.').pop().toUpperCase())}${F.dur ? ' · ' + fmt(F.dur) : ''}${F.dur && F.dur < 60 ? ' · ⚠ 60초 미만 (재생 집계 안 됨)' : ''} · 눌러서 바꾸기</small>` : '<b>음원 파일을 골라 주세요</b><small>여기로 끌어다 놓거나 눌러서 고르기 · MP3 · WAV · M4A · FLAC, 50MB 이하 · 60초 이상</small>'}
-        </label>
-        ${F.file ? `<button class="btn sub" id="uPrev" style="margin-top:8px;padding:8px 12px;font-size:12.5px">${audio && !audio.paused ? '■ 멈춤' : '▶ 올린 파일 미리 듣기'}</button>` : ''}
         <div class="st-q">02 · 곡 정보</div>
         <input class="st-in" id="uTitle" maxlength="60" placeholder="곡 제목 · 예: 한강 노을 드라이브" value="${esc(F.title)}">
         ${/커버|cover|리메이크|remake/i.test(F.title) ? '<p class="st-note">커버 · 리메이크 표기가 있으면 운영팀이 원곡을 다시 부른 곡인지 확인해요. 다른 사람 곡을 다시 부른 곡은 올릴 수 없어요.</p>' : ''}
@@ -105,7 +106,7 @@ export function mountUpload(el, { sb, B, call, onDone }) {
     if (b.dataset.st) { F.station = b.dataset.st; F.guessed = true; return draw(); }
     if (b.dataset.g) { F.genre = b.dataset.g; F.guessed = true; return draw(); }
     if (b.dataset.inst) { F.inst = b.dataset.inst === '1'; return draw(); }
-    if (b.id === 'uPrev') { if (audio && !audio.paused) audio.pause(); else { B.pauseMain(); audio = audio || new Audio(F.url); if (audio.src !== F.url) audio.src = F.url; audio.play(); audio.onended = draw; } return draw(); }
+    if (b.id === 'uPrev') { e.preventDefault(); if (audio && !audio.paused) audio.pause(); else { B.pauseMain(); audio = audio || new Audio(F.url); if (audio.src !== F.url) audio.src = F.url; audio.play(); audio.onended = draw; } return draw(); }
     if (b.id === 'uGo') return submit();
   };
   el.oninput = (e) => {

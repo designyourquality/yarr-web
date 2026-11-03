@@ -6,12 +6,12 @@ import {
   STATIONS, ST, GENRES, GENRE, LEADS, FLOWS, WEATHERS, TIMES, DURATIONS, KNOBS, VOICE_CATS, VOICES, QUICK_VOICES, QUIET_VOICES, LOUD_GENRES,
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
   lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel,
-} from './studio-data.js';
-import { ComposeDraft } from './seq-core.js';
-import { mountSequencer } from './seq-ui.js';
-import { mountUpload, mountMine } from './studio-upload.js';
+} from './studio-data.js?v=20261104';
+import { ComposeDraft } from './seq-core.js?v=20261104';
+import { mountSequencer } from './seq-ui.js?v=20261104';
+import { mountUpload, mountMine } from './studio-upload.js?v=20261104';
 
-const V = '20261103';
+const V = '20261104';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -54,8 +54,17 @@ async function loadQuota() {
 }
 
 // ---------- 시작 ----------
+// 슬라이더 채움 비율 (CSS --p) · 다시 그려도 · 움직여도 맞춰요
+function fillRange(i) { const lo = +i.min || 0, hi = +i.max || 100; i.style.setProperty('--p', `${hi > lo ? ((+i.value - lo) / (hi - lo)) * 100 : 0}%`); }
+function watchRanges(el) {
+  const all = () => el.querySelectorAll('.st-range input[type=range]').forEach(fillRange);
+  el.addEventListener('input', (e) => { if (e.target.matches?.('.st-range input[type=range]')) fillRange(e.target); }, true);
+  new MutationObserver(all).observe(el, { childList: true, subtree: true }); all();
+}
+
 export async function mount(el, bridge) {
   B = bridge; root = el;
+  watchRanges(el);
   if (!document.getElementById('studioCss')) {
     const l = document.createElement('link'); l.id = 'studioCss'; l.rel = 'stylesheet'; l.href = new URL(`./studio.css?v=${V}`, import.meta.url).href; document.head.appendChild(l);
   }

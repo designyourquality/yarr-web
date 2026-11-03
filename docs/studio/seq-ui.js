@@ -5,7 +5,7 @@
 import {
   ComposeDraft, ChordSlot, chordBank, chordQualities, chordQualityNames, composeKeys, composeBars, composeSteps, drumSteps,
   seqTracks, trackNames, leadVoices, drumLanes, drumNames, noteName, isBlack, vuHop,
-} from './seq-core.js';
+} from './seq-core.js?v=20261104';
 
 const AMBER = '#FF8C00';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
@@ -132,6 +132,12 @@ export function mountSequencer(root, o) {
   function all() { lcd(); keys(); bars(); pads(); arp(); tracksUi(); drawEditor(); knobsUi(); if (S.mixer) mixerUi(); foot(); playBtn(); }
 
   // ---------- 재생 위치 ----------
+  // 소수 단위 재생 위치 (멜로디 칸 기준 · 0 ~ composeSteps)
+  function curPos() {
+    if (!S.playing) return -1;
+    const beat = 60 / Math.min(180, Math.max(60, o.bpm()));
+    return (audio.currentTime / beat) % composeSteps;
+  }
   function curStep(unitsPerBeat) {
     if (!S.playing) return -1;
     const beat = 60 / Math.min(180, Math.max(60, o.bpm()));
@@ -173,10 +179,11 @@ export function mountSequencer(root, o) {
       g.fillStyle = s % 4 === 0 ? 'rgba(255,140,0,.22)' : 'rgba(255,255,255,.05)';
       g.fillRect(LABEL + s * cell - (s % 4 === 0 ? 0.5 : 0), 0, s % 4 === 0 ? 1.5 : 1, H);
     }
-    const step = curStep(1);
-    if (step >= 0) {
-      g.fillStyle = 'rgba(255,140,0,.16)';
-      g.fillRect(LABEL + (step % composeSteps) * cell, 0, cell, H);
+    const pos = curPos();
+    if (pos >= 0) {
+      const step = Math.floor(pos);
+      g.fillStyle = 'rgba(255,140,0,.08)';
+      g.fillRect(LABEL + step * cell, 0, cell, H);
     }
     for (const n of d.tracks[S.track]) {
       const r = lo + ROWS - 1 - n.midi;
@@ -193,6 +200,26 @@ export function mountSequencer(root, o) {
       if (drag && drag.kind === 'vel' && drag.note === n) {
         g.fillStyle = '#fff'; g.font = '700 11px ui-monospace,Menlo,monospace';
         g.fillText(`VEL ${n.vel}`, Math.min(x + 4, w - 60), Math.max(10, y - 8));
+      }
+    }
+    // 플레이헤드 · 재생 위치를 얇은 선이 실시간으로 지나가요
+    if (pos >= 0) {
+      const x = LABEL + pos * cell;
+      const grad = g.createLinearGradient(x - 14, 0, x, 0);
+      grad.addColorStop(0, 'rgba(255,140,0,0)'); grad.addColorStop(1, 'rgba(255,140,0,.18)');
+      g.fillStyle = grad; g.fillRect(x - 14, 0, 14, H);
+      g.shadowColor = 'rgba(255,170,60,.95)'; g.shadowBlur = 10;
+      g.fillStyle = '#FFC27A'; g.fillRect(x - 0.75, 0, 1.5, H);
+      g.shadowBlur = 0;
+      g.beginPath(); g.moveTo(x - 5, 0); g.lineTo(x + 5, 0); g.lineTo(x, 6); g.closePath(); g.fillStyle = '#FFB067'; g.fill();
+      // 선이 지나가는 음은 잠깐 밝게
+      for (const n of d.tracks[S.track]) {
+        if (pos < n.step || pos > n.step + n.len) continue;
+        const r = lo + ROWS - 1 - n.midi; if (r < 0 || r >= ROWS) continue;
+        g.shadowColor = 'rgba(255,200,120,.9)'; g.shadowBlur = 14;
+        g.strokeStyle = 'rgba(255,230,190,.9)'; g.lineWidth = 1.5;
+        roundRect(g, LABEL + n.step * cell + 1.5, r * ROWH + 3, n.len * cell - 3, ROWH - 6, 4); g.stroke();
+        g.shadowBlur = 0;
       }
     }
     // 바깥 옥타브 음 표시 (위 · 아래에 몇 개)
@@ -376,14 +403,15 @@ export function mountSequencer(root, o) {
     live += drawVu($('sqVuM'), levelNow('master'), true, 32);
     if (S.mixer) root.querySelectorAll('canvas[data-vu]').forEach((cv) => { live += drawVu(cv, levelNow(cv.dataset.vu), false, 14); });
     const s = curStep(4);
-    if (s !== lastStep) { lastStep = s; if (S.playing) { lcd(); bars(); drawEditor(); } }
+    if (s !== lastStep) { lastStep = s; if (S.playing) { lcd(); bars(); if (S.track === 'drums') drawDrums(); } }
+    if (S.playing && S.track !== 'drums') drawRoll(); // 플레이헤드는 매 프레임 부드럽게
     raf = live > 0.002 ? requestAnimationFrame(tick) : 0;
   }
   const wake = () => { if (!raf) raf = requestAnimationFrame(tick); };
 
   // ---------- 미리 듣기 ----------
   function getWorker() {
-    if (!worker) worker = new Worker(new URL('./seq-worker.js', import.meta.url), { type: 'module' });
+    if (!worker) worker = new Worker(new URL('./seq-worker.js?v=20261104', import.meta.url), { type: 'module' });
     return worker;
   }
   function render() {
