@@ -1,6 +1,6 @@
 // ⬆ 곡 올리기 · 📂 내 곡 (웹 스튜디오 · 앱 업로드 시트 + 검수 화면과 같은 규칙 · 2026-11-03)
 //   become_creator → house-music/upload-url (1회용 주소) → 저장소에 바로 올리기 → tracks 등록 (검수 대기)
-import { STATIONS, errText } from './studio-data.js?v=20261105';
+import { STATIONS, errText } from './studio-data.js?v=20261106';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
@@ -168,13 +168,93 @@ export function mountUpload(el, { sb, B, call, onDone }) {
   draw();
 }
 
-export async function mountMine(el, { sb, user }) {
-  el.innerHTML = '<div class="st-card"><span class="spin"></span> 내 곡을 불러오는 중…</div>';
-  const { data, error } = await sb.from('tracks').select('id,title,status,created_at,publish_at,reject_reason,genre,is_instrumental,ai_plan').eq('creator_id', user.id).order('created_at', { ascending: false }).limit(40);
-  if (error) { el.innerHTML = `<div class="st-card"><p class="st-note st-err">내 곡을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p></div>`; return; }
+// ---------- 📁 내 곡 (2026-11-04 · 다시 그림) ----------
+// 상태 한눈에 (요약 타일 · 필터) · 곡마다 커버 · 파형 · 재생 수 · 검수 진행 단계 · 공개 중인 곡은 바로 듣기
+export const ICONS = {
+  make: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>',
+  upload: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>',
+  mine: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="10.5" cy="15.5" r="1.8"/><path d="M12.3 15.5V10.5l3.2-.8"/></svg>',
+  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor" stroke="none"/></svg>',
+  headphones: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>',
+};
+const STEPS = ['업로드', '자동 검수', '운영팀 확인', '공개'];
+export async function mountMine(el, { sb, user, B }) {
+  el.innerHTML = '<div class="st-card mine"><span class="spin"></span> 내 곡을 불러오는 중…</div>';
+  const q = (cols) => sb.from('tracks').select(cols).eq('creator_id', user.id).order('created_at', { ascending: false }).limit(40);
+  let { data, error } = await q('id,title,status,created_at,publish_at,reject_reason,genre,is_instrumental,ai_plan,duration_sec,bpm,play_count_total,situation_tags,waveform,audio_url');
+  if (error) ({ data, error } = await q('id,title,status,created_at,publish_at,reject_reason,genre,is_instrumental,ai_plan')); // 칸 권한이 바뀌어도 목록은 보여요
+  if (error) { el.innerHTML = '<div class="st-card"><p class="st-note st-err">내 곡을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p></div>'; return; }
   const now = Date.now();
-  const stat = (t) => t.status === 'PENDING' ? ['검수 대기', '자동 검수 · 운영팀 확인을 기다려요'] : t.status === 'ACTIVE' ? (new Date(t.publish_at) > now ? ['공개 예정', `${new Date(t.publish_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 공개`] : ['공개 중', '차트 · 스테이션에 나가요']) : t.status === 'REJECTED' ? ['반려', t.reject_reason || '반려됐어요'] : [t.status, ''];
-  el.innerHTML = `<div class="st-card"><div class="seq-row"><h3 style="flex:1">📂 내 곡 (${data.length})</h3></div>
-    ${data.length ? `<div class="takes" style="margin-top:10px">${data.map((t) => { const [a, b] = stat(t); return `<div class="take${t.status === 'ACTIVE' ? ' ok' : ''}" style="grid-template-columns:minmax(0,1fr) auto"><div><b>${esc(t.title)}</b><small>${esc(t.genre || '')} · ${t.is_instrumental ? '연주곡' : '보컬곡'} · ${new Date(t.created_at).toLocaleDateString('ko-KR')}</small><small style="display:block;margin-top:2px">${esc(b)}</small></div><span class="chip-b${t.status === 'ACTIVE' ? ' on' : ''}" style="cursor:default">${esc(a)}</span></div>`; }).join('')}</div>` : '<p class="st-note">아직 올린 곡이 없어요. 곡 만들기나 곡 올리기에서 첫 곡을 올려 보세요.</p>'}
-  </div>`;
+  const kind = (t) => t.status === 'PENDING' ? 'wait' : t.status === 'ACTIVE' ? (t.publish_at && new Date(t.publish_at) > now ? 'soon' : 'live') : t.status === 'REJECTED' ? 'bad' : 'off';
+  const LABEL = { live: '공개 중', soon: '공개 예정', wait: '검수 중', bad: '반려', off: '내려감' };
+  const rows = data.map((t) => ({ ...t, k: kind(t) }));
+  const count = (k) => rows.filter((r) => r.k === k).length;
+  const plays = rows.reduce((a, r) => a + Number(r.play_count_total || 0), 0);
+  let filter = 'all', audio = null, playing = null;
+  const fmtDur = (s) => s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : '';
+  const num = (n) => Number(n || 0).toLocaleString('ko-KR');
+  const stName = (t) => (t.situation_tags || []).map((c) => STATIONS.find((s) => s[0] === c)?.[1]).find(Boolean) || '';
+  const cover = (t) => (B?.coverCss ? B.coverCss({ id: t.id, tags: t.situation_tags || [], genre: t.genre }) : 'background:linear-gradient(135deg,#FF8C00,#3a1d08)');
+  // 파형 (0.1초 단위 0~100) → 막대 48개
+  const wave = (w) => {
+    const N = 96; const src = Array.isArray(w) && w.length ? w : null;
+    const bars = Array.from({ length: N }, (_, i) => {
+      if (!src) return 18 + 14 * Math.abs(Math.sin(i * 1.7)) ;
+      const a = Math.floor(i * src.length / N), b = Math.max(a + 1, Math.floor((i + 1) * src.length / N));
+      let m = 0; for (let j = a; j < b; j++) m = Math.max(m, src[j] || 0); return Math.max(8, m);
+    });
+    return `<svg class="mi-wave${src ? '' : ' ghost'}" viewBox="0 0 ${N * 4} 40" preserveAspectRatio="none" aria-hidden="true">${bars.map((v, i) => `<rect x="${i * 4}" y="${(40 - v * 0.4) / 2}" width="2.2" height="${v * 0.4}" rx="1.2"/>`).join('')}</svg>`;
+  };
+  const steps = (t) => {
+    const at = t.k === 'wait' ? 1 : t.k === 'soon' ? 3 : 4;
+    return `<div class="mi-steps">${STEPS.map((s, i) => `<span class="${i < at ? 'done' : i === at ? 'now' : ''}">${s}</span>`).join('<i></i>')}</div>`;
+  };
+  const sub = (t) => t.k === 'wait' ? steps(t)
+    : t.k === 'soon' ? `<p class="mi-msg">${new Date(t.publish_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}에 공개돼요</p>`
+    : t.k === 'bad' ? `<p class="mi-msg bad">${esc(t.reject_reason || '반려됐어요')} · 고쳐서 다시 올릴 수 있어요</p>`
+    : t.k === 'live' ? `<p class="mi-msg">차트 · 스테이션에 나가요</p>` : '';
+  const card = (t) => {
+    const canPlay = t.k === 'live' && String(t.audio_url || '').startsWith('storage:uploads/');
+    const meta = [t.genre, t.is_instrumental ? '연주곡' : '보컬곡', t.bpm ? `${t.bpm} BPM` : '', fmtDur(t.duration_sec), stName(t)].filter(Boolean).map(esc).join(' · ');
+    return `<article class="mi ${t.k}${playing === t.id ? ' playing' : ''}" data-id="${t.id}">
+      <div class="mi-cover" style="${cover(t)}">${canPlay ? `<button class="mi-play" data-play="${t.id}" aria-label="${esc(t.title)} 듣기">${playing === t.id && audio && !audio.paused ? ICONS.pause : ICONS.play}</button>` : ''}</div>
+      <div class="mi-body">
+        <div class="mi-top"><b class="mi-title">${esc(t.title)}</b><span class="mi-pill ${t.k}"><i></i>${LABEL[t.k]}</span></div>
+        <div class="mi-meta">${meta}<span class="mi-date">${new Date(t.created_at).toLocaleDateString('ko-KR')}</span></div>
+        <div class="mi-row">${wave(t.waveform)}${t.k === 'live' ? `<span class="mi-plays" title="유효 재생 수">${ICONS.headphones}${num(t.play_count_total)}</span>` : ''}</div>
+        ${sub(t)}
+      </div>
+    </article>`;
+  };
+  const tile = (k, label, n, extra = '') => `<button class="mi-tile ${k}${filter === k ? ' on' : ''}" data-f="${k}"><span>${label}</span><b>${n}</b>${extra}</button>`;
+  const draw = () => {
+    const list = rows.filter((r) => filter === 'all' || r.k === filter || (filter === 'live' && r.k === 'soon'));
+    el.innerHTML = `<div class="st-card mine">
+      <div class="mi-head"><span class="mi-ic">${ICONS.mine}</span><div><h3>내 곡</h3><p class="st-note" style="margin:0">만든 곡 · 올린 곡의 검수 상태와 재생 수를 모아 봐요</p></div></div>
+      <div class="mi-tiles">
+        ${tile('all', '전체', rows.length)}${tile('live', '공개 중', count('live') + count('soon'))}${tile('wait', '검수 중', count('wait'))}${tile('bad', '반려', count('bad'))}
+        <div class="mi-tile total"><span>누적 재생</span><b>${num(plays)}</b></div>
+      </div>
+      ${list.length ? `<div class="mi-list">${list.map(card).join('')}</div>`
+        : rows.length ? '<p class="mi-empty">이 상태의 곡이 없어요.</p>'
+        : `<div class="mi-empty big"><span class="mi-ic">${ICONS.mine}</span><b>아직 곡이 없어요</b><p>곡 만들기나 곡 올리기에서 첫 곡을 올려 보세요.</p></div>`}
+    </div>`;
+  };
+  draw();
+  el.onclick = async (e) => {
+    const f = e.target.closest('[data-f]'); if (f) { filter = f.dataset.f; return draw(); }
+    const p = e.target.closest('[data-play]'); if (!p) return;
+    const t = rows.find((r) => r.id === p.dataset.play); if (!t) return;
+    if (playing === t.id && audio && !audio.paused) { audio.pause(); return draw(); }
+    if (playing === t.id && audio) { B?.pauseMain?.(); audio.play(); return draw(); }
+    const path = t.audio_url.slice('storage:uploads/'.length);
+    p.disabled = true;
+    const { data: d } = await sb.functions.invoke('house-music/audio-urls', { body: { paths: [path] } }).catch(() => ({ data: null }));
+    const url = d?.urls?.[path];
+    if (!url) { p.disabled = false; return B?.toast?.('이 곡을 불러오지 못했어요'); }
+    B?.pauseMain?.(); if (audio) audio.pause();
+    audio = new Audio(url); playing = t.id; audio.onended = () => { playing = null; draw(); };
+    audio.play().catch(() => B?.toast?.('재생하지 못했어요')); draw();
+  };
 }

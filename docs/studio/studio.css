@@ -178,3 +178,71 @@ canvas.vu.h{flex:1;height:6px;display:block}
 .ng-labels span{position:absolute;text-align:center;font-size:12.5px;line-height:1.25;font-weight:700;color:#FFD29A;text-shadow:0 0 10px rgba(255,140,0,.93),0 0 2px rgba(255,140,0,.67),0 0 8px #000}
 .ng-top{position:absolute;top:12px;left:16px;right:16px;margin:0;text-align:center;font-size:12px;font-weight:700;color:rgba(255,227,191,.8);text-shadow:0 0 6px #000}
 .ng-close{pointer-events:auto;position:absolute;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 18px;border-radius:22px;background:rgba(20,22,28,.93);border:1px solid #FF8C00;box-shadow:0 0 14px rgba(255,140,0,.4);color:#FFD29A;font-weight:900;font-size:13px}
+
+/* ===== 탭 선 아이콘 · 내 곡 (2026-11-04) ===== */
+.st-tabs button{display:inline-flex;align-items:center;gap:8px}
+.st-tabs svg,.mi-ic svg,.mi-plays svg,.mi-play svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.st-tabs svg{width:17px;height:17px;opacity:.75}
+.st-tabs button.on svg{opacity:1;color:#FFB067;filter:drop-shadow(0 0 4px rgba(255,140,0,.6))}
+
+.mine .mi-head{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.mine .mi-head h3{margin:0 0 2px;font-size:19px}
+.mi-ic{width:44px;height:44px;flex:none;border-radius:13px;display:grid;place-items:center;color:#FFB067;background:linear-gradient(160deg,rgba(255,140,0,.22),rgba(255,140,0,.05));border:1px solid rgba(255,140,0,.32);box-shadow:0 0 18px -4px rgba(255,140,0,.45)}
+.mi-ic svg{width:22px;height:22px}
+
+.mi-tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}
+.mi-tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);color:var(--soft);font-size:12.5px;text-align:left;transition:border-color .2s,background .2s}
+.mi-tile b{font-size:22px;line-height:1.2;color:var(--text);font-variant-numeric:tabular-nums}
+button.mi-tile{cursor:pointer}
+button.mi-tile:hover{border-color:rgba(255,140,0,.35)}
+.mi-tile.on{background:rgba(255,140,0,.1);border-color:rgba(255,140,0,.55);color:#FFD2A6}
+.mi-tile.live b{color:#6EE7B7}.mi-tile.wait b{color:#FCD34D}.mi-tile.bad b{color:#FCA5A5}
+.mi-tile.total{background:linear-gradient(160deg,rgba(255,140,0,.12),rgba(255,140,0,.02));border-color:rgba(255,140,0,.22)}
+.mi-tile.total b{color:#FFB067}
+@media (max-width:640px){.mi-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}.mi-tile.total{grid-column:1/-1;flex-direction:row;justify-content:space-between;align-items:center}.mi-tile{padding:10px}.mi-tile b{font-size:18px}}
+
+.mi-list{display:grid;gap:10px}
+.mi{display:grid;grid-template-columns:72px minmax(0,1fr);gap:14px;padding:12px;border-radius:16px;background:#1A1A1E;border:1px solid rgba(255,255,255,.06);transition:border-color .2s,transform .2s,box-shadow .2s}
+.mi:hover{border-color:rgba(255,140,0,.35);transform:translateY(-1px);box-shadow:0 10px 24px -14px rgba(255,120,30,.45)}
+.mi.playing{border-color:rgba(255,140,0,.6);box-shadow:0 0 0 1px rgba(255,140,0,.3),0 0 26px -8px rgba(255,140,0,.6)}
+.mi-cover{position:relative;width:72px;height:72px;border-radius:12px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.mi.wait .mi-cover,.mi.bad .mi-cover{filter:saturate(.45) brightness(.75)}
+.mi-play{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.25);color:#fff;opacity:0;transition:opacity .2s}
+.mi-play svg{width:30px;height:30px;padding:7px;border-radius:50%;background:linear-gradient(135deg,#FF8A4C,#E8552A);box-shadow:0 4px 14px rgba(255,94,26,.55);box-sizing:content-box}
+.mi:hover .mi-play,.mi.playing .mi-play,.mi-play:focus-visible{opacity:1}
+@media (hover:none){.mi-play{opacity:1;background:transparent}.mi-play svg{width:18px;height:18px;padding:6px}}
+.mi-body{min-width:0;display:flex;flex-direction:column;gap:4px}
+.mi-top{display:flex;align-items:center;gap:10px}
+.mi-title{flex:1;min-width:0;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mi-pill{flex:none;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid}
+.mi-pill i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.mi-pill.live{color:#6EE7B7;border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.1)}
+.mi-pill.live i{box-shadow:0 0 6px currentColor}
+.mi-pill.soon{color:#93C5FD;border-color:rgba(96,165,250,.35);background:rgba(96,165,250,.1)}
+.mi-pill.wait{color:#FCD34D;border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.1)}
+.mi-pill.wait i{animation:miPulse 1.4s ease-in-out infinite}
+.mi-pill.bad{color:#FCA5A5;border-color:rgba(248,113,113,.35);background:rgba(248,113,113,.1)}
+.mi-pill.off{color:var(--soft);border-color:var(--line)}
+@keyframes miPulse{50%{opacity:.25}}
+.mi-meta{font-size:12.5px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mi-date{color:var(--dim)}.mi-date::before{content:' · '}
+.mi-row{display:flex;align-items:center;gap:12px;margin-top:2px}
+.mi-wave{flex:1;min-width:0;max-width:460px;height:26px}
+.mi-wave rect{fill:rgba(255,140,0,.55)}
+.mi-wave.ghost rect{fill:rgba(255,255,255,.1)}
+.mi.wait .mi-wave rect,.mi.bad .mi-wave rect{fill:rgba(255,255,255,.18)}
+.mi.playing .mi-wave rect{fill:#FFB067}
+.mi-plays{flex:none;display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;color:#D4D4D8;font-variant-numeric:tabular-nums}
+.mi-plays svg{width:15px;height:15px;color:var(--soft)}
+.mi-msg{margin:0;font-size:12.5px;color:var(--dim)}
+.mi-msg.bad{color:#FCA5A5}
+.mi-steps{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11.5px;color:var(--dim);margin-top:2px}
+.mi-steps i{width:14px;height:1px;background:rgba(255,255,255,.15)}
+.mi-steps span{display:inline-flex;align-items:center;gap:5px}
+.mi-steps span::before{content:'';width:7px;height:7px;border-radius:50%;border:1px solid rgba(255,255,255,.25)}
+.mi-steps .done{color:#D4D4D8}.mi-steps .done::before{background:#FF8C00;border-color:#FF8C00}
+.mi-steps .now{color:#FCD34D;font-weight:700}.mi-steps .now::before{border-color:#FCD34D;background:rgba(251,191,36,.3);animation:miPulse 1.4s ease-in-out infinite}
+.mi-empty{text-align:center;color:var(--soft);padding:24px 0;margin:0}
+.mi-empty.big{display:grid;justify-items:center;gap:8px;padding:36px 0}
+.mi-empty.big p{margin:0;font-size:13px}
+@media (max-width:520px){.mi{grid-template-columns:56px minmax(0,1fr);gap:12px;padding:10px}.mi-cover{width:56px;height:56px}.mi-title{font-size:14.5px}}

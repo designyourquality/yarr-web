@@ -1110,9 +1110,9 @@ html,body{background:var(--bg)}
   async function studioBoot() {
     if (studioMod) return studioMod.show?.();
     try {
-      studioMod = await import('./studio/studio.js?v=20261104');
+      studioMod = await import('./studio/studio.js?v=20261106');
       await studioMod.mount($('studioRoot'), {
-        loadSb, SB_URL, SB_KEY, STATIONS, ST, toast, esc, stPhoto, base,
+        loadSb, SB_URL, SB_KEY, STATIONS, ST, toast, esc, stPhoto, base, coverCss,
         pauseMain: () => { A.forEach((a) => a.pause()); },
         rememberLogin: () => store.set('yarr_login_for', 'studio'),
       });

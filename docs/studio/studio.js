@@ -6,12 +6,12 @@ import {
   STATIONS, ST, GENRES, GENRE, LEADS, FLOWS, WEATHERS, TIMES, DURATIONS, KNOBS, VOICE_CATS, VOICES, QUICK_VOICES, QUIET_VOICES, LOUD_GENRES,
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
   lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel,
-} from './studio-data.js?v=20261105';
-import { ComposeDraft } from './seq-core.js?v=20261105';
-import { mountSequencer } from './seq-ui.js?v=20261105';
-import { mountUpload, mountMine } from './studio-upload.js?v=20261105';
+} from './studio-data.js?v=20261106';
+import { ComposeDraft } from './seq-core.js?v=20261106';
+import { mountSequencer } from './seq-ui.js?v=20261106';
+import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261106';
 
-const V = '20261105';
+const V = '20261106';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -150,7 +150,7 @@ function layout() {
       <div><span class="chip o">✨ YARR 스튜디오</span><h1 style="margin-top:8px" id="stH">야르에서 바로 만들기</h1><p class="lead" id="stSub" style="margin:0"></p><p class="st-note" id="stTrial" style="margin:4px 0 0"></p></div>
       <div style="display:flex;gap:8px;align-items:center"><span class="st-count" title="오늘 남은 만들기" id="stLed">MAKE --</span><button class="btn sub" id="stOut" style="padding:8px 12px;font-size:12.5px">로그아웃</button></div>
     </div>
-    <div class="st-tabs" id="stTabs"><button data-v="make" class="on">🎛 곡 만들기</button><button data-v="upload">⬆ 곡 올리기</button><button data-v="mine">📂 내 곡</button></div>
+    <div class="st-tabs" id="stTabs"><button data-v="make" class="on">${ICONS.make}곡 만들기</button><button data-v="upload">${ICONS.upload}곡 올리기</button><button data-v="mine">${ICONS.mine}내 곡</button></div>
     <div id="stBody"></div>
     <p class="st-err st-note" id="stErr"></p>
   </div>`;
@@ -462,7 +462,7 @@ function renderResult() {
     body().innerHTML = `<div class="st-grid one"><div class="st-card" style="max-width:640px">
       <h3 style="font-size:22px">올렸어요! 🎉</h3>
       <p class="st-note">${S.done.vocal ? "자동 검수가 고른 구간을 자르고 음량을 맞춰요. 보컬곡은 운영팀이 직접 들어 보고 승인하면 바로 공개돼요. 어디에 나가는지는 '내 곡'에서 볼 수 있어요." : "자동 검수가 고른 구간을 자르고 음량을 맞춘 뒤 승인되면 바로 공개돼요. 보통 몇 분 걸리고, 어디에 나가는지는 '내 곡'에서 볼 수 있어요."}</p>
-      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn sub" data-r="mine">📂 내 곡 보기</button><button class="btn" data-r="again">${q && q.left > 0 ? '하나 더 만들기' : '만들기 화면으로'}</button></div>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn sub" data-r="mine">내 곡 보기</button><button class="btn" data-r="again">${q && q.left > 0 ? '하나 더 만들기' : '만들기 화면으로'}</button></div>
     </div></div>`;
     body().onclick = (e) => { const b = e.target.closest('[data-r]'); if (!b) return; if (b.dataset.r === 'again') restart(); else root.querySelector('#stTabs [data-v="mine"]').click(); };
     return;
