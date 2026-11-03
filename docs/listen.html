@@ -843,7 +843,7 @@ main.wrap{padding-top:36px}
     sFilter = b.dataset.sf; renderStationList();
   };
   $('sShuffle').onclick = () => loadStation(curStation);
-  async function loadStation(code) {
+  async function loadStation(code, preset = null) {
     curStation = code; stationLoaded = true;
     const my = ++stationReq;   // 늦게 도착한 이전 스테이션 응답이 지금 화면을 덮지 않게
     const s = ST[code];
@@ -855,7 +855,7 @@ main.wrap{padding-top:36px}
     $('stationList').innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
     if (tab === 'stations') history.replaceState(null, '', `${base()}?s=${code.slice(1).toLowerCase()}`);
     try {
-      const j = await api({ action: 'station', code, limit: 40 });
+      const j = preset ? { tracks: preset } : await api({ action: 'station', code, limit: 40 });   // preset: 이어 듣기로 넘어온 스테이션 (받은 순서 그대로)
       if (my !== stationReq) return;
       stationTracks = j.tracks;
       renderStationList();
@@ -916,6 +916,11 @@ main.wrap{padding-top:36px}
         const more = (j?.tracks || []).filter((t) => !played.has(t.id));
         if (more.length) {
           toast(`목록을 다 들었어요 · ${ST[code].emoji} ${ST[code].name} 스테이션으로 이어서 들려드려요`);
+          if (code !== curStation || listSrc !== `station:${code}`) {
+            // 다른 스테이션으로 넘어가면 화면(이름 · 배너 · 곡 목록 · 주소)도 그 스테이션으로 바꿔요 (2026-11-03)
+            loadStation(code, j.tracks);
+            return listenPlay(more, 0, `station:${code}`);
+          }
           return listenPlay(list.concat(more), idx + 1);
         }
       }
