@@ -6,10 +6,10 @@ import {
   STATIONS, ST, GENRES, GENRE, LEADS, FLOWS, WEATHERS, TIMES, DURATIONS, KNOBS, VOICE_CATS, VOICES, QUICK_VOICES, QUIET_VOICES, LOUD_GENRES,
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
   lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel,
-} from './studio-data.js?v=20261107';
-import { ComposeDraft } from './seq-core.js?v=20261107';
-import { mountSequencer } from './seq-ui.js?v=20261107';
-import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261107';
+} from './studio-data.js?v=20261108';
+import { ComposeDraft } from './seq-core.js?v=20261108';
+import { mountSequencer } from './seq-ui.js?v=20261108';
+import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261108';
 
 const V = '20261107';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
@@ -476,7 +476,8 @@ function renderResult() {
       <div class="lcd"><div class="lcd-1">MAKING…  ${st.bpm || bpmOf(S.recipe)} BPM</div><div class="lcd-2">${esc(st.prompt || '')}</div></div>
       <h3 style="margin-top:18px"><span class="spin"></span> AI가 곡을 만들고 있어요 (약 ${Math.round(p * 100)}%)</h3>
       <div class="take" style="display:block;margin-top:10px;padding:10px"><div class="sq-bar" style="margin:0"><i style="width:${Math.round(p * 100)}%"></i></div></div>
-      <p class="st-note">${stage}</p>
+      ${st.ahead > 0 ? `<div class="lcd" style="margin-top:10px"><div class="lcd-1">앞에 ${Number(st.ahead) | 0}곡 대기 중</div><div class="lcd-2">차례가 오면 바로 시작해요</div></div>` : ''}
+      <p class="st-note">${st.ahead > 0 ? '순서를 기다리는 중…' : stage}</p>
       <p class="st-note">보통 2~5분, 붐비는 시간에는 20분까지 걸려요. 화면을 닫아도 계속 만들어지고, 다시 열면 이어서 볼 수 있어요.${sec > 60 ? ` · ${Math.floor(sec / 60)}분째 기다리는 중` : ''}</p>
       <button class="btn sub" data-r="chart" style="margin-top:8px">기다리는 동안 인기 차트 듣기</button>
     </div>${vocal && lyr ? `<div class="st-card"><h3>이 곡의 가사</h3><div class="lyr">${esc(lyr)}</div></div>` : ''}</div>`;

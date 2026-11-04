@@ -1,6 +1,6 @@
 // ⬆ 곡 올리기 · 📂 내 곡 (웹 스튜디오 · 앱 업로드 시트 + 검수 화면과 같은 규칙 · 2026-11-03)
 //   become_creator → house-music/upload-url (1회용 주소) → 저장소에 바로 올리기 → tracks 등록 (검수 대기)
-import { STATIONS, errText } from './studio-data.js?v=20261107';
+import { STATIONS, errText } from './studio-data.js?v=20261108';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };

@@ -380,6 +380,13 @@ html,body{background:var(--bg)}
   box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 20px 44px -20px rgba(0,0,0,.65)!important}
 .trk{border-color:rgba(255,255,255,.06)!important}
 .trk:hover{border-color:rgba(255,140,0,.45)!important}
+/* 휴대폰으로 매장 웹을 열었을 때만: 하루 종일 틀려면 앱 안내 (2026-11-04) */
+.appnudge{display:none;align-items:center;gap:12px;margin:0 0 14px;padding:14px 16px;border-radius:16px;background:linear-gradient(135deg,rgba(255,122,31,.14),rgba(255,122,31,.04));border:1px solid rgba(255,140,0,.35)}
+.appnudge b{display:block;font-size:14.5px;margin-bottom:3px}
+.appnudge p{margin:0;font-size:12.5px;line-height:1.55;color:var(--soft,#B9B4AC)}
+.appnudge .btn{flex:none;white-space:nowrap;justify-content:center}
+@media (hover:none) and (pointer:coarse){.appnudge{display:flex}}
+@media (max-width:520px){.appnudge{flex-direction:column;align-items:stretch}}
 </style>
 </head>
 <body class="paused">
@@ -504,6 +511,11 @@ html,body{background:var(--bg)}
   </div>
 
   <div id="storeDeck" class="hidden">
+    <div class="appnudge" role="note">
+      <div style="flex:1;min-width:0"><b>📱 휴대폰으로 매장에서 하루 종일 튼다면 앱이 더 안정적이에요</b>
+        <p>브라우저는 화면이 꺼지거나 다른 앱을 쓰면 휴대폰에 따라 재생이 멈출 수 있어요. 앱은 화면 꺼짐 방지 · 인터넷이 끊겨도 받아 둔 곡으로 이어 틀기 · 영업시간 자동 켜기를 지원해요.</p></div>
+      <button class="btn" data-modal="mApp">앱 알아보기</button>
+    </div>
     <div class="deck glass">
       <div class="glow1"></div><div class="glow2"></div>
       <div class="bar1">
@@ -1110,7 +1122,7 @@ html,body{background:var(--bg)}
   async function studioBoot() {
     if (studioMod) return studioMod.show?.();
     try {
-      studioMod = await import('./studio/studio.js?v=20261107');
+      studioMod = await import('./studio/studio.js?v=20261108');
       await studioMod.mount($('studioRoot'), {
         loadSb, SB_URL, SB_KEY, STATIONS, ST, toast, esc, stPhoto, base, coverCss,
         pauseMain: () => { A.forEach((a) => a.pause()); },

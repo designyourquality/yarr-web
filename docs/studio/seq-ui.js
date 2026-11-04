@@ -5,7 +5,7 @@
 import {
   ComposeDraft, ChordSlot, chordBank, chordQualities, chordQualityNames, composeKeys, composeBars, composeSteps, drumSteps,
   seqTracks, trackNames, leadVoices, drumLanes, drumNames, noteName, isBlack, vuHop,
-} from './seq-core.js?v=20261107';
+} from './seq-core.js?v=20261108';
 
 const AMBER = '#FF8C00';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
@@ -411,7 +411,7 @@ export function mountSequencer(root, o) {
 
   // ---------- 미리 듣기 ----------
   function getWorker() {
-    if (!worker) worker = new Worker(new URL('./seq-worker.js?v=20261107', import.meta.url), { type: 'module' });
+    if (!worker) worker = new Worker(new URL('./seq-worker.js?v=20261108', import.meta.url), { type: 'module' });
     return worker;
   }
   function render() {
