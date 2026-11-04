@@ -5,7 +5,7 @@
 import {
   ComposeDraft, ChordSlot, chordBank, chordQualities, chordQualityNames, composeKeys, composeBars, composeSteps, drumSteps,
   seqTracks, trackNames, leadVoices, drumLanes, drumNames, noteName, isBlack, vuHop,
-} from './seq-core.js?v=20261108';
+} from './seq-core.js?v=20261109';
 
 const AMBER = '#FF8C00';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
@@ -374,7 +374,7 @@ export function mountSequencer(root, o) {
     st.shown = norm >= st.shown ? norm : Math.max(norm, st.shown - dt * 1.5);
     if (norm >= st.peak) { st.peak = norm; st.peakAt = now; } else if (now - st.peakAt > 900) st.peak = Math.max(st.shown, st.peak - dt * 0.7);
     meters.set(cv, st);
-    const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+    const dpr = window.devicePixelRatio || 1, W = Math.min(cv.clientWidth, cv.parentElement?.clientWidth || cv.clientWidth), H = cv.clientHeight; // 줄 너비를 넘지 않게 (캔버스가 스스로 늘어나는 것 방지)
     if (!W || !H) return st.shown + st.peak;
     if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
     const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
@@ -411,7 +411,7 @@ export function mountSequencer(root, o) {
 
   // ---------- 미리 듣기 ----------
   function getWorker() {
-    if (!worker) worker = new Worker(new URL('./seq-worker.js?v=20261108', import.meta.url), { type: 'module' });
+    if (!worker) worker = new Worker(new URL('./seq-worker.js?v=20261109', import.meta.url), { type: 'module' });
     return worker;
   }
   function render() {

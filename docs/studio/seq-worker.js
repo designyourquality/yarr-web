@@ -1,5 +1,5 @@
 // 미리 듣기 합성 (화면이 멈추지 않게 따로 돌려요) · seq-core.js 의 renderPreviewFromJson
-import { renderPreviewFromJson } from './seq-core.js?v=20261108';
+import { renderPreviewFromJson } from './seq-core.js?v=20261109';
 
 self.onmessage = (e) => {
   const { id, json, bpm } = e.data;
