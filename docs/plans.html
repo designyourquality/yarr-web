@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>YARR 요금제</title>
+<meta name="description" content="YARR 크리에이터 Pro · 매장 BGM 웹 구독">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="favicon.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+:root{--bg:#090A0F;--text:#F4F5F8;--soft:#A1A1AA;--dim:#71717A;--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);--card:rgba(22,25,36,.75);--o1:#FF8A4C;--o2:#E8552A;--ok:#34D399;--bad:#F87171;--warn:#FBBF24}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 20% 10%,rgba(255,128,64,.13) 0,transparent 45%),radial-gradient(circle at 85% 20%,rgba(109,40,217,.1) 0,transparent 50%),var(--bg);color:var(--text);font:15px/1.6 "Pretendard Variable",Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;word-break:keep-all;min-height:100vh;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+button:disabled{opacity:.45;cursor:default}
+:focus-visible{outline:2px solid var(--o1);outline-offset:2px;border-radius:8px}
+.wrap{max-width:980px;margin:0 auto;padding:0 16px}
+header{border-bottom:1px solid var(--line);background:rgba(9,10,15,.8);backdrop-filter:blur(16px);position:sticky;top:0;z-index:5}
+header .wrap{height:60px;display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:800;letter-spacing:.08em;font-size:19px}
+.brand i{width:34px;height:34px;border-radius:10px;background:url(icon.png) center/cover;display:block;box-shadow:0 0 0 1px rgba(255,160,110,.4)}
+.who{font-size:13px;color:var(--soft);display:flex;gap:10px;align-items:center}
+h1{font-size:clamp(26px,5vw,38px);margin:36px 0 6px;letter-spacing:-.02em}
+.lead{color:var(--soft);margin:0 0 22px}
+.banner{border:1px solid rgba(251,191,36,.35);background:rgba(251,191,36,.08);color:#FDE68A;border-radius:14px;padding:10px 14px;font-size:13.5px;margin:0 0 18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.plan{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.06)}
+.plan h2{margin:0;font-size:20px}
+.plan .price{font-size:32px;font-weight:800;margin:10px 0 2px}
+.plan .price small{font-size:14px;color:var(--soft);font-weight:600}
+.plan ul{list-style:none;padding:0;margin:14px 0 18px;display:grid;gap:7px;font-size:14px}
+.plan li{display:flex;gap:8px}
+.plan li::before{content:"✓";color:var(--o1);font-weight:800}
+.plan .note{font-size:12.5px;color:var(--dim);margin:-6px 0 14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:999px;padding:12px 20px;font-weight:800;background:linear-gradient(135deg,var(--o1),var(--o2));color:#fff;box-shadow:0 8px 24px rgba(255,94,26,.3)}
+.btn.sub{background:rgba(255,255,255,.06);border:1px solid var(--line2);box-shadow:none;color:var(--text)}
+.btn.small{padding:7px 14px;font-size:13px}
+.plan .btn{margin-top:auto;width:100%}
+.agree{display:flex;gap:10px;align-items:flex-start;margin:22px 0 0;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.03);font-size:13.5px;color:var(--soft)}
+.agree input{width:18px;height:18px;margin-top:3px;accent-color:#FF6B35;flex:none}
+.box{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:18px}
+.box h3{margin:0 0 10px;font-size:16px}
+.sub-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid var(--line)}
+.sub-row:first-of-type{border-top:0}
+.tag{font-size:12px;font-weight:800;padding:3px 9px;border-radius:999px;border:1px solid var(--line2)}
+.tag.ok{color:var(--ok);border-color:rgba(52,211,153,.4)}
+.tag.warn{color:var(--warn);border-color:rgba(251,191,36,.4)}
+.tag.off{color:var(--soft)}
+.login .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.login input{flex:1;min-width:200px;padding:11px 14px;border-radius:12px;border:1px solid var(--line2);background:rgba(0,0,0,.35)}
+.msg{min-height:22px;font-size:13.5px;margin:10px 0 0;color:var(--soft)}
+.msg.bad{color:var(--bad)}
+.msg.good{color:var(--ok)}
+.legal{font-size:12.5px;color:var(--dim);line-height:1.75;margin:26px 0 0}
+.legal b{color:var(--soft)}
+.hidden{display:none!important}
+footer{margin:40px 0 30px;font-size:12px;color:var(--dim);line-height:1.8}
+@media (max-width:520px){.plan{padding:18px}.sub-row .btn{width:100%}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><a class="brand" href="listen.html"><i></i>YARR</a><div class="who" id="who"></div></div></header>
+<main class="wrap">
+  <h1>YARR 요금제</h1>
+  <p class="lead">듣기는 언제나 무료예요. 곡을 더 많이 만들거나 매장에서 틀 때만 구독해요.</p>
+  <div class="banner hidden" id="testBanner">🧪 지금은 <b>테스트 결제</b>예요. 카드를 등록해도 실제 돈은 나가지 않아요.</div>
+  <div class="banner hidden" id="offBanner">웹 결제를 준비하고 있어요. 조금만 기다려 주세요.</div>
+
+  <div class="grid">
+    <section class="plan" aria-labelledby="p1">
+      <h2 id="p1">🎛️ 크리에이터 Pro</h2>
+      <div class="price">9,900원 <small>/ 월</small></div>
+      <ul>
+        <li>곡 만들기 한 달 50곡 (무료는 한 달 5곡)</li>
+        <li>하루 곡 올리기 20곡 (무료는 5곡)</li>
+        <li>사람이 몰려도 만들기 예산이 따로 있어 덜 막혀요</li>
+      </ul>
+      <button class="btn" data-buy="yarr_creator_pro_monthly">크리에이터 Pro 구독하기</button>
+    </section>
+    <section class="plan" aria-labelledby="p2">
+      <h2 id="p2">🏪 매장 BGM</h2>
+      <div class="price">9,900원 <small>/ 월</small></div>
+      <ul>
+        <li>무료 시범이 끝나도 매장 모드 계속 이용</li>
+        <li>영업장에서 틀어도 되는 곡만 골라 송출</li>
+        <li>송출 확인서 · 영업시간 예약 · 안내방송 (앱)</li>
+        <li>매장 재생 시간이 크리에이터 매장 정산의 기준이 돼요</li>
+      </ul>
+      <p class="note">운영팀 승인을 받은 매장 계정만 구독할 수 있어요. (앱 → 매장 모드 → 매장 신청)</p>
+      <button class="btn" data-buy="yarr_store_monthly">매장 BGM 구독하기</button>
+    </section>
+  </div>
+
+  <label class="agree"><input type="checkbox" id="agree"><span>매달 같은 날 <b>9,900원이 자동 결제</b>되고, 해지하기 전까지 계속돼요. 해지는 이 페이지의 '해지'로 언제든 할 수 있고, 해지해도 이미 낸 기간이 끝날 때까지 이용할 수 있어요. 아래 환불 기준과 <a href="terms.html">이용약관</a>을 확인했어요.</span></label>
+
+  <div class="box login hidden" id="loginBox">
+    <h3>먼저 로그인해 주세요</h3>
+    <p class="msg" style="margin:0">YARR 앱에서 쓰는 계정으로 로그인해요. 웹에서 산 구독은 앱에도 바로 적용돼요.</p>
+    <div class="row hidden" id="oauthRow"><button class="btn sub" data-oauth="kakao">카카오로 로그인</button><button class="btn sub" data-oauth="google">구글로 로그인</button></div>
+    <div class="row" id="emailStep"><input type="email" id="email" placeholder="앱에 연결한 이메일" autocomplete="email"><button class="btn" id="sendCode">코드 받기</button></div>
+    <div class="row hidden" id="codeStep"><input type="text" id="code" inputmode="numeric" autocomplete="one-time-code" placeholder="메일로 받은 6자리 코드"><button class="btn" id="verify">확인</button><button class="btn sub" id="back">이메일 다시</button></div>
+    <p class="msg" id="loginMsg"></p>
+  </div>
+
+  <div class="box" id="mineBox">
+    <h3>내 웹 구독</h3>
+    <div id="mine"><p class="msg" style="margin:0">로그인하면 여기서 확인 · 해지할 수 있어요.</p></div>
+    <p class="msg" id="mineMsg"></p>
+  </div>
+
+  <p class="legal">
+    <b>결제 · 해지</b> 결제는 토스페이먼츠를 통해 등록한 카드로 매달 이뤄져요. 결제가 실패하면 하루 간격으로 두 번 더 시도하고, 그동안(최대 3일) 혜택은 그대로예요. 세 번 모두 실패하면 구독이 끝나요.<br>
+    <b>환불</b> 결제 후 7일 안이고 구독 혜택(늘어난 곡 만들기 · 업로드, 시범 뒤 매장 모드)을 쓰지 않았다면 전액 환불해 드려요. 혜택을 쓴 뒤에는 디지털 서비스 특성상 그달 요금은 환불되지 않고, 해지하면 다음 달부터 결제되지 않아요. 환불은 <a href="mailto:contact@yarrmusic.com">contact@yarrmusic.com</a> 으로 요청해 주세요.<br>
+    <b>앱에서 구독한 경우</b> 구글 플레이에서 결제한 구독은 Play 스토어 → 결제 및 구독에서 관리해요. 같은 상품을 웹과 앱에서 두 번 구독할 수는 없어요.
+  </p>
+</main>
+<footer class="wrap">
+  YARR (야르) · 상호: 디와이큐 · 대표: 원대연 · 사업자등록번호: 734-15-02973 · 통신판매업 신고: 제2026-화성동탄-3868호 · 주소: 경기도 화성시 동탄구 동탄중심상가2길 26-21, 603-가39호 (반송동, 로드프라자) · 문의: <a href="mailto:contact@yarrmusic.com">contact@yarrmusic.com</a><br>
+  <a href="privacy.html">개인정보 처리방침</a> · <a href="terms.html">이용약관</a> · <a href="listen.html">YARR 듣기</a>
+</footer>
+<script>
+(() => {
+  const SB_URL = 'https://ixgwiwohdczeklnurmon.supabase.co';
+  const SB_KEY = 'sb_publishable_bTO5xn7Gv3B8rTQxGbopww_qNH6cqkd';   // 공개 키 (권한은 서버 규칙이 막아요)
+  const SB_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';
+  const TOSS_JS = 'https://js.tosspayments.com/v1/payment';
+  const NAMES = { yarr_creator_pro_monthly: '크리에이터 Pro', yarr_store_monthly: '매장 BGM' };
+  const ERR = {
+    LOGIN_REQUIRED: '로그인이 필요해요.', STORE_NOT_APPROVED: '운영팀 승인을 받은 매장 계정만 매장 BGM을 구독할 수 있어요. 앱 → 매장 모드에서 먼저 신청해 주세요.',
+    ALREADY_SUBSCRIBED: '이미 구독 중이에요. (앱에서 구독했다면 Play 스토어에서 관리해요)', BILLING_OFF: '웹 결제를 준비하고 있어요. 조금만 기다려 주세요.',
+    NOT_FOUND: '구독 정보를 찾지 못했어요. 처음부터 다시 해 주세요.',
+  };
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const day = (iso) => { if (!iso) return '-'; const d = new Date(iso); return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`; };
+  const base = () => `${location.origin}${location.pathname}`;
+  const load = (src) => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.async = true; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  let sb = null, session = null, pending = null;
+
+  const call = async (path, body = {}) => {
+    const { data: { session: s } } = await sb.auth.getSession();
+    const r = await fetch(`${SB_URL}/functions/v1/house-music/${path}`, {
+      method: 'POST', headers: { 'content-type': 'application/json', apikey: SB_KEY, authorization: `Bearer ${s?.access_token ?? SB_KEY}` }, body: JSON.stringify(body),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw Object.assign(new Error(j.error || 'ERROR'), { code: j.error });
+    return j;
+  };
+  const msg = (el, t, kind) => { $(el).textContent = t || ''; $(el).className = `msg${kind ? ' ' + kind : ''}`; };
+
+  async function refreshMine() {
+    if (!session) return;
+    let j;
+    try { j = await call('billing-status'); } catch (e) { return msg('mineMsg', ERR[e.code] || '구독 정보를 불러오지 못했어요.', 'bad'); }
+    $('testBanner').classList.toggle('hidden', !j.test);
+    $('offBanner').classList.toggle('hidden', !!j.ready);
+    if (!j.subs.length) { $('mine').innerHTML = '<p class="msg" style="margin:0">웹에서 구독한 요금제가 없어요.</p>'; return; }
+    $('mine').innerHTML = j.subs.map((s) => {
+      const tag = s.status === 'ACTIVE' ? '<span class="tag ok">구독 중</span>' : s.status === 'PAST_DUE' ? '<span class="tag warn">결제 다시 시도 중</span>' : '<span class="tag off">해지됨</span>';
+      const when = s.status === 'ACTIVE' ? `다음 결제 ${day(s.nextChargeAt)} · ${Number(s.amount).toLocaleString()}원` : s.status === 'PAST_DUE' ? `카드를 확인해 주세요 · ${day(s.periodEnd)} 이후 3일까지 이용` : `${day(s.periodEnd)}까지 이용`;
+      return `<div class="sub-row"><div><b>${esc(NAMES[s.product] || s.product)}</b> ${tag}${s.test ? ' <span class="tag off">테스트</span>' : ''}<br><span style="font-size:13px;color:var(--soft)">${esc(when)}${s.card ? ' · ' + esc(s.card) : ''}</span></div>${s.status !== 'CANCELED' ? `<button class="btn sub small" data-cancel="${esc(s.customerKey)}">해지</button>` : ''}</div>`;
+    }).join('');
+  }
+
+  async function showWho() {
+    const { data: { session: s } } = await sb.auth.getSession();
+    session = s && !s.user.is_anonymous ? s : null;
+    $('who').innerHTML = session ? `${esc(session.user.email || '로그인됨')} <button class="btn sub small" id="logout">로그아웃</button>` : '';
+    if (session) { $('loginBox').classList.add('hidden'); $('logout').onclick = async () => { await sb.auth.signOut(); location.reload(); }; await refreshMine(); }
+  }
+
+  async function buy(product) {
+    if (!$('agree').checked) { $('agree').closest('.agree').scrollIntoView({ behavior: 'smooth', block: 'center' }); return msg('mineMsg', '자동 결제 안내를 확인하고 체크해 주세요.', 'bad'); }
+    if (!session) { pending = product; $('loginBox').classList.remove('hidden'); $('loginBox').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    msg('mineMsg', '카드 등록 창을 여는 중…');
+    try {
+      const j = await call('billing-start', { product });
+      await load(TOSS_JS);
+      const toss = TossPayments(j.clientKey);
+      sessionStorage.setItem('yarr_billing', product);
+      await toss.requestBillingAuth('카드', { customerKey: j.customerKey, successUrl: `${base()}?billing=ok`, failUrl: `${base()}?billing=fail` });
+    } catch (e) {
+      if (e?.code === 'USER_CANCEL') return msg('mineMsg', '카드 등록을 취소했어요.');
+      msg('mineMsg', ERR[e?.code] || e?.message || '결제를 시작하지 못했어요.', 'bad');
+    }
+  }
+
+  async function finishReturn() {
+    const q = new URLSearchParams(location.search);
+    if (!q.get('billing')) return;
+    history.replaceState(null, '', base());
+    if (q.get('billing') === 'fail') return msg('mineMsg', q.get('message') || '카드를 등록하지 못했어요.', 'bad');
+    msg('mineMsg', '첫 달 결제를 하는 중이에요. 창을 닫지 말아 주세요…');
+    try {
+      const j = await call('billing-confirm', { customerKey: q.get('customerKey'), authKey: q.get('authKey') });
+      if (j.status === 'ACTIVE') msg('mineMsg', `구독이 시작됐어요 🎉 다음 결제일은 ${day(j.periodEnd)}이에요. 앱에도 바로 적용돼요.`, 'good');
+      else msg('mineMsg', `결제하지 못했어요: ${j.error || '카드를 확인해 주세요'}`, 'bad');
+    } catch (e) { msg('mineMsg', ERR[e.code] || '결제를 마무리하지 못했어요. 문의해 주세요.', 'bad'); }
+    await refreshMine();
+  }
+
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-buy]');
+    if (b) return buy(b.dataset.buy);
+    const c = e.target.closest('[data-cancel]');
+    if (c) {
+      if (!confirm('해지할까요? 이미 낸 기간이 끝날 때까지는 계속 이용할 수 있고, 다음 달부터 결제되지 않아요.')) return;
+      try { const j = await call('billing-cancel', { customerKey: c.dataset.cancel }); msg('mineMsg', `해지했어요. ${day(j.periodEnd)}까지 이용할 수 있어요.`, 'good'); }
+      catch (x) { msg('mineMsg', ERR[x.code] || '해지하지 못했어요. 문의해 주세요.', 'bad'); }
+      return refreshMine();
+    }
+    const o = e.target.closest('[data-oauth]');
+    if (o) {
+      const { data, error } = await sb.auth.signInWithOAuth({ provider: o.dataset.oauth, options: { redirectTo: base(), skipBrowserRedirect: true } });
+      if (!error && data?.url) location.href = data.url; else msg('loginMsg', '이 로그인 방법은 아직 준비 중이에요. 이메일 코드로 로그인해 주세요.', 'bad');
+    }
+  });
+  $('sendCode').onclick = async () => {
+    const email = $('email').value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return msg('loginMsg', '이메일 주소를 확인해 주세요.', 'bad');
+    $('sendCode').disabled = true; msg('loginMsg', '코드를 보내는 중…');
+    const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+    $('sendCode').disabled = false;
+    if (error) return msg('loginMsg', /not found|Signups not allowed/i.test(error.message) ? '이 이메일로 연결된 YARR 계정이 없어요. 앱 설정에서 이메일을 먼저 연결해 주세요.' : '코드를 보내지 못했어요. 잠시 후 다시 시도해 주세요.', 'bad');
+    $('emailStep').classList.add('hidden'); $('codeStep').classList.remove('hidden'); $('code').focus(); msg('loginMsg', '메일로 보낸 6자리 코드를 입력해 주세요.');
+  };
+  $('back').onclick = () => { $('codeStep').classList.add('hidden'); $('emailStep').classList.remove('hidden'); msg('loginMsg', ''); };
+  $('verify').onclick = async () => {
+    const { error } = await sb.auth.verifyOtp({ email: $('email').value.trim(), token: $('code').value.trim(), type: 'email' });
+    if (error) return msg('loginMsg', '코드가 맞지 않거나 시간이 지났어요. 다시 받아 주세요.', 'bad');
+    await showWho();
+    if (pending) { const p = pending; pending = null; buy(p); }
+  };
+  $('code').onkeydown = (e) => { if (e.key === 'Enter') $('verify').click(); };
+
+  (async () => {
+    try { await load(SB_JS); } catch { return msg('mineMsg', '로그인 도구를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.', 'bad'); }
+    sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, detectSessionInUrl: true, flowType: 'pkce' } });
+    try {
+      const j = await fetch(`${SB_URL}/auth/v1/settings`, { headers: { apikey: SB_KEY } }).then((r) => r.json());
+      let any = false;
+      document.querySelectorAll('[data-oauth]').forEach((b) => { const on = j?.external?.[b.dataset.oauth] === true; b.classList.toggle('hidden', !on); any = any || on; });
+      $('oauthRow').classList.toggle('hidden', !any);
+    } catch { /* 이메일 코드만 */ }
+    await showWho();
+    await finishReturn();
+  })();
+})();
+</script>
+</body>
+</html>
