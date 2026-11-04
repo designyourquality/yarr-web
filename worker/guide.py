@@ -179,7 +179,9 @@ def _render_pro(buf: np.ndarray, guide: dict, pro: dict, beat: float, melody_gai
     """pro 트랙 · 드럼을 buf 에 더하고, 직접 채운 파트 이름을 돌려줘요 (나머지는 예전 방식으로 채움)"""
     bars = len(guide.get('chords') or [1])
     vol = _audible(pro)
-    tracks = pro.get('tracks') or {}
+    # v3: 잘게 찍은 원래 값(fine · 한 박 = res 틱)이 있으면 그걸로 연주해요
+    res = pro.get('res') if pro.get('res') in (1, 2, 4) and isinstance(pro.get('fine'), dict) else 1
+    tracks = (pro.get('fine') if res > 1 else pro.get('tracks')) or {}
     done = set()
     spec = {
         'lead': (0.42 * melody_gain, LEAD_VOICE.get(pro.get('lead'), LEAD_VOICE['guitar'])),
@@ -198,9 +200,9 @@ def _render_pro(buf: np.ndarray, guide: dict, pro: dict, beat: float, melody_gai
             continue
         for n in notes:
             s, m, ln = n['s'], n['m'], n['l']
-            if not 0 <= s < bars * 4:
+            if not 0 <= s < bars * 4 * res:
                 continue
-            _add(buf, _vel_tone(hz(m), ln * beat * 0.98, amp, n['v'], voice), int(s * beat * SR))
+            _add(buf, _vel_tone(hz(m), ln / res * beat * 0.98, amp, n['v'], voice), int(s / res * beat * SR))
     pattern = pro.get('drum') or {}
     if any(any(pattern.get(l) or []) for l in PRO_LANES):
         done.add('drums')
@@ -346,27 +348,32 @@ def _num(x, lo: float, hi: float, default: float) -> float:
 
 
 def check_pro(v, bars: int) -> dict | None:
-    """시퀀서 v2 값 확인 (서버 checkPro 와 같은 규칙) · 이상한 음은 빼고, 형식이 아예 다르면 None (예전 방식으로)"""
+    """시퀀서 v2 · v3 값 확인 (서버 checkPro 와 같은 규칙) · 이상한 음은 빼고, 형식이 아예 다르면 None (예전 방식으로)"""
     if not isinstance(v, dict):
         return None
-    steps = bars * 4
-    total = 0
-    tracks = {}
-    raw_tracks = v.get('tracks') if isinstance(v.get('tracks'), dict) else {}
-    for t in PRO_TRACKS:
-        raw = raw_tracks.get(t) if isinstance(raw_tracks.get(t), list) else []
-        out = []
-        for n in raw:
-            if total >= 256:
-                break
-            if not isinstance(n, dict):
-                continue
-            s, m = n.get('s'), n.get('m')
-            if not all(isinstance(x, int) and not isinstance(x, bool) for x in (s, m)) or not 0 <= s < steps or not 24 <= m <= 108:
-                continue
-            out.append({'s': s, 'm': m, 'l': int(round(_num(n.get('l'), 1, steps - s, 1))), 'v': int(round(_num(n.get('v'), 1, 127, 100)))})
-            total += 1
-        tracks[t] = out
+    def notes_of(raw_tracks, steps):
+        total = 0
+        tracks = {}
+        raw_tracks = raw_tracks if isinstance(raw_tracks, dict) else {}
+        for t in PRO_TRACKS:
+            raw = raw_tracks.get(t) if isinstance(raw_tracks.get(t), list) else []
+            out = []
+            for n in raw:
+                if total >= 256:
+                    break
+                if not isinstance(n, dict):
+                    continue
+                s, m = n.get('s'), n.get('m')
+                if not all(isinstance(x, int) and not isinstance(x, bool) for x in (s, m)) or not 0 <= s < steps or not 24 <= m <= 108:
+                    continue
+                out.append({'s': s, 'm': m, 'l': int(round(_num(n.get('l'), 1, steps - s, 1))), 'v': int(round(_num(n.get('v'), 1, 127, 100)))})
+                total += 1
+            tracks[t] = out
+        return tracks
+    tracks = notes_of(v.get('tracks'), bars * 4)
+    # v3 (서버가 보낸 fine · res): 한 박 = res 틱
+    res = v.get('res') if v.get('res') in (2, 4) and isinstance(v.get('fine'), dict) else 1
+    fine = notes_of(v.get('fine'), bars * 4 * res) if res > 1 else None
     raw_drum = v.get('drum') if isinstance(v.get('drum'), dict) else {}
     drum = {}
     for l in PRO_LANES:
@@ -378,7 +385,10 @@ def check_pro(v, bars: int) -> dict | None:
         m = raw_mix.get(t) if isinstance(raw_mix.get(t), dict) else {}
         mix[t] = {'vol': _num(m.get('vol'), 0, 1, 0.8), 'mute': m.get('mute') is True, 'solo': m.get('solo') is True}
     lead = v.get('lead') if v.get('lead') in LEAD_VOICE else 'guitar'
-    return {'tracks': tracks, 'drum': drum, 'lead': lead, 'mix': mix, 'swing': _num(v.get('swing'), 0, 1, 0)}
+    out = {'tracks': tracks, 'drum': drum, 'lead': lead, 'mix': mix, 'swing': _num(v.get('swing'), 0, 1, 0)}
+    if fine is not None:
+        out.update(res=res, fine=fine)
+    return out
 
 
 def to_wav_bytes(x: np.ndarray) -> bytes:

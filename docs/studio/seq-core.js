@@ -630,7 +630,10 @@ export class ComposeDraft {
     const k = dstr(j.key ?? 'C');
     d.key = _names.includes(k) ? k : 'C';
     const pro = j.pro;
-    if (isMap(pro) && pro.v === 2) {
+    if (isMap(pro) && (pro.v === 2 || pro.v === 3)) {
+      // v3 (앱 2026-11-04 · 한 박 = res 틱): 웹 시퀀서는 박 단위라 박에 맞춰 읽어요 (같은 박 · 같은 음은 하나로)
+      const res = pro.v === 3 && [1, 2, 4].includes(pro.res) ? pro.res : 1;
+      const beatOf = (x) => (res === 1 || !isMap(x) ? x : { ...x, s: Math.floor(toInt(x.s) / res), l: Math.max(1, Math.round((toInt(x.l) ?? res) / res)) });
       const sl = pro.slots;
       if (Array.isArray(sl) && sl.length === composeBars) d.slots = sl.map((x) => ChordSlot.fromJson(x));
       const tr = pro.tracks;
@@ -638,8 +641,8 @@ export class ComposeDraft {
         for (const t of Object.keys(d.tracks)) {
           const xs = Array.isArray(tr[t]) ? tr[t] : [];
           for (const x of xs) {
-            const n = SeqNote.fromJson(x);
-            if (n) d.tracks[t].push(n);
+            const n = SeqNote.fromJson(beatOf(x));
+            if (n && !d.tracks[t].some((o) => o.step === n.step && o.midi === n.midi)) d.tracks[t].push(n);
           }
         }
       }
