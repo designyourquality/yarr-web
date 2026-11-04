@@ -82,7 +82,8 @@ footer{margin:40px 0 30px;font-size:12px;color:var(--dim);line-height:1.8}
     </section>
     <section class="plan" aria-labelledby="p2">
       <h2 id="p2">🏪 매장 BGM</h2>
-      <div class="price">9,900원 <small>/ 월</small></div>
+      <div class="price" id="storePrice">9,900원 <small>/ 월</small></div>
+      <p class="note hidden" id="foundNote" style="margin:4px 0 0;color:#FDBA74">🎖️ 창립 매장 가격이에요 · 무료 시범 기간에 등록한 매장은 계속 이 가격이에요</p>
       <ul>
         <li>무료 시범이 끝나도 매장 모드 계속 이용</li>
         <li>영업장에서 틀어도 되는 곡만 골라 송출</li>
@@ -94,7 +95,7 @@ footer{margin:40px 0 30px;font-size:12px;color:var(--dim);line-height:1.8}
     </section>
   </div>
 
-  <label class="agree"><input type="checkbox" id="agree"><span>매달 같은 날 <b>9,900원이 자동 결제</b>되고, 해지하기 전까지 계속돼요. 해지는 이 페이지의 '해지'로 언제든 할 수 있고, 해지해도 이미 낸 기간이 끝날 때까지 이용할 수 있어요. 아래 환불 기준과 <a href="terms.html">이용약관</a>을 확인했어요.</span></label>
+  <label class="agree"><input type="checkbox" id="agree"><span>매달 같은 날 <b>고른 요금제 금액이 자동 결제</b>되고, 해지하기 전까지 계속돼요. 해지는 이 페이지의 '해지'로 언제든 할 수 있고, 해지해도 이미 낸 기간이 끝날 때까지 이용할 수 있어요. 아래 환불 기준과 <a href="terms.html">이용약관</a>을 확인했어요.</span></label>
 
   <div class="box login hidden" id="loginBox">
     <h3>먼저 로그인해 주세요</h3>
@@ -156,6 +157,10 @@ footer{margin:40px 0 30px;font-size:12px;color:var(--dim);line-height:1.8}
     let j;
     try { j = await call('billing-status'); } catch (e) { return msg('mineMsg', ERR[e.code] || '구독 정보를 불러오지 못했어요.', 'bad'); }
     $('testBanner').classList.toggle('hidden', !j.test);
+    if (j.storeFounding) {
+      $('storePrice').innerHTML = '6,600원 <small>/ 월</small> <small style="text-decoration:line-through;color:var(--dim)">9,900원</small>';
+      $('foundNote').classList.remove('hidden');
+    }
     $('offBanner').classList.toggle('hidden', !!j.ready);
     if (!j.subs.length) { $('mine').innerHTML = '<p class="msg" style="margin:0">웹에서 구독한 요금제가 없어요.</p>'; return; }
     $('mine').innerHTML = j.subs.map((s) => {
@@ -178,6 +183,8 @@ footer{margin:40px 0 30px;font-size:12px;color:var(--dim);line-height:1.8}
     msg('mineMsg', '카드 등록 창을 여는 중…');
     try {
       const j = await call('billing-start', { product });
+      if (j.resumeAt && !confirm(`해지한 구독이 ${day(j.resumeAt)}까지 남아 있어요. 다시 이어 가면 지금은 결제되지 않고 ${day(j.resumeAt)}부터 매달 ${Number(j.amount).toLocaleString()}원이 결제돼요. 카드를 다시 등록할까요?`)) return msg('mineMsg', '');
+      if (!j.resumeAt) msg('mineMsg', `카드 등록 뒤 바로 ${Number(j.amount).toLocaleString()}원이 결제되고, 매달 같은 날 자동 결제돼요.`);
       await load(TOSS_JS);
       const toss = TossPayments(j.clientKey);
       sessionStorage.setItem('yarr_billing', product);
@@ -196,7 +203,8 @@ footer{margin:40px 0 30px;font-size:12px;color:var(--dim);line-height:1.8}
     msg('mineMsg', '첫 달 결제를 하는 중이에요. 창을 닫지 말아 주세요…');
     try {
       const j = await call('billing-confirm', { customerKey: q.get('customerKey'), authKey: q.get('authKey') });
-      if (j.status === 'ACTIVE') msg('mineMsg', `구독이 시작됐어요 🎉 다음 결제일은 ${day(j.periodEnd)}이에요. 앱에도 바로 적용돼요.`, 'good');
+      if (j.status === 'ACTIVE' && j.resumed) msg('mineMsg', `구독을 다시 이어 갔어요. 이미 낸 기간이 끝나는 ${day(j.periodEnd)}에 다음 결제가 돼요.`, 'good');
+      else if (j.status === 'ACTIVE') msg('mineMsg', `구독이 시작됐어요 🎉 다음 결제일은 ${day(j.periodEnd)}이에요. 앱에도 바로 적용돼요.`, 'good');
       else msg('mineMsg', `결제하지 못했어요: ${j.error || '카드를 확인해 주세요'}`, 'bad');
     } catch (e) { msg('mineMsg', ERR[e.code] || '결제를 마무리하지 못했어요. 문의해 주세요.', 'bad'); }
     await refreshMine();
