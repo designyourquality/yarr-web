@@ -259,3 +259,6 @@ button.mi-tile:hover{border-color:rgba(255,140,0,.35)}
 /* 구간 다시 만들기 · 보컬/반주 (2026-11-04) */
 .take-tools{display:flex;gap:6px;justify-content:flex-end;margin:-4px 0 8px;flex-wrap:wrap}
 .rp-box{border:1px solid rgba(255,140,0,.35);border-radius:12px;padding:10px 12px;margin:0 0 10px;background:rgba(255,140,0,.05)}
+/* 변주(Fork) 안내 줄 · 2026-11-05 */
+.st-fork{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,140,0,.55);background:rgba(255,123,47,.10);font-size:13px;line-height:1.5;color:#F4EEE6}
+.st-fork .seq-key{margin-left:auto}

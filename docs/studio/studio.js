@@ -6,11 +6,11 @@ import {
   STATIONS, ST, GENRES, GENRE, LEADS, FLOWS, WEATHERS, TIMES, DURATIONS, KNOBS, VOICE_CATS, VOICES, QUICK_VOICES, QUIET_VOICES, LOUD_GENRES,
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
   lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS } from './studio-data.js?v=20261109';
-import { ComposeDraft } from './seq-core.js?v=20261109';
+import { ComposeDraft, ChordSlot, composeBars } from './seq-core.js?v=20261109';
 import { mountSequencer } from './seq-ui.js?v=20261109';
 import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261109';
 
-const V = '20261109';
+const V = '20261111';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -19,7 +19,7 @@ const chips = (list, sel, attr, extra = '') => list.map(([id, label]) => `<butto
 let B, sb, root, user = null, q = null;
 const S = {
   view: 'make', vocal: false, recipe: newRecipe(), title: '', story: '', photo: null, ly: { v: '', c: '', b: '' }, bridgeOn: false, aiDraft: null,
-  aiLang: 'ko', aiForm: 'basic', consent: false, tone: 'f_clear', voiceCat: 'f', adlib: [], tune: {}, narr: { pos: 'none', tone: 'deep', voice: 'auto', text: '' },
+  aiLang: 'ko', aiForm: 'basic', parent: null, recipePublic: false, consent: false, tone: 'f_clear', voiceCat: 'f', adlib: [], tune: {}, narr: { pos: 'none', tone: 'deep', voice: 'auto', text: '' },
   pro: false, moreGenres: false, composeOn: false, draft: null, busy: false, aiBusy: false, err: '',
   batch: null, status: null, sel: null, range: [0, 150], donate: false, done: null, polls: 0, timer: 0, startedAt: 0, checking: false,
 };
@@ -76,15 +76,53 @@ export async function mount(el, bridge) {
 }
 export function show() { if (user && S.batch && !S.timer) check(); }
 
+/** 차트의 ⚡ 변주 (2026-11-05 · 068 SQL track_recipe): 레시피를 공개한 곡의 세팅만 빌려 와요
+ *  가사 · 프롬프트 원문은 안 와요 · 올리면 '원곡: ○○' 으로 이어지고 원작자 몫이 정산돼요 */
+export async function fork(id) {
+  if (!sb) return;
+  const { data, error } = await sb.rpc('track_recipe', { p_track: id });
+  const t = Array.isArray(data) ? data[0] : null;
+  if (error || !t) return B.toast('이 곡은 레시피가 공개되지 않았어요');
+  stopPoll(); stopTake();
+  const station = ST[t.station] ? t.station : '#WOOD_CAFE';
+  const rc = t.recipe && typeof t.recipe === 'object' ? t.recipe : {};
+  S.recipe = { ...newRecipe(station), ...rc, station };
+  if (!t.recipe) S.recipe.genre = 'auto';
+  S.vocal = t.instrumental === false;
+  if (t.voice && VOICES.some((v) => v[0] === t.voice)) { S.tone = t.voice; S.voiceCat = VOICES.find((v) => v[0] === t.voice)[1]; }
+  S.adlib = String(t.adlib || '').split(',').filter(Boolean);
+  S.ly = { v: '', c: '', b: '' }; S.bridgeOn = false; S.aiDraft = null; S.consent = false; S.tune = {}; // 가사는 내 걸로
+  S.draft = t.compose ? draftOf(t.compose) : null; S.composeOn = !!S.draft; if (S.draft) S.pro = true;
+  S.parent = { id, title: t.title || '' };
+  S.title = `${t.title || ''} (내 버전)`.slice(0, 60);
+  Object.assign(S, { view: 'make', batch: null, status: null, sel: null, done: null, err: '' });
+  if (user) { layout(); loadQuota(); renderMake(); }
+  B.toast(`'${t.title}' 세팅을 불러왔어요 · 가사는 직접 써 주세요`);
+}
+/** 서버에 저장된 멜로디(검사 뒤 모양) → 시퀀서 초안 */
+function draftOf(c) {
+  try {
+    const pro = c.pro && typeof c.pro === 'object' ? c.pro : null;
+    const res = pro && [2, 4].includes(pro.res) && pro.fine ? pro.res : 1;
+    const j = { key: c.key, chords: c.chords, notes: c.notes, drums: c.drums, parts: c.parts,
+      ...(pro ? { pro: { v: res > 1 ? 3 : 2, ...(res > 1 ? { res } : {}), tracks: res > 1 ? pro.fine : pro.tracks, drum: pro.drum, lead: pro.lead, mix: pro.mix, fx: { swing: pro.swing ?? 0 } } } : {}) };
+    const d = ComposeDraft.fromJson(j);
+    if (d && pro && Array.isArray(c.chords) && c.chords.length === composeBars) d.slots = c.chords.map((x) => ChordSlot.parse(String(x)));
+    return d;
+  } catch { return null; }
+}
+
 async function boot() {
   if (!user) return gate();
   if (!ls.get('yarr_web_age_ok', false)) ls.set('yarr_web_age_ok', true); // 로그인 화면에서 동의를 받았어요
-  S.recipe.station = ls.get('yarr_web_studio_station', '#WOOD_CAFE');
-  if (!ST[S.recipe.station]) S.recipe.station = '#WOOD_CAFE';
-  S.title = defaultTitle(S.recipe.station);
+  if (!S.parent) { // 변주로 들어왔으면 빌려 온 세팅 그대로
+    S.recipe.station = ls.get('yarr_web_studio_station', '#WOOD_CAFE');
+    if (!ST[S.recipe.station]) S.recipe.station = '#WOOD_CAFE';
+    S.title = defaultTitle(S.recipe.station);
+  }
   layout();
   await loadQuota();
-  S.batch = ls.get('studio_batch', null);
+  S.batch = S.parent ? null : ls.get('studio_batch', null);
   if (S.batch) check(); else renderMake();
 }
 
@@ -183,7 +221,7 @@ function renderMake() {
   seq?.destroy(); seq = null;
   const r = S.recipe, vocal = S.vocal, st = ST[r.station];
   const stOrder = [st, ...STATIONS.filter((x) => x.code !== r.station)];
-  body().innerHTML = `<div class="st-grid">
+  body().innerHTML = `${S.parent ? `<div class="st-fork">🔗 <b>'${esc(S.parent.title)}'</b> 세팅을 빌려왔어요 · 가사는 직접 써요 · 올리면 <b>원곡: ${esc(S.parent.title)}</b> 표시가 붙어요<button class="seq-key" id="mUnfork">✕ 해제</button></div>` : ''}<div class="st-grid">
     <div>
       <div class="st-card">
         <div class="st-tabs" style="margin-bottom:6px"><button data-vocal="0" class="${vocal ? '' : 'on'}">🎹 연주곡 · 매장 · 차트</button><button data-vocal="1" class="${vocal ? 'on' : ''}">🎤 보컬곡 · 내 가사로</button></div>
@@ -338,6 +376,7 @@ function bindMake() {
     if (t.id === 'mBridge') { S.bridgeOn = !S.bridgeOn; return renderMake(); }
     if (t.id === 'mPhotoX') { S.photo = null; return renderMake(); }
     if (t.id === 'mAi') return aiWrite(false);
+    if (t.id === 'mUnfork') { S.parent = null; return renderMake(); }
     if (t.id === 'mAiBridge') return aiBridge();
     if (t.id === 'mGo') return go();
   };
@@ -423,7 +462,7 @@ async function go() {
   if (!confirm(`이 레시피로 만들까요?\n\n${text} ${q?.useLine || ''}`)) return;
   S.busy = true; err(''); goBtn();
   try {
-    const bodyJ = { recipe: S.recipe, title: S.title.trim(), ...(S.composeOn && S.draft ? { compose: S.draft.toJson() } : {}) };
+    const bodyJ = { recipe: S.recipe, title: S.title.trim(), ...(S.composeOn && S.draft ? { compose: S.draft.toJson() } : {}), ...(S.parent ? { parent: S.parent.id } : {}) };
     if (S.vocal) Object.assign(bodyJ, { mode: 'vocal', lyrics: { verse: S.ly.v, chorus: S.ly.c, ...(S.bridgeOn && S.ly.b.trim() ? { bridge: S.ly.b } : {}) }, vocal: S.tone, adlib: S.adlib, ...(Object.keys(S.tune).length ? { voiceTune: S.tune } : {}), consent: S.consent, ...(S.narr.pos !== 'none' ? { narration: S.narr } : {}) });
     const j = await call('make', bodyJ);
     S.batch = j.batch; ls.set('studio_batch', j.batch);
@@ -531,6 +570,7 @@ function renderResult() {
       ${fitCard(keep)}
       <div class="st-q">곡 제목</div><input class="st-in" id="rTitle" maxlength="60" value="${esc(S.title || st.title || '')}">
       ${other && !vocal ? `<label class="st-check"><input type="checkbox" id="rDonate" ${S.donate ? 'checked' : ''}><span><b>고르지 않은 버전은 야르 스테이션 곡으로 기부할게요</b><br><span class="st-note" style="margin:0">YARR Originals 이름으로 스테이션 · 매장에 나가고, 내 곡 · 정산에는 포함되지 않아요. 체크하지 않으면 지워져요.</span></span></label>` : ''}
+      <label class="st-check"><input type="checkbox" id="rPublic" ${S.recipePublic ? 'checked' : ''}><span><b>⚡ 레시피 공개</b><br><span class="st-note" style="margin:0">다른 사람이 이 곡의 세팅(장르 · 노브 · 목소리 · 멜로디)으로 변주할 수 있어요. 가사 · 곡 설명 원문은 공개되지 않고, 변주곡이 올라오면 원곡으로 표시되며 수익의 30%가 나에게 와요.</span></span></label>
       <button class="btn st-go" data-r="pick" ${S.busy || keep < 60 ? 'disabled' : ''}>이 테이크로 올리기</button>
     </div>
   </div>`;
@@ -561,8 +601,9 @@ function renderResult() {
     if (t.dataset.rpr !== undefined) { S.rpRange[+t.dataset.rpr] = +t.value; t.nextElementSibling.textContent = fmt(+t.value); const k = S.rpRange[1] - S.rpRange[0], go = root.querySelector('[data-r="rpgo"]'); if (go) { go.textContent = `이 구간 다시 만들기 (${Math.round(k)}초)`; go.disabled = S.busy || k < 3 || k > 90; } }
     if (t.id === 'rTitle') S.title = t.value;
     if (t.id === 'rDonate') S.donate = t.checked;
+    if (t.id === 'rPublic') S.recipePublic = t.checked;
   };
-  el.onchange = (e) => { if (e.target.id === 'rDonate') S.donate = e.target.checked; };
+  el.onchange = (e) => { if (e.target.id === 'rDonate') S.donate = e.target.checked; if (e.target.id === 'rPublic') S.recipePublic = e.target.checked; };
 }
 function playTake(t) {
   if (!t?.url) return;
@@ -620,7 +661,8 @@ async function pick() {
   S.busy = true; stopTake(); renderResult();
   try {
     const title = (S.title || S.status.title || '').trim();
-    const j = await call('make-pick', { make_id: t.id, title, donate: !!(S.donate && other && !S.status.vocal), ...(whole ? {} : { trim_start: S.range[0], trim_end: S.range[1] }) });
+    const j = await call('make-pick', { make_id: t.id, title, donate: !!(S.donate && other && !S.status.vocal), ...(S.recipePublic ? { recipe_public: true } : {}), ...(whole ? {} : { trim_start: S.range[0], trim_end: S.range[1] }) });
+    S.parent = null; S.recipePublic = false;
     ls.set('studio_batch', null); S.batch = null;
     S.done = { title: j.title, vocal: S.status.vocal };
     B.toast(S.status.vocal ? `'${j.title}' 올렸어요 · 보컬곡은 운영팀이 들어 보고 승인하면 바로 공개돼요` : `'${j.title}' 올렸어요 · 자동 검수가 끝나면 바로 차트에 올라가요`);
@@ -628,7 +670,7 @@ async function pick() {
 }
 function restart() {
   stopPoll(); stopTake();
-  Object.assign(S, { batch: null, status: null, sel: null, done: null, donate: false, err: '', consent: false });
+  Object.assign(S, { batch: null, status: null, sel: null, done: null, donate: false, err: '', consent: false, parent: null, recipePublic: false });
   S.title = defaultTitle(S.recipe.station); ls.set('studio_batch', null);
   loadQuota(); renderMake();
 }
