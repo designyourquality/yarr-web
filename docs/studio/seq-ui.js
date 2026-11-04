@@ -4,7 +4,7 @@
 // 데이터 · 합성은 seq-core.js (앱과 같은 계산) · 합성은 seq-worker.js 에서
 import {
   ComposeDraft, ChordSlot, chordBank, chordQualities, chordQualityNames, composeKeys, composeBars, composeSteps, drumSteps,
-  seqTracks, trackNames, leadVoices, drumLanes, drumNames, noteName, isBlack, vuHop,
+  seqTracks, trackNames, leadVoices, drumLanes, drumNames, noteName, isBlack, vuHop, chordLabel, spellRoot, noteInstruments, noteInsColors,
 } from './seq-core.js?v=20261109';
 
 const AMBER = '#FF8C00';
@@ -57,6 +57,7 @@ export function mountSequencer(root, o) {
     <div class="sq-eng" style="margin-top:20px">트랙</div>
     <div class="sq-seg" id="sqTracks" data-g="tracks"></div>
     <div class="sq-seg" id="sqVoice" style="margin-top:10px"></div>
+    <div class="sq-brush" id="sqBrush" data-g="brush"></div>
     <div class="seq-row oct" id="sqOctRow">
       <span class="sq-eng">옥타브</span><span style="flex:1"></span>
       <button class="oct-key" data-act="octDown">▼</button><div class="lcd sm" id="sqOct"></div><button class="oct-key" data-act="octUp">▲</button>
@@ -77,7 +78,7 @@ export function mountSequencer(root, o) {
 
   // ---------- 그리기 ----------
   function lcd() {
-    $('sqL1').textContent = `RECIPE: ${o.bpm()} BPM · KEY ${d.key} · ${d.chords.join(' ')}`;
+    $('sqL1').textContent = `RECIPE: ${o.bpm()} BPM · KEY ${d.key} · ${d.slots.map((c) => chordLabel(c, d.key)).join(' ')}`;
     const step = curStep(1);
     $('sqL2').textContent = `${trackNames[S.track]} · NOTES ${d.noteCount} · SWING ${Math.round(d.swing * 100)}%${S.playing && step >= 0 ? ` · ▶ ${step % composeSteps + 1}/16` : ''}`;
   }
@@ -91,12 +92,12 @@ export function mountSequencer(root, o) {
   }
   function bars() {
     const s = curStep(1);
-    $('sqBars').innerHTML = d.slots.map((c, b) => `<button class="sq-bar${b === S.bar ? ' sq-sel' : ''}${s >= 0 && Math.floor((s % composeSteps) / 4) === b ? ' sq-play' : ''}" data-bar="${b}"><span>${esc(c.name)}</span></button>`).join('');
+    $('sqBars').innerHTML = d.slots.map((c, b) => `<button class="sq-bar${b === S.bar ? ' sq-sel' : ''}${s >= 0 && Math.floor((s % composeSteps) / 4) === b ? ' sq-play' : ''}" data-bar="${b}"><span>${esc(chordLabel(c, d.key))}</span></button>`).join('');
   }
   function pads() {
     const bank = chordBank(d.key);
     const cur = d.slots[S.bar].name;
-    $('sqPads').innerHTML = bank.map((c, i) => `<button class="pad${c.name === cur ? ' on' : ''}" data-pad="${i}">${esc(c.name)}</button>`).join('');
+    $('sqPads').innerHTML = bank.map((c, i) => `<button class="pad${c.name === cur ? ' on' : ''}" data-pad="${i}">${esc(chordLabel(c, d.key))}</button>`).join('');
   }
   function arp() {
     $('sqArp').checked = d.arp;
@@ -108,6 +109,13 @@ export function mountSequencer(root, o) {
     const lead = S.track === 'lead';
     $('sqVoice').classList.toggle('hidden', !lead);
     if (lead) $('sqVoice').innerHTML = segHtml(Object.values(leadVoices), Object.keys(leadVoices).indexOf(d.leadVoice), 'data-voice');
+    // 음표 악기 붓: 고른 악기로 새 음표를 찍고, 다른 악기 음표를 누르면 그 악기로 칠해요
+    $('sqBrush').classList.toggle('hidden', !lead);
+    if (lead) {
+      const cur = d.brush && d.brush !== d.leadVoice ? d.brush : null;
+      $('sqBrush').innerHTML = `<span class="sq-eng">음표 악기</span><div class="brush-chips"><button class="bchip${cur ? '' : ' on'}" data-brush="">기본 (${esc(leadVoices[d.leadVoice])})</button>${
+        Object.entries(noteInstruments).filter(([k]) => k !== d.leadVoice).map(([k, label]) => `<button class="bchip${cur === k ? ' on' : ''}" data-brush="${k}" style="--c:${noteInsColors[k]}">${esc(label)}</button>`).join('')}</div>`;
+    }
     const drum = S.track === 'drums';
     $('sqOctRow').classList.toggle('hidden', drum);
     if (!drum) $('sqOct').textContent = `C${S.oct[S.track]} – C${S.oct[S.track] + 1}`;
@@ -115,7 +123,9 @@ export function mountSequencer(root, o) {
     $('sqDrums').classList.toggle('hidden', !drum);
     $('sqHint').textContent = drum
       ? '한 마디 16칸을 4마디 내내 반복해요 · 스윙 노브로 뒷박을 사람처럼 살짝 밀어요 · 칸을 위아래로 끌면 세기'
-      : '칸을 누르면 음 · 음을 옆으로 끌면 길이 · 음을 위아래로 끌면 세기(벨로시티) · PC에서는 음 위에서 휠로도 세기를 바꿔요';
+      : S.track === 'lead' && d.brush && d.brush !== d.leadVoice
+        ? `지금 붓: ${noteInstruments[d.brush]} · 빈칸을 누르면 이 악기로 찍히고, 다른 악기 음을 누르면 이 악기로 바뀌어요 · 같은 악기 음을 누르면 지워져요`
+        : '칸을 누르면 음 · 음을 옆으로 끌면 길이 · 음을 위아래로 끌면 세기(벨로시티) · 멜로디는 \'음표 악기\'로 음마다 다른 악기를 넣을 수 있어요';
   }
   function foot() {
     $('sqFoot').textContent = o.vocal()
@@ -190,9 +200,10 @@ export function mountSequencer(root, o) {
       if (r < 0 || r >= ROWS) continue;
       const x = LABEL + n.step * cell + 1.5, y = r * ROWH + 3, ww = n.len * cell - 3, hh = ROWH - 6;
       const a = 0.45 + 0.55 * n.vel / 127;
-      g.shadowColor = 'rgba(255,140,0,.55)'; g.shadowBlur = 8 * a;
-      g.fillStyle = `rgba(255,${Math.round(120 + 60 * (1 - a))},0,${a})`;
-      roundRect(g, x, y, ww, hh, 4); g.fill();
+      const ic = S.track === 'lead' && n.ins && n.ins !== d.leadVoice ? noteInsColors[n.ins] : null; // 음표마다 고른 악기 색
+      g.shadowColor = ic || 'rgba(255,140,0,.55)'; g.shadowBlur = 8 * a;
+      if (ic) { g.globalAlpha = a; g.fillStyle = ic; } else g.fillStyle = `rgba(255,${Math.round(120 + 60 * (1 - a))},0,${a})`;
+      roundRect(g, x, y, ww, hh, 4); g.fill(); g.globalAlpha = 1;
       g.shadowBlur = 0;
       // 세기 막대
       g.fillStyle = 'rgba(26,14,2,.55)';
@@ -454,8 +465,8 @@ export function mountSequencer(root, o) {
     </div></div>`);
     const q = (id) => box.querySelector('#' + id);
     const ui = () => {
-      q('pcName').textContent = cur.name;
-      q('pcRoot').innerHTML = composeKeys.map((r) => `<button class="led${cur.root === r ? ' on' : ''}" data-r="${r}">${r}</button>`).join('');
+      q('pcName').textContent = chordLabel(cur, d.key);
+      q('pcRoot').innerHTML = composeKeys.map((r) => `<button class="led${cur.root === r ? ' on' : ''}" data-r="${r}">${spellRoot(r, d.key)}</button>`).join('');
       q('pcQ').innerHTML = chordQualityNames.map((k) => `<button class="led${cur.quality === k ? ' on' : ''}" data-q="${esc(k)}">${esc(k || 'maj')}</button>`).join('');
       const n = (chordQualities[cur.quality] || [0, 0, 0]).length;
       const inv = ['기본', '1전위', '2전위', '3전위'].slice(0, n > 3 ? 4 : 3);
@@ -506,7 +517,7 @@ export function mountSequencer(root, o) {
   const SPOTS = () => [
     ['lcd', '▶ 내가 찍은 걸 바로 들어 보기'], ['meter', '지금 소리 크기 (빨간 칸 = 가장 큰 소리)'], ['key', '곡의 기본 음 (조)'],
     ['bars', '마디 4칸 · 고른 마디에 코드가 들어가요'], ['pads', '코드 패드 · 누르면 그 마디 코드로'], ['arp', '코드를 한 음씩 굴려서 연주'],
-    ['tracks', '악기 고르기'], ['roll', S.track === 'drums' ? '드럼 비트 찍기' : '칸을 눌러 음 찍기'],
+    ['tracks', '악기 고르기'], ['brush', '음표마다 다른 악기'], ['roll', S.track === 'drums' ? '드럼 비트 찍기' : '칸을 눌러 음 찍기'],
     ['k_swing', '리듬 출렁임'], ['k_cutoff', '소리 먹먹하게 ↔ 또렷하게'], ['k_reverb', '소리 공간감'], ['k_delay', '메아리'],
     ['mixer', '악기별 크기 · 좌우 · 끄기'], ['midi', 'DAW로 가져갈 MIDI 파일'],
   ];
@@ -575,6 +586,7 @@ export function mountSequencer(root, o) {
     if (b.dataset.arp !== undefined) { d.arpMode = ['up', 'down', 'random'][+b.dataset.arp]; changed(); return arp(); }
     if (b.dataset.track !== undefined) { S.track = seqTracks[+b.dataset.track]; tracksUi(); lcd(); return drawEditor(); }
     if (b.dataset.voice !== undefined) { d.leadVoice = Object.keys(leadVoices)[+b.dataset.voice]; changed(); return tracksUi(); }
+    if (b.dataset.brush !== undefined) { d.brush = b.dataset.brush || null; return tracksUi(); }
   });
   $('sqArp').addEventListener('change', (e) => { d.arp = e.target.checked; changed(); arp(); });
   const ro = new ResizeObserver(() => drawEditor()); ro.observe(root);

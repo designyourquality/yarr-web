@@ -13,6 +13,12 @@ RUN uv python install 3.11 && uv sync --frozen --no-dev --python 3.11 && uv pip 
 # Vocal check (2026-11-02): faster-whisper base (CPU int8) in the image's own python (/opt/conda), NOT in the ACE venv,
 # so ACE-Step packages stay exactly as before. The handler calls it as a subprocess; if anything is missing it is skipped.
 RUN /opt/conda/bin/python -m pip install --no-cache-dir "faster-whisper==1.1.1" && /opt/conda/bin/python -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8', download_root='/opt/whisper')"
+# Stems (2026-11-04): Demucs htdemucs in /opt/conda too (separate from the ACE venv). The constraint keeps the image's torch
+# version so pip never swaps torch; the model is downloaded at build time so the first request is fast.
+RUN /opt/conda/bin/python -c "import torch; print('torch==' + torch.__version__.split('+')[0])" > /tmp/torch-pin.txt \
+ && /opt/conda/bin/python -m pip install --no-cache-dir -c /tmp/torch-pin.txt "demucs==4.0.1" soundfile \
+ && /opt/conda/bin/python -c "from demucs.pretrained import get_model; get_model('htdemucs')"
+COPY gpu/ace-step/stems.py /app/yarr_stems.py
 COPY gpu/ace-step/vocal_check.py /app/yarr_vocal_check.py
 COPY gpu/ace-step/handler.py /app/yarr_handler.py
 COPY worker/guide.py /app/yarr_guide.py

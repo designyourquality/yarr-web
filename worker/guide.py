@@ -150,6 +150,15 @@ LEAD_VOICE = {
     'piano': dict(partials=(1, .5, .25, .125), attack=0.008, decay=1.4),
     'strings': dict(partials=(1, .55, .4, .25, .15), attack=0.09, decay=0.25),
     'synth': dict(partials=(1, .5, .33, .25, .2), attack=0.012, decay=0.6),
+    # 음표마다 고르는 악기 (2026-11-04 · 앱 · 웹 noteInstruments · 서버 PRO_NOTE_INS 와 같은 키)
+    'flute': dict(partials=(1, .22, .08, .03), attack=0.05, decay=0.12),
+    'sax': dict(partials=(1, .8, .6, .45, .3, .2), attack=0.03, decay=0.2),
+    'brass': dict(partials=(1, .9, .7, .55, .4, .3), attack=0.04, decay=0.25),
+    'marimba': dict(partials=(1, 0, .35, 0, .08), attack=0.002, decay=3.0),
+    'bell': dict(partials=(1, .6, .4, .25, .15), attack=0.002, decay=1.2),
+    'organ': dict(partials=(1, .7, .5, .4, .3, .25), attack=0.01, decay=0.05),
+    'epiano': dict(partials=(1, .35, .1, .05), attack=0.004, decay=1.6),
+    'pluck': dict(partials=(1, .5, .3, .15, .08), attack=0.002, decay=4.0),
 }
 PRO_TRACKS = ('lead', 'piano', 'synth', 'bass')
 PRO_LANES = ('kick', 'snare', 'hat', 'clap')
@@ -202,7 +211,8 @@ def _render_pro(buf: np.ndarray, guide: dict, pro: dict, beat: float, melody_gai
             s, m, ln = n['s'], n['m'], n['l']
             if not 0 <= s < bars * 4 * res:
                 continue
-            _add(buf, _vel_tone(hz(m), ln / res * beat * 0.98, amp, n['v'], voice), int(s / res * beat * SR))
+            nv = LEAD_VOICE.get(n.get('i'), voice) if t == 'lead' else voice   # 멜로디 음표마다 다른 악기
+            _add(buf, _vel_tone(hz(m), ln / res * beat * 0.98, amp, n['v'], nv), int(s / res * beat * SR))
     pattern = pro.get('drum') or {}
     if any(any(pattern.get(l) or []) for l in PRO_LANES):
         done.add('drums')
@@ -366,7 +376,10 @@ def check_pro(v, bars: int) -> dict | None:
                 s, m = n.get('s'), n.get('m')
                 if not all(isinstance(x, int) and not isinstance(x, bool) for x in (s, m)) or not 0 <= s < steps or not 24 <= m <= 108:
                     continue
-                out.append({'s': s, 'm': m, 'l': int(round(_num(n.get('l'), 1, steps - s, 1))), 'v': int(round(_num(n.get('v'), 1, 127, 100)))})
+                note = {'s': s, 'm': m, 'l': int(round(_num(n.get('l'), 1, steps - s, 1))), 'v': int(round(_num(n.get('v'), 1, 127, 100)))}
+                if t == 'lead' and isinstance(n.get('i'), str) and n.get('i') in LEAD_VOICE:
+                    note['i'] = n['i']   # 음표마다 다른 악기 (멜로디만)
+                out.append(note)
                 total += 1
             tracks[t] = out
         return tracks

@@ -18,6 +18,17 @@ const _names = composeKeys;
 export const seqTracks = Object.freeze(['lead', 'piano', 'synth', 'bass', 'drums']);
 export const trackNames = Object.freeze({ lead: '멜로디', piano: '피아노', synth: '신스', bass: '베이스', drums: '드럼' });
 export const leadVoices = Object.freeze({ guitar: '🎸 기타', piano: '🎹 피아노', strings: '🎻 스트링', synth: '🔊 신스' });
+/** 음표마다 고르는 악기 (2026-11-04) · 멜로디 트랙 음표에 'i' 로 붙어요 (없으면 트랙 기본 악기) · 서버 PRO_NOTE_INS · GPU guide.py 와 같은 키 */
+export const noteInstruments = Object.freeze({
+  guitar: '🎸 기타', piano: '🎹 피아노', strings: '🎻 스트링', synth: '🔊 신스',
+  flute: '🪈 플루트', sax: '🎷 색소폰', brass: '🎺 브라스', marimba: '🪵 마림바',
+  bell: '🔔 벨', organ: '⛪ 오르간', epiano: '🎹 일렉 피아노', pluck: '🪕 플럭',
+});
+/** 악기별 음표 색 (피아노 롤) · 트랙 기본 악기는 주황 그대로 */
+export const noteInsColors = Object.freeze({
+  guitar: '#FF8C00', piano: '#F5D06B', strings: '#E0736B', synth: '#B07CFF', flute: '#7FD6FF', sax: '#FFB347',
+  brass: '#FFD23F', marimba: '#C98B5A', bell: '#9FF0E0', organ: '#7F9CFF', epiano: '#FF7FBF', pluck: '#8BE37F',
+});
 export const composeParts = Object.freeze({
   guitar: '🎸 기타',
   piano: '🎹 피아노',
@@ -270,6 +281,21 @@ export function pcOf(n) {
   const i = _names.indexOf(n);
   return i >= 0 ? i : (hasKey(_alias, n) ? _alias[n] : 0);
 }
+// 화면 표시용 이름 (키에 맞춰 #/♭): 샵 키(G D A E B F# C#)는 C# D# F# G# A#, 그 밖은 Db Eb Gb Ab Bb
+//   저장 · 서버로 보내는 값은 그대로(composeKeys 이름) · 소리도 같아요. 이름만 키에 맞게 보여 줘요.
+const _sharpNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const _flatNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+const _sharpKeys = ['G', 'D', 'A', 'E', 'B', 'F#', 'C#'];
+export const usesSharps = (key) => _sharpKeys.includes(key);
+export const spellPc = (pc, key) => (usesSharps(key) ? _sharpNames : _flatNames)[mod(pc, 12)];
+export const spellRoot = (root, key) => spellPc(pcOf(root), key);
+/** 'Abm7' → 키 E 에서는 'G#m7' (자리바꿈 /베이스 포함) */
+export function chordLabel(slot, key) {
+  const base = `${spellRoot(slot.root, key)}${slot.quality}`;
+  if (!slot.inv) return base;
+  const iv = hasQ(slot.quality) ? chordQualities[slot.quality] : chordQualities[''];
+  return `${base}/${spellPc(pcOf(slot.root) + iv[clamp(slot.inv, 0, iv.length - 1)], key)}`;
+}
 export const noteName = (midi) => `${_names[mod(midi, 12)]}${Math.floor(midi / 12) - 1}`;
 export const isBlack = (midi) => [1, 3, 6, 8, 10].includes(mod(midi, 12));
 
@@ -340,23 +366,26 @@ export function parseChord(c) {
 
 // ─── SeqNote ───
 export class SeqNote {
-  constructor(step, midi, { len = 1, vel = 100 } = {}) {
+  constructor(step, midi, { len = 1, vel = 100, ins = null } = {}) {
     this.step = step;
     this.midi = midi;
     this.len = len;
     this.vel = vel;
+    /** 이 음표만의 악기 (null = 트랙 기본) */
+    this.ins = ins;
   }
   get end() {
     return this.step + this.len;
   }
   toJson() {
-    return { s: this.step, m: this.midi, l: this.len, v: this.vel };
+    return { s: this.step, m: this.midi, l: this.len, v: this.vel, ...(this.ins ? { i: this.ins } : {}) };
   }
   static fromJson(j) {
     if (!isMap(j)) return null;
     const s = toInt(j.s), m = toInt(j.m);
     if (s === null || m === null || s < 0 || s >= composeSteps || m < 24 || m > 108) return null;
-    return new SeqNote(s, m, { len: clamp(toInt(j.l) ?? 1, 1, composeSteps - s), vel: clamp(toInt(j.v) ?? 100, 1, 127) });
+    const i = typeof j.i === 'string' && hasKey(noteInstruments, j.i) ? j.i : null;
+    return new SeqNote(s, m, { len: clamp(toInt(j.l) ?? 1, 1, composeSteps - s), vel: clamp(toInt(j.v) ?? 100, 1, 127), ins: i });
   }
 }
 
@@ -388,9 +417,18 @@ const _voices = {
   guitar: { partials: [1, 0.75, 0.5, 0.32, 0.2, 0.12], decay: 3.4, attack: 0.003, vibrato: 0 },
   strings: { partials: [1, 0.62, 0.45, 0.3, 0.2, 0.12], decay: 0.12, attack: 0.14, vibrato: 0.006 },
   synth: { partials: [1, 0.5, 0.33, 0.25, 0.2, 0.16, 0.14, 0.12], decay: 0.45, attack: 0.01, vibrato: 0.003 },
+  // 음표마다 고르는 악기 (2026-11-04 · 미리 듣기용 간단한 합성 · 실제 곡은 AI 가 진짜 악기로 연주해요)
+  flute: { partials: [1, 0.22, 0.08, 0.03], decay: 0.12, attack: 0.05, vibrato: 0.005 },
+  sax: { partials: [1, 0.8, 0.6, 0.45, 0.3, 0.2, 0.12], decay: 0.2, attack: 0.03, vibrato: 0.004 },
+  brass: { partials: [1, 0.9, 0.7, 0.55, 0.4, 0.3, 0.2], decay: 0.25, attack: 0.04, vibrato: 0.002 },
+  marimba: { partials: [1, 0, 0.35, 0, 0.08], decay: 3.0, attack: 0.002, vibrato: 0 },
+  bell: { partials: [1, 0.6, 0.4, 0.25, 0.15], decay: 1.2, attack: 0.002, vibrato: 0 },
+  organ: { partials: [1, 0.7, 0.5, 0.4, 0.3, 0.25], decay: 0.05, attack: 0.01, vibrato: 0.003 },
+  epiano: { partials: [1, 0.35, 0.1, 0.05], decay: 1.6, attack: 0.004, vibrato: 0.002 },
+  pluck: { partials: [1, 0.5, 0.3, 0.15, 0.08], decay: 4.0, attack: 0.002, vibrato: 0 },
   bass: { partials: [1, 0.55, 0.2, 0.08], decay: 2.0, attack: 0.004, vibrato: 0 },
 };
-const _gmProgram = { guitar: 25, piano: 0, strings: 48, synth: 81 };
+const _gmProgram = { guitar: 25, piano: 0, strings: 48, synth: 81, flute: 73, sax: 65, brass: 61, marimba: 12, bell: 9, organ: 16, epiano: 4, pluck: 45 };
 const _gmDrum = { kick: 36, snare: 38, hat: 42, clap: 39 };
 const _keySig = { C: 0, G: 1, D: 2, A: 3, E: 4, B: 5, 'F#': 6, 'C#': 7, F: -1, Bb: -2, Eb: -3, Ab: -4 };
 const _deg = [[0, 0], [1, 2], [2, 4], [3, 5], [4, 4], [6, 2], [7, 1], [8, 0], [9, 2], [10, 5], [12, 4], [13, 3], [14, 2], [15, 1]];
@@ -408,6 +446,8 @@ export class ComposeDraft {
     this.drum = {};
     for (const l of drumLanes) this.drum[l] = new Array(drumSteps).fill(0);
     this.leadVoice = 'guitar';
+    /** 새로 찍는 멜로디 음표의 악기 (null = 트랙 기본) · 저장 안 해요 */
+    this.brush = null;
     this.swing = 0;
     this.cutoff = 1;
     this.reverb = 0.25;
@@ -463,6 +503,12 @@ export class ComposeDraft {
   toggle(track, step, midi) {
     const list = this.tracks[track];
     const hit = this.noteAt(track, step, midi);
+    // 멜로디 + 붓(악기)을 든 상태: 다른 악기 음표를 누르면 지우지 않고 그 악기로 칠해요
+    const brush = track === 'lead' && this.brush && this.brush !== this.leadVoice ? this.brush : null;
+    if (hit && track === 'lead' && (hit.ins ?? null) !== brush) {
+      hit.ins = brush;
+      return;
+    }
     if (hit) {
       list.splice(list.indexOf(hit), 1);
       return;
@@ -474,7 +520,7 @@ export class ComposeDraft {
     for (const n of list) if (n.midi === midi && n.step < step && n.end > step) n.len = step - n.step;
     let next = composeSteps;
     for (const n of list) if (n.midi === midi && n.step > step) next = Math.min(next, n.step);
-    list.push(new SeqNote(step, midi, { len: clamp(1, 1, next - step) }));
+    list.push(new SeqNote(step, midi, { len: clamp(1, 1, next - step), ins: track === 'lead' ? brush : null }));
   }
 
   /** change length (not past the next note in the same row; lead: not past any next note) */
@@ -748,11 +794,12 @@ export class ComposeDraft {
         const amp = t === 'lead' ? 0.34 : t === 'bass' ? 0.32 : t === 'synth' ? 0.16 : 0.12;
         for (const n of tracks[t]) {
           const at = base + dartRound(n.step * beat * sr);
+          const nv = t === 'lead' && n.ins && _voices[n.ins] ? _voices[n.ins] : v; // 음표마다 다른 악기
           tone(bufs[t], at, hz(n.midi), n.len * beat * 0.98, amp * (0.35 + (0.65 * n.vel) / 127), {
-            decay: t === 'synth' ? 0.2 : v.decay,
-            partials: v.partials,
-            attack: t === 'synth' ? 0.06 : v.attack,
-            vibrato: v.vibrato,
+            decay: t === 'synth' ? 0.2 : nv.decay,
+            partials: nv.partials,
+            attack: t === 'synth' ? 0.06 : nv.attack,
+            vibrato: nv.vibrato,
           });
         }
       }
@@ -1030,11 +1077,20 @@ export class ComposeDraft {
       if (this.tracks[t].length === 0) continue;
       const ch = chans[t];
       const ev = [];
-      for (const n of this.tracks[t]) note(ev, ch, n.step * beat, n.len * beat - 10, n.midi, n.vel);
+      for (const n of this.tracks[t]) if (t !== 'lead' || !n.ins || n.ins === this.leadVoice) note(ev, ch, n.step * beat, n.len * beat - 10, n.midi, n.vel);
+      if (ev.length === 0) continue;
       const prog = t === 'lead' ? (hasKey(_gmProgram, this.leadVoice) ? _gmProgram[this.leadVoice] : 25) : t === 'piano' ? 0 : t === 'synth' ? 89 : 33;
       const lv = this.leadVoice;
       chunks.push(track(t === 'lead' ? `Lead (${lv[0].toUpperCase()}${lv.substring(1)})` : names[t], ev, setup(ch, prog, t)));
     }
+    // 음표마다 고른 악기: 악기마다 따로 트랙 · 채널 (5~8 · 10~15)
+    const used = [...new Set(this.tracks.lead.map((n) => n.ins).filter((x) => x && x !== this.leadVoice))];
+    const freeCh = [5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
+    used.slice(0, freeCh.length).forEach((ins, k) => {
+      const ev = [];
+      for (const n of this.tracks.lead) if (n.ins === ins) note(ev, freeCh[k], n.step * beat, n.len * beat - 10, n.midi, n.vel);
+      chunks.push(track(`Lead (${ins[0].toUpperCase()}${ins.substring(1)})`, ev, setup(freeCh[k], _gmProgram[ins] ?? 25, 'lead')));
+    });
     if (this.tracks.piano.length === 0 && this.tracks.synth.length === 0) {
       const ev = [];
       for (let b = 0; b < composeBars; b++) {

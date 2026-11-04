@@ -34,6 +34,7 @@ export const VOICES = [
   ['f_mature', 'f', '성숙하고 깊은 중저음 (알토)', '낮고 깊은 알토 · 차분한 발라드'],
   ['f_jazz', 'f', '스모키 재즈 · 허스키 소울', '까슬한 허스키 소울 · 재즈바 분위기'],
   ['f_rnb', 'f', '트렌디 R&B · 그루브', '꺾기와 리듬감이 살아 있는 R&B'],
+  ['f_rap', 'f', '상큼한 싱잉랩 · 팝', '리듬을 타는 상큼한 랩과 팝 보컬'],
   ['f_diva', 'f', '폭발적 고음 · 파워 디바', '후렴에서 시원하게 터지는 고음'],
   ['f_folk', 'f', '담백한 이야기꾼 (포크)', '꾸밈없이 말하듯 부르는 통기타 감성'],
   ['f_trot', 'f', '간드러지는 정통 트로트', '구성진 꺾기와 비음 · 정통 트로트'],
@@ -55,6 +56,14 @@ export const VOICES = [
   ['fx_gugak', 'fx', '🪘 국악 소리꾼 (판소리 한 자락)', '시김새가 살아 있는 국악 퓨전 소리꾼'],
 ].map(([id, cat, label, desc]) => ({ id, cat, label, desc }));
 export const LEGACY_VOICES = { f_husky: '여자 · 허스키/소울', f_rap: '여자 · 트렌디 랩/팝', f_bright: '여자 · 상큼/발랄', m_power: '남자 · 파워풀', m_falsetto: '남자 · 감성 가성', indie_duo: '인디 혼성 투보컬' };
+/** 목소리 다듬기 (2026-11-04): 칸마다 -1 · 0(자동) · 1 → 서버 VOICE_TUNE 과 같은 칸 */
+export const VOICE_TUNE_ROWS = [
+  ['range', '음역', '낮게', '높게'],
+  ['texture', '질감', '맑게', '허스키'],
+  ['vibrato', '떨림', '곧게', '풍성하게'],
+  ['emotion', '감정', '담담하게', '터지게'],
+  ['rap', '랩', '노래만', '랩 많이'],
+];
 export const voiceLabel = (id) => VOICES.find((v) => v.id === id)?.label || LEGACY_VOICES[id] || id;
 export const QUICK_VOICES = ['f_clear', 'f_whisper', 'm_soft', 'm_indie', 'duet', 'f_rnb'];
 export const QUIET_VOICES = ['f_whisper', 'f_folk', 'm_indie'];
@@ -95,6 +104,8 @@ export const ERR = {
   DAILY_UPLOAD_LIMIT: '오늘 올릴 수 있는 곡 수를 다 썼어요. 내일 다시 올려 주세요.', TRIM_TOO_SHORT: '남길 구간이 60초 이상이어야 재생이 집계돼요.',
   ALREADY_PICKED: '이 묶음은 이미 한 테이크를 올렸어요.', NOT_READY: '아직 다 만들어지지 않았어요.', NOT_FOUND: '만든 기록을 찾지 못했어요.',
   MAKE_FAILED: '곡 만들기 요청이 실패했어요. 잠시 뒤 다시 시도해 주세요.', MORE_LIMIT: '이 레시피로 만들 수 있는 버전을 다 만들었어요.',
+  REPAINT_RANGE: '다시 만들 구간은 3초~90초로 골라 주세요.', REPAINT_SOURCE: '이 테이크 음원을 읽지 못했어요. 잠시 뒤 다시 해 주세요.', STEMS_SOURCE: '이 테이크 음원을 읽지 못했어요. 잠시 뒤 다시 해 주세요.',
+  REPAINT_OFF: '이 기능은 잠시 쉬고 있어요. 곧 다시 열게요.', STEMS_OFF: '이 기능은 잠시 쉬고 있어요. 곧 다시 열게요.', STEMS_LIMIT: '보컬 · 반주 나누기는 하루 10번까지예요. 내일 다시 해 주세요.',
   LYRICS_CONSENT: '직접 쓴 가사라는 데 동의해야 만들 수 있어요.', LYRICS_BLOCKS: '절(Verse)과 후렴(Chorus)을 모두 써 주세요.',
   LYRICS_LENGTH: '가사는 전체 4~20줄, 한 칸에 8줄까지 쓸 수 있어요.', LYRICS_LINE_LONG: '한 줄이 너무 길어요. 30자 안으로 줄을 나눠 주세요.',
   LYRICS_SPAM: '발음할 수 없는 자음 · 모음이나 같은 글자 반복은 빼 주세요.', LYRICS_BLOCKED: '가수 · 그룹 이름이나 욕설은 가사에 넣을 수 없어요.',

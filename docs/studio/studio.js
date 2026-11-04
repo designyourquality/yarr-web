@@ -5,8 +5,7 @@
 import {
   STATIONS, ST, GENRES, GENRE, LEADS, FLOWS, WEATHERS, TIMES, DURATIONS, KNOBS, VOICE_CATS, VOICES, QUICK_VOICES, QUIET_VOICES, LOUD_GENRES,
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
-  lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel,
-} from './studio-data.js?v=20261109';
+  lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS } from './studio-data.js?v=20261109';
 import { ComposeDraft } from './seq-core.js?v=20261109';
 import { mountSequencer } from './seq-ui.js?v=20261109';
 import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261109';
@@ -20,7 +19,7 @@ const chips = (list, sel, attr, extra = '') => list.map(([id, label]) => `<butto
 let B, sb, root, user = null, q = null;
 const S = {
   view: 'make', vocal: false, recipe: newRecipe(), title: '', story: '', photo: null, ly: { v: '', c: '', b: '' }, bridgeOn: false, aiDraft: null,
-  aiLang: 'ko', consent: false, tone: 'f_clear', voiceCat: 'f', adlib: [], narr: { pos: 'none', tone: 'deep', voice: 'auto', text: '' },
+  aiLang: 'ko', consent: false, tone: 'f_clear', voiceCat: 'f', adlib: [], tune: {}, narr: { pos: 'none', tone: 'deep', voice: 'auto', text: '' },
   pro: false, moreGenres: false, composeOn: false, draft: null, busy: false, aiBusy: false, err: '',
   batch: null, status: null, sel: null, range: [0, 150], donate: false, done: null, polls: 0, timer: 0, startedAt: 0, checking: false,
 };
@@ -243,6 +242,9 @@ function proPanel() {
     ${vocal ? `<div class="st-q">보컬 톤</div><div class="chips">${chips(VOICE_CATS, S.voiceCat, 'data-vcat')}</div>
       <div class="chips" style="margin-top:8px">${VOICES.filter((v) => v.cat === S.voiceCat).map((v) => `<button class="chip-b${v.id === S.tone ? ' on' : ''}" data-tone="${v.id}">${esc(v.label)}</button>`).join('')}</div>
       <p class="st-note">${esc(VOICES.find((v) => v.id === S.tone)?.desc || '예전에 쓰던 목소리예요. 이 곡은 그대로 이어서 만들 수 있어요.')} · 같은 버튼이어도 곡마다 조금씩 다르게 불러요.</p>
+      <div class="st-q">목소리 다듬기 <span class="r">가운데는 자동 · 고른 칸만 반영돼요</span></div>
+      ${VOICE_TUNE_ROWS.map(([k, label, lo, hi]) => `<div class="tune-row"><span class="tune-l">${label}</span><div class="chips">${[[-1, lo], [0, '자동'], [1, hi]].map(([v, t]) => `<button class="chip-b${(S.tune[k] || 0) === v ? ' on' : ''}" data-tune="${k}:${v}">${esc(t)}</button>`).join('')}</div></div>`).join('')}
+      ${S.tune.texture === -1 && ['f_jazz', 'm_rock', 'm_ballad'].includes(S.tone) ? '<p class="st-warn" style="margin-top:6px">허스키한 목소리에 \'맑게\'를 고르면 서로 부딪혀요. 원하는 쪽 하나만 고르면 더 또렷하게 나와요.</p>' : ''}
       ${['duet', 'indie_duo'].includes(S.tone) ? '<p class="st-note">절은 남자, 후렴 앞부분은 여자가 부르고 끝은 둘이 함께 부르도록 야르가 파트를 나눠요.</p>' : S.tone === 'choir' ? '<p class="st-note">첫 소절부터 여럿이 함께 부르는 합창으로 만들어요.</p>' : ['group_girl', 'group_boy'].includes(S.tone) ? '<p class="st-note">절은 멤버들이 주고받고, 후렴은 다 함께 부르도록 야르가 파트를 나눠요.</p>' : ''}`
     : `<div class="st-q">주인공 악기</div><div class="chips">${chips(LEADS, r.lead, 'data-lead')}</div>`}
     <div class="st-q">곡 흐름</div><div class="chips">${chips(FLOWS, r.flow, 'data-flow')}</div>
@@ -324,6 +326,7 @@ function bindMake() {
     if (d.time) { r.time = d.time; return renderMake(); }
     if (d.dur) { r.duration = +d.dur; return renderMake(); }
     if (d.lang) { S.aiLang = d.lang; return renderMake(); }
+    if (d.tune) { const [k, v] = d.tune.split(':'); if (+v) S.tune[k] = +v; else delete S.tune[k]; return renderMake(); }
     if (d.adlib) { S.adlib = S.adlib.includes(d.adlib) ? S.adlib.filter((x) => x !== d.adlib) : [...S.adlib, d.adlib]; t.classList.toggle('on'); return; }
     if (d.npos) { S.narr.pos = d.npos; return renderMake(); }
     if (d.ntone) { S.narr.tone = d.ntone; return renderMake(); }
@@ -419,7 +422,7 @@ async function go() {
   S.busy = true; err(''); goBtn();
   try {
     const bodyJ = { recipe: S.recipe, title: S.title.trim(), ...(S.composeOn && S.draft ? { compose: S.draft.toJson() } : {}) };
-    if (S.vocal) Object.assign(bodyJ, { mode: 'vocal', lyrics: { verse: S.ly.v, chorus: S.ly.c, ...(S.bridgeOn && S.ly.b.trim() ? { bridge: S.ly.b } : {}) }, vocal: S.tone, adlib: S.adlib, consent: S.consent, ...(S.narr.pos !== 'none' ? { narration: S.narr } : {}) });
+    if (S.vocal) Object.assign(bodyJ, { mode: 'vocal', lyrics: { verse: S.ly.v, chorus: S.ly.c, ...(S.bridgeOn && S.ly.b.trim() ? { bridge: S.ly.b } : {}) }, vocal: S.tone, adlib: S.adlib, ...(Object.keys(S.tune).length ? { voiceTune: S.tune } : {}), consent: S.consent, ...(S.narr.pos !== 'none' ? { narration: S.narr } : {}) });
     const j = await call('make', bodyJ);
     S.batch = j.batch; ls.set('studio_batch', j.batch);
     if (q) { q.left -= 1; if (q.freeLeft <= 0 && q.bonusLeft > 0) q.bonusLeft -= 1; q.freeLeft = Math.max(0, q.freeLeft - 1); }
@@ -496,7 +499,7 @@ function renderResult() {
   const nonFailed = takes.filter((t) => t.status !== 'FAILED').length;
   const canMore = !waiting() && ready.length && nonFailed < (q?.maxTakes ?? 2);
   const base = takes[0];
-  const label = (t) => t.status === 'READY' ? (t.edited ? `테이크 ${t.take} · 고친 버전` : t.take === 1 ? '테이크 1 (리듬 편곡 · 그루브 중심)' : `테이크 ${t.take} (선율 편곡 · 멜로디 중심)`) : t.status === 'FAILED' ? `테이크 ${t.take} · 만들지 못했어요` : `테이크 ${t.take} · 만드는 중…`;
+  const label = (t) => t.status === 'READY' && t.repaint ? `테이크 ${t.take} · ${fmt(t.repaint.start)}~${fmt(t.repaint.end)} 구간을 다시 만든 버전` : t.status === 'READY' ? (t.edited ? `테이크 ${t.take} · 고친 버전` : t.take === 1 ? '테이크 1 (리듬 편곡 · 그루브 중심)' : `테이크 ${t.take} (선율 편곡 · 멜로디 중심)`) : t.status === 'FAILED' ? `테이크 ${t.take} · 만들지 못했어요` : `테이크 ${t.take} · 만드는 중…`;
   const keep = S.range[1] - S.range[0];
   const other = ready.some((t) => t.id !== S.sel);
   body().innerHTML = `<div class="st-grid">
@@ -507,7 +510,11 @@ function renderResult() {
         <button class="tp" data-play="${t.id}" ${t.status === 'READY' && t.url ? '' : 'disabled'}>${playingTake === t.id ? '■' : '▶'}</button>
         <div><b>${esc(label(t))}</b><small>${t.status === 'READY' ? (t.voice ? esc(voiceLabel(t.voice)) + ' · ' : '') + `${t.duration || st.duration}초` : t.status === 'FAILED' ? esc(t.error || '') : '조금만 기다려 주세요'}</small><div class="sq-bar"><i id="tb_${t.id}"></i></div></div>
         ${t.status === 'READY' ? `<button class="btn ${t.id === S.sel ? '' : 'sub'}" data-sel="${t.id}" style="padding:9px 14px;font-size:13px">${t.id === S.sel ? '이걸로 결정' : '이 버전 선택'}</button>` : ''}
-      </div>`).join('')}</div>
+      </div>${t.status === 'READY' && (canMore || vocal) ? `<div class="take-tools">${canMore ? `<button class="seq-key" data-rp="${t.id}">✂ 구간 다시 만들기</button>` : ''}${vocal ? (S.stemLinks?.[t.id] ? `<a class="seq-key" href="${esc(S.stemLinks[t.id].vocals)}" target="_blank" rel="noopener">🎤 보컬 받기</a><a class="seq-key" href="${esc(S.stemLinks[t.id].backing)}" target="_blank" rel="noopener">🎹 반주 받기</a>` : `<button class="seq-key" data-stems="${t.id}" ${S.stemsBusy?.[t.id] ? 'disabled' : ''}>${S.stemsBusy?.[t.id] ? '나누는 중…' : '🎚 보컬 · 반주 따로'}</button>`) : ''}</div>` : ''}${
+        S.rp === t.id ? `<div class="rp-box"><div class="st-note" style="margin:0 0 6px">고른 구간만 새로 만들고 앞뒤는 그대로 둬요 · 테이크 1개를 써요 · 3~90초</div>
+          <div class="st-range"><span class="st-note" style="margin:0;width:44px">시작</span><input type="range" min="0" max="${Math.floor(t.duration || st.duration)}" step="1" value="${S.rpRange[0]}" data-rpr="0"><span class="lcdv">${fmt(S.rpRange[0])}</span></div>
+          <div class="st-range"><span class="st-note" style="margin:0;width:44px">끝</span><input type="range" min="0" max="${Math.floor(t.duration || st.duration)}" step="1" value="${S.rpRange[1]}" data-rpr="1"><span class="lcdv">${fmt(S.rpRange[1])}</span></div>
+          <button class="btn" data-r="rpgo" style="margin-top:6px" ${S.busy ? 'disabled' : ''}>이 구간 다시 만들기 (${Math.round(S.rpRange[1] - S.rpRange[0])}초)</button></div>` : ''}`).join('')}</div>
       ${canMore ? `<button class="btn st-go" data-r="edit" style="margin-top:14px">✏️ 고쳐서 다시 만들기 · 말로 해도 돼요</button>
         <button class="btn sub" data-r="more" style="width:100%;justify-content:center;margin-top:8px">선율 편곡 버전도 만들어 보기 · 같은 레시피 · 추가 횟수 없음</button>
         <p class="st-note">둘 중 하나만 만들 수 있어요 (이 곡의 두 번째 버전)</p>` : ''}
@@ -531,6 +538,9 @@ function renderResult() {
     if (b.dataset.play) return playTake(takes.find((t) => t.id === b.dataset.play));
     if (b.dataset.sel) { if (S.sel !== b.dataset.sel) { S.sel = b.dataset.sel; const t = takes.find((x) => x.id === S.sel); S.range = [0, t?.duration || st.duration || S.recipe.duration]; } return renderResult(); }
     const r = b.dataset.r;
+    if (b.dataset.rp) { S.rp = S.rp === b.dataset.rp ? null : b.dataset.rp; const t = takes.find((x) => x.id === S.rp); const d = t?.duration || st.duration || 120; S.rpRange = [Math.min(30, d - 10), Math.min(50, d)]; return renderResult(); }
+    if (b.dataset.stems) return stems(b.dataset.stems);
+    if (r === 'rpgo') return repaint();
     if (r === 'more') return more(null);
     if (r === 'edit') return editSheet();
     if (r === 'leave') { ls.set('studio_batch', null); return restart(); }
@@ -546,6 +556,7 @@ function renderResult() {
       kp.textContent = `${fmt(S.range[0])} ~ ${fmt(S.range[1])} · ${Math.round(k)}초 남겨요`; kp.classList.toggle('st-err', k < 60);
       root.querySelector('[data-r="pick"]').disabled = S.busy || k < 60;
     }
+    if (t.dataset.rpr !== undefined) { S.rpRange[+t.dataset.rpr] = +t.value; t.nextElementSibling.textContent = fmt(+t.value); const k = S.rpRange[1] - S.rpRange[0], go = root.querySelector('[data-r="rpgo"]'); if (go) { go.textContent = `이 구간 다시 만들기 (${Math.round(k)}초)`; go.disabled = S.busy || k < 3 || k > 90; } }
     if (t.id === 'rTitle') S.title = t.value;
     if (t.id === 'rDonate') S.donate = t.checked;
   };
@@ -570,6 +581,33 @@ async function more(edit) {
     S.status.takes.push({ id: 'pending', take: j.take, status: 'SUBMITTED' });
     startPoll(); renderResult();
   } catch (x) { err(x.message); }
+}
+// 구간 다시 만들기 · 보컬/반주 따로 받기 (2026-11-04 · 서버 make-repaint · make-stems)
+async function repaint() {
+  const [a, b] = S.rpRange;
+  if (b - a < 3 || b - a > 90) return err(errText('REPAINT_RANGE'));
+  try {
+    const j = await call('make-repaint', { make_id: S.rp, start: a, end: b });
+    S.rp = null; S.status.takes.push({ id: 'pending', take: j.take, status: 'SUBMITTED' });
+    startPoll(); renderResult();
+  } catch (x) { err(x.message); }
+}
+async function stems(id) {
+  S.stemsBusy = { ...(S.stemsBusy || {}), [id]: true }; renderResult();
+  try {
+    for (let i = 0; i < 30; i++) {
+      const j = await call('make-stems', { make_id: id }, 60000);
+      if (j.status === 'READY') {
+        S.stemLinks = { ...(S.stemLinks || {}), [id]: { vocals: j.vocals, backing: j.backing } };
+        B.toast('보컬 · 반주가 준비됐어요 · 아래 버튼으로 받아요 (주소는 1시간 동안 열려요)');
+        break;
+      }
+      if (j.status === 'FAILED') { err('보컬 · 반주를 나누지 못했어요. 한 번 더 눌러 주세요.'); break; }
+      if (i === 0) B.toast('보컬과 반주를 나누는 중이에요 · 1~2분 걸려요');
+      await new Promise((r) => setTimeout(r, 10000));
+    }
+  } catch (x) { err(x.message); }
+  delete S.stemsBusy[id]; renderResult();
 }
 async function pick() {
   const t = S.status.takes.find((x) => x.id === S.sel); if (!t) return;

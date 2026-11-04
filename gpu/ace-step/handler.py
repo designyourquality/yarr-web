@@ -192,11 +192,20 @@ def clean_input(inp: dict) -> dict:
         x = yarr_guide.render(guide, duration, melody_gain=1.0 if instrumental else 0.7,
                               melody_where='gaps' if inp.get('guide_melody') == 'gaps' else 'all', lowpass=inp.get('guide_lowpass') is True)
         src_bytes = yarr_guide.to_wav_bytes(x)
+    # 구간 다시 만들기 (2026-11-04): 원본 테이크(src_audio_b64)에서 repaint_start ~ repaint_end 초만 새로
+    task = 'repaint' if inp.get('task') == 'repaint' else None
+    rs, re_ = inp.get('repaint_start'), inp.get('repaint_end')
+    if task:
+        if not src_bytes:
+            raise ValueError('repaint 에는 src_audio_b64 가 필요해요')
+        if not all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in (rs, re_)) or not 0 <= rs < re_ or not 3 <= re_ - rs <= 90:
+            raise ValueError('repaint 구간은 3~90초')
     strength = inp.get('cover_strength')
     strength = float(strength) if isinstance(strength, (int, float)) and 0.0 <= strength <= 1.0 else 0.55
     return {'caption': caption, 'lyrics': lyrics, 'instrumental': instrumental, 'duration': duration,
             'vocal_language': lang, 'bpm': bpm, 'seed': seed, 'src_bytes': src_bytes, 'cover_strength': strength,
             'guide': guide is not None,
+            'task': task, 'repaint_start': float(rs) if task else None, 'repaint_end': float(re_) if task else None,
             'dit': str(inp['dit']) if inp.get('dit') in DIT_CHOICES else None,
             'shift': float(inp['shift']) if isinstance(inp.get('shift'), (int, float)) and 1.0 <= inp['shift'] <= 5.0 else None,
             'steps': int(inp['steps']) if isinstance(inp.get('steps'), (int, float)) and 4 <= inp['steps'] <= 20 else 8,
@@ -218,8 +227,32 @@ def encode_mp3(path: str, kbps: int = MP3_KBPS, master: bool = False) -> bytes:
             return f.read()
 
 
+STEMS_PY = os.environ.get('STEMS_PY', '/opt/conda/bin/python')
+
+
+def stems(inp: dict, t0: float) -> dict:
+    """보컬 · 반주 나누기 (2026-11-04 · Demucs htdemucs · /opt/conda 파이썬에서 따로 돌려요 · ACE 패키지는 그대로)"""
+    src = inp.get('src_audio_b64')
+    data = base64.b64decode(str(src or ''), validate=False)
+    if not 1000 <= len(data) <= 8 * 1024 * 1024:
+        raise ValueError('src_audio 는 1KB~8MB')
+    with tempfile.TemporaryDirectory() as tmp:
+        src_path = os.path.join(tmp, 'in.wav' if data[:4] == b'RIFF' else 'in.mp3')
+        with open(src_path, 'wb') as f:
+            f.write(data)
+        r = subprocess.run([STEMS_PY, '/app/yarr_stems.py', src_path, tmp], capture_output=True, text=True, timeout=600)
+        if r.returncode != 0:
+            raise RuntimeError(f'스템 나누기 실패: {(r.stderr or r.stdout)[-300:]}')
+        out = {}
+        for name in ('vocals', 'backing'):
+            out[f'{name}_b64'] = base64.b64encode(encode_mp3(os.path.join(tmp, f'{name}.wav'), kbps=160)).decode('ascii')
+    return {**out, 'format': 'mp3', 'took': round(time.time() - t0, 1), 'task': 'stems'}
+
+
 def handler(job: dict) -> dict:
     t0 = time.time()
+    if isinstance(job.get('input'), dict) and job['input'].get('task') == 'stems':
+        return stems(job['input'], t0)
     p = clean_input(job.get('input'))
     _, llm = load_models()
     dit = get_dit(p['dit'])
@@ -233,7 +266,15 @@ def handler(job: dict) -> dict:
         src_path = os.path.join(src_dir, 'guide.wav' if p['src_bytes'][:4] == b'RIFF' else 'guide.mp3')
         with open(src_path, 'wb') as f:
             f.write(p['src_bytes'])
-    if cover:
+    if p.get('task') == 'repaint':
+        # 구간 다시 만들기: 원본 테이크의 앞뒤를 그대로 두고 고른 구간만 새로 (가사 · 곡 설명은 원본 그대로)
+        params = GenerationParams(
+            task_type='repaint', src_audio=src_path, repainting_start=p['repaint_start'], repainting_end=p['repaint_end'],
+            caption=p['caption'], lyrics=p['lyrics'], instrumental=p['instrumental'],
+            vocal_language=p['vocal_language'], bpm=p['bpm'], seed=p['seed'], **tune,
+            thinking=False, use_cot_caption=False,
+        )
+    elif cover:
         # 커버: LM 대신 가이드 음원이 곡 구조(멜로디 · 리듬 · 코드)를 정해요
         params = GenerationParams(
             task_type='cover', src_audio=src_path, audio_cover_strength=p['cover_strength'],
@@ -300,7 +341,8 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         'seed': seed,
         'took': round(time.time() - t0, 1),
         'model': f'ace-step-1.5:{DIT}+{LM}',
-        'task': 'cover' if cover else 'text2music',
+        'task': p.get('task') or ('cover' if cover else 'text2music'),
+        'repaint': [p['repaint_start'], p['repaint_end']] if p.get('task') == 'repaint' else None,
         'cover_strength': p['cover_strength'] if cover else None,
         'guide': p.get('guide', False),
         'dit': p.get('dit') or DIT, 'shift': p.get('shift') or 1.0, 'steps': p.get('steps', 8), 'master': p.get('master', False),
