@@ -19,7 +19,7 @@ const chips = (list, sel, attr, extra = '') => list.map(([id, label]) => `<butto
 let B, sb, root, user = null, q = null;
 const S = {
   view: 'make', vocal: false, recipe: newRecipe(), title: '', story: '', photo: null, ly: { v: '', c: '', b: '' }, bridgeOn: false, aiDraft: null,
-  aiLang: 'ko', consent: false, tone: 'f_clear', voiceCat: 'f', adlib: [], tune: {}, narr: { pos: 'none', tone: 'deep', voice: 'auto', text: '' },
+  aiLang: 'ko', aiForm: 'basic', consent: false, tone: 'f_clear', voiceCat: 'f', adlib: [], tune: {}, narr: { pos: 'none', tone: 'deep', voice: 'auto', text: '' },
   pro: false, moreGenres: false, composeOn: false, draft: null, busy: false, aiBusy: false, err: '',
   batch: null, status: null, sel: null, range: [0, 150], donate: false, done: null, polls: 0, timer: 0, startedAt: 0, checking: false,
 };
@@ -220,6 +220,7 @@ function vocalSimple() {
     <div class="st-cnt"><span id="mStoryN">${S.story.length}</span>/80</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span class="chip-b" style="cursor:default">가사 언어</span>${chips([['ko', '한국어'], ['en', 'English'], ['ja', '日本語']], S.aiLang, 'data-lang')}
+      <span class="chip-b" style="cursor:default">곡 구조</span>${chips([['short', '짧게 · 절 2줄'], ['basic', '기본 · 절 4줄'], ['long', '길게 · 1절 + 2절']], S.aiForm, 'data-lform')}
       <label class="btn sub" style="padding:8px 12px;font-size:12.5px;margin-left:auto">📷 사진 첨부<input type="file" accept="image/*" id="mPhoto" hidden></label>
     </div>
     ${S.photo ? `<div style="display:flex;gap:10px;align-items:center;margin-top:10px"><img src="${S.photo.url}" style="width:56px;height:56px;object-fit:cover;border-radius:10px"><span class="st-note" style="margin:0;flex:1">이 사진의 분위기로 가사를 써요 · 사진은 저장하지 않아요</span><button class="seq-x" id="mPhotoX" title="사진 빼기">✕</button></div>` : ''}
@@ -326,6 +327,7 @@ function bindMake() {
     if (d.time) { r.time = d.time; return renderMake(); }
     if (d.dur) { r.duration = +d.dur; return renderMake(); }
     if (d.lang) { S.aiLang = d.lang; return renderMake(); }
+    if (d.lform) { S.aiForm = d.lform; return renderMake(); }
     if (d.tune) { const [k, v] = d.tune.split(':'); if (+v) S.tune[k] = +v; else delete S.tune[k]; return renderMake(); }
     if (d.adlib) { S.adlib = S.adlib.includes(d.adlib) ? S.adlib.filter((x) => x !== d.adlib) : [...S.adlib, d.adlib]; t.classList.toggle('on'); return; }
     if (d.npos) { S.narr.pos = d.npos; return renderMake(); }
@@ -392,7 +394,7 @@ async function aiWrite(quiet) {
   S.aiBusy = true; err(''); goBtn();
   const ai = root.querySelector('#mAi'); if (ai) ai.innerHTML = '<span class="spin"></span>';
   try {
-    const j = await call('lyrics', { topic, station: S.recipe.station, genre: S.recipe.genre, bridge: S.bridgeOn, lang: S.aiLang, recipe: S.recipe, vocal: S.tone, ...(S.photo ? { image: { media: S.photo.media, data: S.photo.data } } : {}) }, 60000);
+    const j = await call('lyrics', { topic, station: S.recipe.station, genre: S.recipe.genre, bridge: S.bridgeOn, lang: S.aiLang, form: S.aiForm, recipe: S.recipe, vocal: S.tone, ...(S.photo ? { image: { media: S.photo.media, data: S.photo.data } } : {}) }, 60000);
     S.ly = { v: (j.verse || []).join('\n'), c: (j.chorus || []).join('\n'), b: S.bridgeOn ? (j.bridge || []).join('\n') : S.ly.b };
     S.aiDraft = normLyrics(S.ly.v, S.ly.c, S.bridgeOn ? S.ly.b : '');
     if (j.title && (!S.title.trim() || S.title === defaultTitle(S.recipe.station))) S.title = String(j.title).slice(0, 60);
