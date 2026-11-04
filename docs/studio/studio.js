@@ -6,11 +6,11 @@ import {
   STATIONS, ST, GENRES, GENRE, LEADS, FLOWS, WEATHERS, TIMES, DURATIONS, KNOBS, VOICE_CATS, VOICES, QUICK_VOICES, QUIET_VOICES, LOUD_GENRES,
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
   lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS } from './studio-data.js?v=20261109';
-import { ComposeDraft, ChordSlot, composeBars } from './seq-core.js?v=20261109';
-import { mountSequencer } from './seq-ui.js?v=20261109';
+import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
+import { mountSequencer } from './seq-ui.js?v=20261113';
 import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261109';
 
-const V = '20261112';
+const V = '20261113';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -103,9 +103,12 @@ export async function fork(id) {
 function draftOf(c) {
   try {
     const pro = c.pro && typeof c.pro === 'object' ? c.pro : null;
-    const res = pro && [2, 4].includes(pro.res) && pro.fine ? pro.res : 1;
+    // 앱 · 웹이 v3(틱 · res)로 보냈으면 서버가 pro.fine(틱) + pro.res 를 같이 저장해요 → 그대로 v3 로 읽어요 (fromJson 이 res 를 지금 틱으로 바꿔요)
+    //   fine 이 없으면 pro.tracks(박) = 예전 v2
+    const fine = pro && pro.fine && typeof pro.fine === 'object' && !Array.isArray(pro.fine);
+    const res = fine && Number.isInteger(pro.res) && pro.res >= 1 && pro.res <= composeRes && composeRes % pro.res === 0 ? pro.res : 0;
     const j = { key: c.key, chords: c.chords, notes: c.notes, drums: c.drums, parts: c.parts,
-      ...(pro ? { pro: { v: res > 1 ? 3 : 2, ...(res > 1 ? { res } : {}), tracks: res > 1 ? pro.fine : pro.tracks, drum: pro.drum, lead: pro.lead, mix: pro.mix, fx: { swing: pro.swing ?? 0 } } } : {}) };
+      ...(pro ? { pro: { ...(res ? { v: 3, res, tracks: pro.fine } : { v: 2, tracks: pro.tracks }), drum: pro.drum, lead: pro.lead, mix: pro.mix, fx: { swing: pro.swing ?? 0 } } } : {}) };
     const d = ComposeDraft.fromJson(j);
     if (d && pro && Array.isArray(c.chords) && c.chords.length === composeBars) d.slots = c.chords.map((x) => ChordSlot.parse(String(x)));
     return d;
@@ -410,6 +413,8 @@ function mountSeq() {
   const host = root.querySelector('#mSeq'); if (!host) return;
   seq = mountSequencer(host, {
     draft: S.draft, bpm: () => Math.min(180, Math.max(60, bpmOf(S.recipe))), vocal: () => S.vocal, toast: B.toast,
+    // 🎲 자동 찍기 장르: 고른 장르 · '자동'이면 스테이션 장르 (서버 가사 말투와 같은 규칙)
+    genre: () => (S.recipe.genre && S.recipe.genre !== 'auto' ? S.recipe.genre : (GENRES.find((g) => g[0] !== 'auto' && g[1] === ST[S.recipe.station]?.ko)?.[0] || 'pop')),
     beforePlay: () => { B.pauseMain(); stopTake(); },
     onChange: () => { const l = root.querySelector('.lcd-1'); if (l) l.textContent = l.textContent.replace(/ · MY MELODY .*$/, '') + ' · MY MELODY ' + S.draft.chords.join('-'); },
     onClose: () => { S.composeOn = false; renderMake(); },
@@ -551,7 +556,7 @@ function renderResult() {
         <button class="tp" data-play="${t.id}" ${t.status === 'READY' && t.url ? '' : 'disabled'}>${playingTake === t.id ? '■' : '▶'}</button>
         <div><b>${esc(label(t))}</b><small>${t.status === 'READY' ? (t.voice ? esc(voiceLabel(t.voice)) + ' · ' : '') + `${t.duration || st.duration}초` : t.status === 'FAILED' ? esc(t.error || '') : '조금만 기다려 주세요'}</small><div class="sq-bar"><i id="tb_${t.id}"></i></div></div>
         ${t.status === 'READY' ? `<button class="btn ${t.id === S.sel ? '' : 'sub'}" data-sel="${t.id}" style="padding:9px 14px;font-size:13px">${t.id === S.sel ? '이걸로 결정' : '이 버전 선택'}</button>` : ''}
-      </div>${t.status === 'READY' && (canMore || vocal) ? `<div class="take-tools">${t.repaint && takes.some((x) => x.id === t.repaint.from && x.url) ? `<button class="seq-key${ab?.id === t.id ? ' on' : ''}" data-ab="${t.id}">${ab?.id === t.id ? '■ 비교 멈추기' : '🎧 바뀐 구간 비교 듣기'}</button>` : ''}${canMore ? `<button class="seq-key" data-rp="${t.id}">✂ 구간 다시 만들기</button>` : ''}${vocal ? (S.stemLinks?.[t.id] ? `<a class="seq-key" href="${esc(S.stemLinks[t.id].vocals)}" target="_blank" rel="noopener">🎤 보컬 받기</a><a class="seq-key" href="${esc(S.stemLinks[t.id].backing)}" target="_blank" rel="noopener">🎹 반주 받기</a>` : `<button class="seq-key" data-stems="${t.id}" ${S.stemsBusy?.[t.id] ? 'disabled' : ''}>${S.stemsBusy?.[t.id] ? '나누는 중…' : '🎚 보컬 · 반주 따로'}</button>`) : ''}</div>` : ''}${
+      </div>${t.status === 'READY' && (canMore || vocal) ? `<div class="take-tools">${t.repaint && takes.some((x) => x.id === t.repaint.from && x.url) ? `<button class="seq-key${ab?.id === t.id ? ' on' : ''}" data-ab="${t.id}">${ab?.id === t.id ? '■ 비교 멈추기' : '🎧 바뀐 구간 비교 듣기'}</button>` : ''}${canMore ? `<button class="seq-key" data-rp="${t.id}">✂ 구간 다시 만들기</button>` : ''}${vocal ? (S.stemLinks?.[t.id] ? `<a class="seq-key" href="${esc(S.stemLinks[t.id].vocals)}" target="_blank" rel="noopener">🎤 보컬 받기</a><a class="seq-key" href="${esc(S.stemLinks[t.id].backing)}" target="_blank" rel="noopener">🎹 반주 받기</a>` : `<button class="seq-key" data-stems="${t.id}" ${S.stemsBusy?.[t.id] ? 'disabled' : ''}>${S.stemsBusy?.[t.id] ? '나누는 중… (1~3분)' : t.stems === 'READY' ? '🎤🎹 나눈 파일 받기' : t.stems === 'FAILED' ? '🎚 다시 나누기 (지난번 실패)' : t.stems === 'RUNNING' ? '🎚 나누는 중 · 눌러서 확인' : '🎚 보컬 · 반주 따로'}</button>`) : ''}</div>` : ''}${
         ab?.id === t.id ? `<div class="ab-box"><span>지금 듣는 것 <b>${ab.phase === 0 ? '① 원래 버전' : '② 다시 만든 버전'}</b> · ${fmt(ab.a)}~${fmt(ab.b)} (바뀐 곳 ${fmt(t.repaint.start)}~${fmt(t.repaint.end)})</span><button class="seq-key" data-abswap="1">↔ 바꿔 듣기</button></div>` : ''}${
         S.rp === t.id ? `<div class="rp-box"><div class="st-note" style="margin:0 0 6px">고른 구간만 새로 만들고 앞뒤는 그대로 둬요 · 테이크 1개를 써요 · 3~90초</div>
           <div class="st-range"><span class="st-note" style="margin:0;width:44px">시작</span><input type="range" min="0" max="${Math.floor(t.duration || st.duration)}" step="1" value="${S.rpRange[0]}" data-rpr="0"><span class="lcdv">${fmt(S.rpRange[0])}</span></div>
@@ -650,6 +655,8 @@ function abPlay(t, takes) {
 
 async function more(edit) {
   try {
+    // 고쳐서 다시 만들기에도 목소리 다듬기 값을 이어 보내요 (2026-11-05 · 고친 화면에서 따로 안 정했으면 지금 값)
+    if (edit && !edit.voiceTune && Object.keys(S.tune || {}).length) edit = { ...edit, voiceTune: S.tune };
     const j = await call('make-more', { batch: S.batch, ...(edit ? { edit } : {}) });
     S.status.takes.push({ id: 'pending', take: j.take, status: 'SUBMITTED' });
     startPoll(); renderResult();
@@ -672,10 +679,12 @@ async function stems(id) {
       const j = await call('make-stems', { make_id: id }, 60000);
       if (j.status === 'READY') {
         S.stemLinks = { ...(S.stemLinks || {}), [id]: { vocals: j.vocals, backing: j.backing } };
-        B.toast('보컬 · 반주가 준비됐어요 · 아래 버튼으로 받아요 (주소는 1시간 동안 열려요)');
+        const tk = S.status?.takes?.find((x) => x.id === id); if (tk) tk.stems = 'READY';
+        B.toast('보컬 · 반주가 준비됐어요 · 테이크 아래 🎤 보컬 받기 · 🎹 반주 받기 버튼을 눌러요 (주소는 1시간 동안 열려요)');
         break;
       }
-      if (j.status === 'FAILED') { err('보컬 · 반주를 나누지 못했어요. 한 번 더 눌러 주세요.'); break; }
+      if (j.status === 'FAILED') { B.toast('보컬 · 반주를 나누지 못했어요. 한 번 더 눌러 주세요.'); err('보컬 · 반주를 나누지 못했어요. 한 번 더 눌러 주세요.'); break; }
+      if (i === 29) B.toast('아직 나누는 중이에요 · 잠시 뒤 버튼을 다시 눌러 확인해 주세요');
       if (i === 0) B.toast('보컬과 반주를 나누는 중이에요 · 1~2분 걸려요');
       await new Promise((r) => setTimeout(r, 10000));
     }

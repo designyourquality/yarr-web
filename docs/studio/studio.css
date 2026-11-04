@@ -266,3 +266,23 @@ button.mi-tile:hover{border-color:rgba(255,140,0,.35)}
 .ab-box{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 4px;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,140,0,.5);background:rgba(255,123,47,.1);font-size:13px;color:#F4EEE6}
 .ab-box .seq-key{margin-left:auto}
 .take-tools .seq-key.on{border-color:#FF8C00;color:#FF8C00}
+/* 🎲 자동 찍기 줄 · 2026-11-05 */
+.seq-auto{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:-2px 0 10px}
+.seq-auto .seq-key.on{border-color:#FF8C00;color:#FF8C00}
+.seq-auto-note{flex-basis:100%;font-size:11.5px;color:var(--soft,#B8AFA4)}
+/* 피아노 롤 편집 도구 · 마디 복사 · 고르기 · 2026-11-05 */
+.seq-key:disabled{opacity:.38;cursor:default;box-shadow:none;background:transparent}
+.sq-clip{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-top:8px}
+.sq-clip .seq-key{border:1px solid rgba(255,140,0,.22)}
+.sq-clip-note{flex:1 1 120px;min-width:0;font-size:11.5px;color:var(--soft,#B8AFA4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.sq-tools{margin-top:10px;flex-wrap:wrap;row-gap:8px}
+.sq-tools .sq-mode{flex:0 1 220px;min-width:180px}
+.sq-selbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;flex:1 1 260px;min-width:0}
+.sq-selnum{font-size:12px;font-weight:800;color:#FFB067;white-space:nowrap}
+.sq-selbar .seq-key{border:1px solid rgba(255,140,0,.22);padding:5px 8px}
+.sq-nudge{display:flex;gap:4px;margin-left:auto}
+.sq-nudge .oct-key{width:34px;height:30px}
+.sq-nudge .oct-key:disabled,.oct-key:disabled{opacity:.38;cursor:default}
+.editor canvas:focus{outline:none}
+.editor canvas:focus-visible{outline:1.5px solid rgba(255,140,0,.6);outline-offset:2px}
+@media (max-width:460px){.sq-clip .seq-key,.sq-selbar .seq-key{padding:5px 6px;font-size:11.5px}.sq-clip{gap:4px}.sq-clip-note{text-align:left;flex-basis:100%}}
