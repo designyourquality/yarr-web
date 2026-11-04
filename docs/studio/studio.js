@@ -10,7 +10,7 @@ import { ComposeDraft, ChordSlot, composeBars } from './seq-core.js?v=20261109';
 import { mountSequencer } from './seq-ui.js?v=20261109';
 import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261109';
 
-const V = '20261111';
+const V = '20261112';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -551,7 +551,8 @@ function renderResult() {
         <button class="tp" data-play="${t.id}" ${t.status === 'READY' && t.url ? '' : 'disabled'}>${playingTake === t.id ? '■' : '▶'}</button>
         <div><b>${esc(label(t))}</b><small>${t.status === 'READY' ? (t.voice ? esc(voiceLabel(t.voice)) + ' · ' : '') + `${t.duration || st.duration}초` : t.status === 'FAILED' ? esc(t.error || '') : '조금만 기다려 주세요'}</small><div class="sq-bar"><i id="tb_${t.id}"></i></div></div>
         ${t.status === 'READY' ? `<button class="btn ${t.id === S.sel ? '' : 'sub'}" data-sel="${t.id}" style="padding:9px 14px;font-size:13px">${t.id === S.sel ? '이걸로 결정' : '이 버전 선택'}</button>` : ''}
-      </div>${t.status === 'READY' && (canMore || vocal) ? `<div class="take-tools">${canMore ? `<button class="seq-key" data-rp="${t.id}">✂ 구간 다시 만들기</button>` : ''}${vocal ? (S.stemLinks?.[t.id] ? `<a class="seq-key" href="${esc(S.stemLinks[t.id].vocals)}" target="_blank" rel="noopener">🎤 보컬 받기</a><a class="seq-key" href="${esc(S.stemLinks[t.id].backing)}" target="_blank" rel="noopener">🎹 반주 받기</a>` : `<button class="seq-key" data-stems="${t.id}" ${S.stemsBusy?.[t.id] ? 'disabled' : ''}>${S.stemsBusy?.[t.id] ? '나누는 중…' : '🎚 보컬 · 반주 따로'}</button>`) : ''}</div>` : ''}${
+      </div>${t.status === 'READY' && (canMore || vocal) ? `<div class="take-tools">${t.repaint && takes.some((x) => x.id === t.repaint.from && x.url) ? `<button class="seq-key${ab?.id === t.id ? ' on' : ''}" data-ab="${t.id}">${ab?.id === t.id ? '■ 비교 멈추기' : '🎧 바뀐 구간 비교 듣기'}</button>` : ''}${canMore ? `<button class="seq-key" data-rp="${t.id}">✂ 구간 다시 만들기</button>` : ''}${vocal ? (S.stemLinks?.[t.id] ? `<a class="seq-key" href="${esc(S.stemLinks[t.id].vocals)}" target="_blank" rel="noopener">🎤 보컬 받기</a><a class="seq-key" href="${esc(S.stemLinks[t.id].backing)}" target="_blank" rel="noopener">🎹 반주 받기</a>` : `<button class="seq-key" data-stems="${t.id}" ${S.stemsBusy?.[t.id] ? 'disabled' : ''}>${S.stemsBusy?.[t.id] ? '나누는 중…' : '🎚 보컬 · 반주 따로'}</button>`) : ''}</div>` : ''}${
+        ab?.id === t.id ? `<div class="ab-box"><span>지금 듣는 것 <b>${ab.phase === 0 ? '① 원래 버전' : '② 다시 만든 버전'}</b> · ${fmt(ab.a)}~${fmt(ab.b)} (바뀐 곳 ${fmt(t.repaint.start)}~${fmt(t.repaint.end)})</span><button class="seq-key" data-abswap="1">↔ 바꿔 듣기</button></div>` : ''}${
         S.rp === t.id ? `<div class="rp-box"><div class="st-note" style="margin:0 0 6px">고른 구간만 새로 만들고 앞뒤는 그대로 둬요 · 테이크 1개를 써요 · 3~90초</div>
           <div class="st-range"><span class="st-note" style="margin:0;width:44px">시작</span><input type="range" min="0" max="${Math.floor(t.duration || st.duration)}" step="1" value="${S.rpRange[0]}" data-rpr="0"><span class="lcdv">${fmt(S.rpRange[0])}</span></div>
           <div class="st-range"><span class="st-note" style="margin:0;width:44px">끝</span><input type="range" min="0" max="${Math.floor(t.duration || st.duration)}" step="1" value="${S.rpRange[1]}" data-rpr="1"><span class="lcdv">${fmt(S.rpRange[1])}</span></div>
@@ -582,6 +583,8 @@ function renderResult() {
     const r = b.dataset.r;
     if (b.dataset.rp) { S.rp = S.rp === b.dataset.rp ? null : b.dataset.rp; const t = takes.find((x) => x.id === S.rp); const d = t?.duration || st.duration || 120; S.rpRange = [Math.min(30, d - 10), Math.min(50, d)]; return renderResult(); }
     if (b.dataset.stems) return stems(b.dataset.stems);
+    if (b.dataset.ab) return abPlay(takes.find((t) => t.id === b.dataset.ab), takes);
+    if (b.dataset.abswap && ab) { ab.swapped = true; return ab.go(1 - ab.phase, takeAudio?.currentTime ?? ab.a); }
     if (r === 'rpgo') return repaint();
     if (r === 'more') return more(null);
     if (r === 'edit') return editSheet();
@@ -616,7 +619,34 @@ function playTake(t) {
   takeAudio.onerror = () => { stopTake(); B.toast('재생 주소가 만료됐어요. 잠시 뒤 다시 눌러 주세요.'); check(); };
   takeAudio.play().catch(() => {}); renderResult();
 }
-function stopTake() { if (takeAudio) { takeAudio.pause(); takeAudio = null; } playingTake = null; }
+function stopTake() { if (takeAudio) { takeAudio.pause(); takeAudio = null; } playingTake = null; ab = null; }
+
+/** 구간 다시 만들기 비교 듣기 (2026-11-05): 바뀐 구간 앞 4초 ~ 뒤 2초를 ① 원래 → ② 다시 만든 순서로 이어 틀어요
+ *  ↔ 바꿔 듣기: 같은 시점에서 다른 버전으로 바로 바꿔요 (차이를 귀로 바로 비교) */
+let ab = null;
+function abPlay(t, takes) {
+  if (!t?.repaint) return;
+  if (ab?.id === t.id) { stopTake(); return renderResult(); }
+  const src = takes.find((x) => x.id === t.repaint.from);
+  if (!src?.url || !t.url) return B.toast('원래 테이크를 찾지 못했어요');
+  stopTake(); B.pauseMain(); seq?.stop();
+  const cur = { id: t.id, phase: 0, swapped: false, a: Math.max(0, t.repaint.start - 4), b: t.repaint.end + 2, urls: [src.url, t.url] };
+  cur.go = (phase, at) => {
+    if (ab !== cur) return;
+    if (takeAudio) takeAudio.pause();
+    const a = new Audio(cur.urls[phase]); takeAudio = a; cur.phase = phase;
+    a.addEventListener('loadedmetadata', () => { if (takeAudio !== a) return; a.currentTime = Math.min(at, cur.b - 0.5); a.play().catch(() => {}); }, { once: true });
+    a.ontimeupdate = () => {
+      if (takeAudio !== a || ab !== cur || a.currentTime < cur.b) return;
+      if (cur.phase === 0 && !cur.swapped) cur.go(1, cur.a); // ① 끝 → ② 같은 구간
+      else { stopTake(); renderResult(); }
+    };
+    a.onerror = () => { if (takeAudio === a) { stopTake(); B.toast('재생 주소가 만료됐어요. 잠시 뒤 다시 눌러 주세요.'); check(); } };
+    renderResult();
+  };
+  ab = cur;
+  cur.go(0, cur.a);
+}
 
 async function more(edit) {
   try {

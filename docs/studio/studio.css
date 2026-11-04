@@ -262,3 +262,7 @@ button.mi-tile:hover{border-color:rgba(255,140,0,.35)}
 /* 변주(Fork) 안내 줄 · 2026-11-05 */
 .st-fork{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,140,0,.55);background:rgba(255,123,47,.10);font-size:13px;line-height:1.5;color:#F4EEE6}
 .st-fork .seq-key{margin-left:auto}
+/* 구간 비교 듣기 · 2026-11-05 */
+.ab-box{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 4px;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,140,0,.5);background:rgba(255,123,47,.1);font-size:13px;color:#F4EEE6}
+.ab-box .seq-key{margin-left:auto}
+.take-tools .seq-key.on{border-color:#FF8C00;color:#FF8C00}
