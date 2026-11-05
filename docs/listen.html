@@ -408,6 +408,10 @@ html,body{background:var(--bg)}
 .trk{border-color:rgba(255,255,255,.06)!important}
 .trk:hover{border-color:rgba(255,140,0,.45)!important}
 /* 휴대폰으로 매장 웹을 열었을 때만: 하루 종일 틀려면 앱 안내 (2026-11-04) */
+.safe-note{display:flex;gap:12px;align-items:flex-start;margin:0 0 14px;padding:14px 16px;border-radius:16px;background:linear-gradient(135deg,rgba(52,211,153,.12),rgba(52,211,153,.03));border:1px solid rgba(52,211,153,.35)}
+.safe-note .sn-ic{font-size:20px;line-height:1.2}.safe-note b{display:block;font-size:14px;color:#D1FAE5;line-height:1.45}
+.safe-note p{margin:4px 0 0;font-size:12.5px;color:var(--soft,#A1A1AA);line-height:1.55}.safe-note a{color:#6EE7B7}
+.rpt{font:inherit;font-size:11px;padding:4px 7px;border-radius:999px;border:1px solid var(--line,rgba(255,255,255,.12));background:none;color:#A1A1AA;cursor:pointer;text-decoration:none;white-space:nowrap}.rpt:hover{border-color:rgba(248,113,113,.6);color:#FCA5A5}
 .appnudge{display:none;align-items:center;gap:12px;margin:0 0 14px;padding:14px 16px;border-radius:16px;background:linear-gradient(135deg,rgba(255,122,31,.14),rgba(255,122,31,.04));border:1px solid rgba(255,140,0,.35)}
 .appnudge b{display:block;font-size:14.5px;margin-bottom:3px}
 .appnudge p{margin:0;font-size:12.5px;line-height:1.55;color:var(--soft,#B9B4AC)}
@@ -517,6 +521,9 @@ html,body{background:var(--bg)}
 
 <!-- 매장 -->
 <section class="view" id="v-store">
+  <!-- 매장 BGM 안심 안내 (2026-11-05): 약관 · 확인서와 같은 범위로만 (법적 보증은 아님) -->
+  <div class="safe-note" role="note"><span class="sn-ic">🛡️</span><div><b>매장에서 트는 곡은 저작권 신탁단체(KOMCA 등)에 등록되지 않은 AI 창작곡만 골라요</b>
+    <p>YARR 매장 모드는 검수에서 신탁단체 비등록 · AI 생성으로 확인된 곡만 틀어서, 신탁단체가 매장에서 걷는 공연권료 대상 곡이 아니에요. 다른 음원(라디오 · 일반 스트리밍 등)을 함께 틀면 그 곡은 따로 확인해 주세요. 안내와 이용 확인서는 YARR 검수 결과를 알려 드리는 것이며 법률 자문이나 법적 보증은 아니에요 (<a href="terms.html">이용약관</a>).</p></div></div>
   <div id="storeLoading" class="login glass"><p class="soft" style="margin:0">매장 정보를 확인하는 중…</p></div>
 
   <div id="storeLogin" class="login glass hidden">
@@ -855,13 +862,13 @@ html,body{background:var(--bg)}
       <span class="no${no <= 3 && ranked ? ' top' : ''}">${no}${ranked ? moveHtml(t.move) : ''}</span>
       <span class="cover md ph" style="${coverCss(t)}">${coverEmo(t)}</span>
       <span style="min-width:0"><b>${esc(t.title)}</b><span class="sub">${esc(t.artist)}${t.card ? '' : `${t.genre ? ' · ' + esc(t.genre) : ''} · ${kindOf(t)}`}</span>${cardHtml(t)}${waveHtml(t)}</span>
-      <span class="right"><button class="emb" data-embed="${esc(t.id)}" title="블로그 · 노션 · 사이트에 넣는 미니 플레이어 코드 복사" aria-label="위젯 코드 복사">&lt;/&gt;</button>${t.card?.fork ? `<button class="fk" data-fork="${esc(t.id)}" title="이 곡의 세팅(장르 · 노브 · 목소리 · 멜로디)으로 내 버전 만들기 · 가사는 직접 써요">⚡ 변주</button>` : ''}${t.engine ? `<span class="eng">${esc(t.engine)}</span>` : ''}<span class="badge ${t.store ? 'store' : 'chart'}" title="${t.store ? '매장 BGM으로도 나와요' : '사람이 쓴 가사가 들어간 곡이라 매장 BGM에서는 빠지고, 차트 · 스테이션 듣기에만 나와요'}">${t.store ? '매장 가능' : '매장 제외'}</span></span>
+      <span class="right"><a class="rpt" data-report href="${reportHref(t)}" title="권리 침해 신고 (운영팀 메일 · 24시간 안에 확인해요)" aria-label="권리 침해 신고">🚨</a><button class="emb" data-embed="${esc(t.id)}" title="블로그 · 노션 · 사이트에 넣는 미니 플레이어 코드 복사" aria-label="위젯 코드 복사">&lt;/&gt;</button>${t.card?.fork ? `<button class="fk" data-fork="${esc(t.id)}" title="이 곡의 세팅(장르 · 노브 · 목소리 · 멜로디)으로 내 버전 만들기 · 가사는 직접 써요">⚡ 변주</button>` : ''}${t.engine ? `<span class="eng">${esc(t.engine)}</span>` : ''}<span class="badge ${t.store ? 'store' : 'chart'}" title="${t.store ? '매장 BGM으로도 나와요' : '사람이 쓴 가사가 들어간 곡이라 매장 BGM에서는 빠지고, 차트 · 스테이션 듣기에만 나와요'}">${t.store ? '매장 가능' : '매장 제외'}</span></span>
     </div>`;
   }
   function bindRows(el, getList) {
     const src = () => (el.id === 'stationList' ? `station:${curStation}` : 'chart');
-    el.onclick = (e) => { const pv = e.target.closest('[data-prev]'); if (pv) { e.stopPropagation(); return preview(getList(), pv.dataset.prev); } const fk = e.target.closest('[data-fork]'); if (fk) { e.stopPropagation(); return forkTo(fk.dataset.fork); } const em = e.target.closest('[data-embed]'); if (em) { e.stopPropagation(); return copyEmbed(em.dataset.embed, getList().find((x) => x.id === em.dataset.embed)?.title); } const fm = e.target.closest('[data-family]'); if (fm) { e.stopPropagation(); return openFamily(fm.dataset.family, getList(), src()); } const r = e.target.closest('.trk'); if (r) listenPlay(getList(), +r.dataset.i, src()); };
-    el.onkeydown = (e) => { const pv = e.target.closest('[data-prev]'); if (pv && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); return preview(getList(), pv.dataset.prev); } if (e.target.closest('[data-fork],[data-family],[data-embed]')) return; if (e.key === 'Enter' || e.key === ' ') { const r = e.target.closest('.trk'); if (r) { e.preventDefault(); listenPlay(getList(), +r.dataset.i, src()); } } };
+    el.onclick = (e) => { const pv = e.target.closest('[data-prev]'); if (pv) { e.stopPropagation(); return preview(getList(), pv.dataset.prev); } const fk = e.target.closest('[data-fork]'); if (fk) { e.stopPropagation(); return forkTo(fk.dataset.fork); } if (e.target.closest('[data-report]')) { e.stopPropagation(); return; } const em = e.target.closest('[data-embed]'); if (em) { e.stopPropagation(); return copyEmbed(em.dataset.embed, getList().find((x) => x.id === em.dataset.embed)?.title); } const fm = e.target.closest('[data-family]'); if (fm) { e.stopPropagation(); return openFamily(fm.dataset.family, getList(), src()); } const r = e.target.closest('.trk'); if (r) listenPlay(getList(), +r.dataset.i, src()); };
+    el.onkeydown = (e) => { const pv = e.target.closest('[data-prev]'); if (pv && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); return preview(getList(), pv.dataset.prev); } if (e.target.closest('[data-fork],[data-family],[data-embed],[data-report]')) return; if (e.key === 'Enter' || e.key === ' ') { const r = e.target.closest('.trk'); if (r) { e.preventDefault(); listenPlay(getList(), +r.dataset.i, src()); } } };
   }
   function stationCards(el, opts = {}) {
     const list = opts.only ? STATIONS.slice(0, opts.only) : STATIONS;
@@ -1226,6 +1233,12 @@ html,body{background:var(--bg)}
   let studioMod = null, pendingFork = null;
   // ⚡ 변주: 스튜디오를 열고 그 곡의 공개 레시피를 불러와요 (로그인 전이면 로그인 뒤에 그대로)
   function forkTo(id) { pendingFork = id; go('studio'); }
+  // 🚨 권리 침해 신고 (2026-11-05): 운영팀 메일로 · 곡 정보와 필요한 내용을 미리 채워 둬요
+  function reportHref(t) {
+    const sub = `[권리 침해 신고] ${t.title} (${t.id})`;
+    const body = `신고할 곡: ${t.title} · ${t.artist}\n곡 주소: ${location.origin}/listen.html?t=${t.id}\n\n1. 신고하시는 분 (이름 · 연락처):\n2. 권리자와의 관계 (본인 · 대리인):\n3. 침해된 원래 작품 (곡명 · 가수 · 발매 정보 등):\n4. 침해 내용 (어느 부분이 어떻게 같은지):\n5. 권리를 확인할 수 있는 자료 (링크 또는 첨부):\n\n접수되면 24시간 안에 확인하고, 필요하면 곡을 먼저 내려요.`;
+    return `mailto:contact@yarrmusic.com?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`;
+  }
   // </> 퍼가기 위젯 (2026-11-05): embed.html 미니 플레이어 iframe 코드 복사
   function embedCode(id, title) {
     return `<iframe src="${location.origin}/embed.html?song_id=${id}" width="100%" height="152" style="border:0;border-radius:14px;max-width:560px" allow="autoplay" loading="lazy" title="YARR · ${esc(title || '플레이어')}"></iframe>`;
@@ -1239,7 +1252,7 @@ html,body{background:var(--bg)}
   async function studioBoot() {
     if (studioMod) { studioMod.show?.(); return runFork(); }
     try {
-      studioMod = await import('./studio/studio.js?v=20261117');
+      studioMod = await import('./studio/studio.js?v=20261118');
       await studioMod.mount($('studioRoot'), {
         loadSb, SB_URL, SB_KEY, STATIONS, ST, toast, esc, stPhoto, base, coverCss,
         pauseMain: () => { A.forEach((a) => a.pause()); },

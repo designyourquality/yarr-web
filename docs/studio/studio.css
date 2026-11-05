@@ -306,3 +306,5 @@ button.mi-tile:hover{border-color:rgba(255,140,0,.35)}
 .mi-trb:hover{border-color:rgba(255,140,0,.5);color:#FFB067}.mi-trb[disabled]{opacity:.5;cursor:wait}
 .mi-emb{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;font-size:11.5px;color:var(--dim)}.mi-emb em{font-style:normal}
 .mi-emb .mi-trb{font-family:ui-monospace,Menlo,Consolas,monospace}
+/* AI 기본법 표시 (2026-11-05) */
+.ai-mark{flex-basis:100%;text-align:right;font-size:11.5px;color:var(--dim);line-height:1.5}
