@@ -145,11 +145,13 @@ h2.sec small{font-size:12.5px;color:var(--soft);font-weight:400}
 .fam-n .pl{margin-left:auto;flex:none;color:var(--dim);font-size:11.5px;font-variant-numeric:tabular-nums}
 .fam-n.me{background:rgba(255,140,0,.12);outline:1px solid rgba(255,140,0,.35)}
 .fam-n.can{cursor:pointer}.fam-n.can:hover{background:rgba(255,255,255,.06)}
+.fam-n .flag{flex:none;font-size:14px}
 .fam-n .tag{flex:none;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;border:1px solid rgba(255,140,0,.45);color:#FDBA74}
 .wvw{display:flex;align-items:center;gap:8px;margin-top:6px;max-width:340px;cursor:pointer;border-radius:8px;padding:2px 4px 2px 0}.wvw:hover .wv i{background:rgba(255,255,255,.3)}
 .wv{display:flex;align-items:flex-end;gap:1px;height:22px;flex:1;min-width:0}.wv i{flex:1;min-width:2px;background:rgba(255,255,255,.17);border-radius:1px}.wv i.h,.wvw:hover .wv i.h{background:rgba(255,140,0,.7)}
 .wvw.on .wv i.h{background:#FF8C00;animation:wvp .5s ease-in-out infinite alternate}.wvl{font-size:11px;font-weight:800;color:#FDBA74;white-space:nowrap}.wvw.on .wvl{color:#FF8C00}
 @keyframes wvp{from{opacity:.55}to{opacity:1}}
+.emb{font:inherit;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;font-weight:800;padding:4px 8px;border-radius:999px;border:1px solid var(--line,rgba(255,255,255,.12));background:rgba(255,255,255,.04);color:#D4D4D8;cursor:pointer;white-space:nowrap}.emb:hover{border-color:rgba(255,140,0,.5);color:#FDBA74}
 .fk{font:inherit;font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:999px;border:1px solid rgba(255,140,0,.6);background:rgba(255,123,47,.12);color:#FDBA74;cursor:pointer;white-space:nowrap}.fk:hover{background:rgba(255,123,47,.25)}
 .eq{display:inline-flex;gap:2px;align-items:flex-end;height:18px}
 .eq i{width:3px;border-radius:1px;background:var(--orange)}
@@ -638,7 +640,7 @@ html,body{background:var(--bg)}
 
 <div class="modal" id="mFamily"><div class="box glass" style="border-color:rgba(255,140,0,.3)"><button class="x" data-close aria-label="닫기">✕</button>
   <span class="kick" style="color:#FB923C">🌳 변주 가계도</span><h3 id="famSum">가계도</h3>
-  <p class="soft" style="font-size:12.5px;margin:0">레시피를 공개한 곡의 세팅으로 다른 크리에이터가 만든 변주곡이에요. 지금 목록에 있는 곡은 눌러서 바로 들을 수 있어요.</p>
+  <p class="soft" style="font-size:12.5px;margin:0">원곡의 세팅으로 만든 변주곡과, 원곡 크리에이터가 다른 언어로 부른 다국어 버전(🇺🇸 · 🇯🇵 · 🇰🇷)이에요. 지금 목록에 있는 곡은 눌러서 바로 들을 수 있어요.</p>
   <div class="fam-tree" id="famTree"></div>
 </div></div>
 
@@ -798,7 +800,9 @@ html,body{background:var(--bg)}
     const tags = [t.bpm ? `${t.bpm} BPM` : '', c.key || '', t.genre || '', c.voice && VOICE_SHORT[c.voice] ? VOICE_SHORT[c.voice] : ''].filter(Boolean);
     const s = c.station && ST[c.station];
     const st = s ? `${s.emoji} ${s.name}${c.srank ? ` ${c.srank}위` : ''}` : '';
-    return `<span class="cd">${touch}${tags.map((x) => `<span class="rt">${esc(x)}</span>`).join('')}${st ? `<span class="rt">${esc(st)}</span>` : ''}${c.parent ? `<button class="par fam" data-family="${esc(t.id)}" title="이 곡은 '${esc(c.parent.title)}'의 세팅으로 만든 변주곡이에요 · 눌러서 가계도 보기">🔗 원곡: ${esc(c.parent.title)}</button>` : ''}${c.forks > 0 ? `<button class="fam" data-family="${esc(t.id)}" title="이 곡을 원곡으로 만든 변주곡 가계도 보기">🌳 변주 ${c.forks}곡</button>` : ''}</span>`;
+    return `<span class="cd">${touch}${tags.map((x) => `<span class="rt">${esc(x)}</span>`).join('')}${st ? `<span class="rt">${esc(st)}</span>` : ''}${c.parent ? (c.lang && c.parent.lang && c.lang !== c.parent.lang
+      ? `<button class="par fam" data-family="${esc(t.id)}" title="'${esc(c.parent.title)}'와 같은 분위기의 다국어 버전이에요 · 눌러서 가계도 보기">${FLAG[c.lang] || '🌐'} 다국어 버전 · 원곡: ${esc(c.parent.title)}</button>`
+      : `<button class="par fam" data-family="${esc(t.id)}" title="이 곡은 '${esc(c.parent.title)}'의 세팅으로 만든 변주곡이에요 · 눌러서 가계도 보기">🔗 원곡: ${esc(c.parent.title)}</button>`) : ''}${c.forks > 0 ? `<button class="fam" data-family="${esc(t.id)}" title="이 곡을 원곡으로 만든 변주곡 가계도 보기">🌳 변주 ${c.forks}곡</button>` : ''}</span>`;
   }
   // 15초 하이라이트 미리듣기 (2026-11-05 · 069 SQL): 미니 파형의 주황 칸이 가장 꽉 찬 15초 · 누르면 거기서부터 15초만
   // 따로 만든 소리로 틀어서 재생 수 · 웹 재생 기록 · 정산에 들어가지 않아요
@@ -826,6 +830,7 @@ html,body{background:var(--bg)}
     document.querySelectorAll(`.wvw[data-prev="${id}"]`).forEach((x) => { x.classList.add('on'); const l = x.querySelector('.wvl'); if (l) l.textContent = '■ 듣는 중'; });
   }
   // 🌳 변주 가계도 (2026-11-05 · 071 SQL track_family): 맨 위 원곡부터 공개 변주곡 전부 · 지금 목록에 있는 곡은 눌러서 듣기
+  const FLAG = { ko: '🇰🇷', en: '🇺🇸', ja: '🇯🇵' };
   async function openFamily(id, list, src) {
     const m = $('mFamily'), box = $('famTree');
     box.innerHTML = '<p class="soft" style="margin:8px 0">가계도를 불러오는 중…</p>';
@@ -834,10 +839,11 @@ html,body{background:var(--bg)}
     try { await loadSb(); const { data, error } = await sb.rpc('track_family', { p_track: id }); if (!error) rows = data; } catch { /* 아래에서 안내 */ }
     if (!rows || !rows.length) { box.innerHTML = '<p class="soft" style="margin:8px 0">가계도를 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>'; return; }
     const idx = new Map(list.map((t, i) => [t.id, i]));
+    const multi = new Set(rows.map((r) => r.lang).filter(Boolean)).size > 1; // 여러 언어가 섞이면 국기 표시
     $('famSum').textContent = rows.length > 1 ? `원곡 1곡 · 변주 ${rows.length - 1}곡` : '아직 변주곡이 없어요';
     box.innerHTML = rows.map((r) => {
       const i = idx.get(r.id), can = i != null;
-      return `<div class="fam-n${r.depth === 0 ? ' root' : ''}${r.id === id ? ' me' : ''}${can ? ' can' : ''}" style="--d:${Math.min(r.depth, 8)}" ${can ? `data-fi="${i}" role="button" tabindex="0" aria-label="${esc(r.title)} 재생"` : ''}>${r.depth === 0 ? '<span class="tag">원곡</span>' : ''}<b>${esc(r.title)}</b><span class="who">${esc(r.creator_nickname || '')}</span><span class="pl">${can ? '▶ · ' : ''}${Number(r.plays || 0).toLocaleString('ko-KR')}회</span></div>`;
+      return `<div class="fam-n${r.depth === 0 ? ' root' : ''}${r.id === id ? ' me' : ''}${can ? ' can' : ''}" style="--d:${Math.min(r.depth, 8)}" ${can ? `data-fi="${i}" role="button" tabindex="0" aria-label="${esc(r.title)} 재생"` : ''}>${r.depth === 0 ? '<span class="tag">원곡</span>' : ''}${multi && FLAG[r.lang] ? `<span class="flag" title="노래 언어">${FLAG[r.lang]}</span>` : ''}<b>${esc(r.title)}</b><span class="who">${esc(r.creator_nickname || '')}</span><span class="pl">${can ? '▶ · ' : ''}${Number(r.plays || 0).toLocaleString('ko-KR')}회</span></div>`;
     }).join('');
     const play = (el) => { m.classList.remove('on'); listenPlay(list, +el.dataset.fi, src); };
     box.onclick = (e) => { const n = e.target.closest('[data-fi]'); if (n) play(n); };
@@ -849,13 +855,13 @@ html,body{background:var(--bg)}
       <span class="no${no <= 3 && ranked ? ' top' : ''}">${no}${ranked ? moveHtml(t.move) : ''}</span>
       <span class="cover md ph" style="${coverCss(t)}">${coverEmo(t)}</span>
       <span style="min-width:0"><b>${esc(t.title)}</b><span class="sub">${esc(t.artist)}${t.card ? '' : `${t.genre ? ' · ' + esc(t.genre) : ''} · ${kindOf(t)}`}</span>${cardHtml(t)}${waveHtml(t)}</span>
-      <span class="right">${t.card?.fork ? `<button class="fk" data-fork="${esc(t.id)}" title="이 곡의 세팅(장르 · 노브 · 목소리 · 멜로디)으로 내 버전 만들기 · 가사는 직접 써요">⚡ 변주</button>` : ''}${t.engine ? `<span class="eng">${esc(t.engine)}</span>` : ''}<span class="badge ${t.store ? 'store' : 'chart'}" title="${t.store ? '매장 BGM으로도 나와요' : '사람이 쓴 가사가 들어간 곡이라 매장 BGM에서는 빠지고, 차트 · 스테이션 듣기에만 나와요'}">${t.store ? '매장 가능' : '매장 제외'}</span></span>
+      <span class="right"><button class="emb" data-embed="${esc(t.id)}" title="블로그 · 노션 · 사이트에 넣는 미니 플레이어 코드 복사" aria-label="위젯 코드 복사">&lt;/&gt;</button>${t.card?.fork ? `<button class="fk" data-fork="${esc(t.id)}" title="이 곡의 세팅(장르 · 노브 · 목소리 · 멜로디)으로 내 버전 만들기 · 가사는 직접 써요">⚡ 변주</button>` : ''}${t.engine ? `<span class="eng">${esc(t.engine)}</span>` : ''}<span class="badge ${t.store ? 'store' : 'chart'}" title="${t.store ? '매장 BGM으로도 나와요' : '사람이 쓴 가사가 들어간 곡이라 매장 BGM에서는 빠지고, 차트 · 스테이션 듣기에만 나와요'}">${t.store ? '매장 가능' : '매장 제외'}</span></span>
     </div>`;
   }
   function bindRows(el, getList) {
     const src = () => (el.id === 'stationList' ? `station:${curStation}` : 'chart');
-    el.onclick = (e) => { const pv = e.target.closest('[data-prev]'); if (pv) { e.stopPropagation(); return preview(getList(), pv.dataset.prev); } const fk = e.target.closest('[data-fork]'); if (fk) { e.stopPropagation(); return forkTo(fk.dataset.fork); } const fm = e.target.closest('[data-family]'); if (fm) { e.stopPropagation(); return openFamily(fm.dataset.family, getList(), src()); } const r = e.target.closest('.trk'); if (r) listenPlay(getList(), +r.dataset.i, src()); };
-    el.onkeydown = (e) => { const pv = e.target.closest('[data-prev]'); if (pv && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); return preview(getList(), pv.dataset.prev); } if (e.target.closest('[data-fork],[data-family]')) return; if (e.key === 'Enter' || e.key === ' ') { const r = e.target.closest('.trk'); if (r) { e.preventDefault(); listenPlay(getList(), +r.dataset.i, src()); } } };
+    el.onclick = (e) => { const pv = e.target.closest('[data-prev]'); if (pv) { e.stopPropagation(); return preview(getList(), pv.dataset.prev); } const fk = e.target.closest('[data-fork]'); if (fk) { e.stopPropagation(); return forkTo(fk.dataset.fork); } const em = e.target.closest('[data-embed]'); if (em) { e.stopPropagation(); return copyEmbed(em.dataset.embed, getList().find((x) => x.id === em.dataset.embed)?.title); } const fm = e.target.closest('[data-family]'); if (fm) { e.stopPropagation(); return openFamily(fm.dataset.family, getList(), src()); } const r = e.target.closest('.trk'); if (r) listenPlay(getList(), +r.dataset.i, src()); };
+    el.onkeydown = (e) => { const pv = e.target.closest('[data-prev]'); if (pv && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); return preview(getList(), pv.dataset.prev); } if (e.target.closest('[data-fork],[data-family],[data-embed]')) return; if (e.key === 'Enter' || e.key === ' ') { const r = e.target.closest('.trk'); if (r) { e.preventDefault(); listenPlay(getList(), +r.dataset.i, src()); } } };
   }
   function stationCards(el, opts = {}) {
     const list = opts.only ? STATIONS.slice(0, opts.only) : STATIONS;
@@ -1220,11 +1226,20 @@ html,body{background:var(--bg)}
   let studioMod = null, pendingFork = null;
   // ⚡ 변주: 스튜디오를 열고 그 곡의 공개 레시피를 불러와요 (로그인 전이면 로그인 뒤에 그대로)
   function forkTo(id) { pendingFork = id; go('studio'); }
+  // </> 퍼가기 위젯 (2026-11-05): embed.html 미니 플레이어 iframe 코드 복사
+  function embedCode(id, title) {
+    return `<iframe src="${location.origin}/embed.html?song_id=${id}" width="100%" height="152" style="border:0;border-radius:14px;max-width:560px" allow="autoplay" loading="lazy" title="YARR · ${esc(title || '플레이어')}"></iframe>`;
+  }
+  async function copyEmbed(id, title) {
+    const code = embedCode(id, title);
+    try { await navigator.clipboard.writeText(code); toast('위젯 코드를 복사했어요 · 블로그 · 노션 · 사이트의 HTML 넣기에 붙여 넣어 주세요'); }
+    catch { window.prompt('아래 코드를 복사해 주세요', code); }
+  }
   function runFork() { if (pendingFork && studioMod?.fork) { const id = pendingFork; pendingFork = null; studioMod.fork(id); } }
   async function studioBoot() {
     if (studioMod) { studioMod.show?.(); return runFork(); }
     try {
-      studioMod = await import('./studio/studio.js?v=20261115');
+      studioMod = await import('./studio/studio.js?v=20261117');
       await studioMod.mount($('studioRoot'), {
         loadSb, SB_URL, SB_KEY, STATIONS, ST, toast, esc, stPhoto, base, coverCss,
         pauseMain: () => { A.forEach((a) => a.pause()); },
@@ -1399,7 +1414,9 @@ html,body{background:var(--bg)}
   const sParam = q.get('s');
   if (sParam && ST['#' + sParam.toUpperCase()]) curStation = '#' + sParam.toUpperCase();
   loadChart();
-  if (q.get('tab') === 'studio' || (q.has('code') && store.get('yarr_login_for', '') === 'studio')) go('studio', false);
+  const fkParam = q.get('fork'); // 퍼가기 위젯의 ⚡ 이 곡 변주하기
+  if (fkParam && /^[0-9a-f-]{36}$/i.test(fkParam)) { pendingFork = fkParam; go('studio', false); }
+  else if (q.get('tab') === 'studio' || (q.has('code') && store.get('yarr_login_for', '') === 'studio')) go('studio', false);
   else if (q.get('tab') === 'store' || q.has('code')) go('store', false);
   else if (sParam) go('stations', false);
 })();

@@ -1,6 +1,6 @@
 // ⬆ 곡 올리기 · 📂 내 곡 (웹 스튜디오 · 앱 업로드 시트 + 검수 화면과 같은 규칙 · 2026-11-03)
 //   become_creator → house-music/upload-url (1회용 주소) → 저장소에 바로 올리기 → tracks 등록 (검수 대기)
-import { STATIONS, errText } from './studio-data.js?v=20261109';
+import { STATIONS, errText } from './studio-data.js?v=20261115';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
@@ -179,7 +179,7 @@ export const ICONS = {
   headphones: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>',
 };
 const STEPS = ['업로드', '자동 검수', '운영팀 확인', '공개'];
-export async function mountMine(el, { sb, user, B }) {
+export async function mountMine(el, { sb, user, B, onTranslate }) {
   el.innerHTML = '<div class="st-card mine"><span class="spin"></span> 내 곡을 불러오는 중…</div>';
   const q = (cols) => sb.from('tracks').select(cols).eq('creator_id', user.id).order('created_at', { ascending: false }).limit(40);
   let { data, error } = await q('id,title,status,created_at,publish_at,reject_reason,genre,is_instrumental,ai_plan,duration_sec,bpm,play_count_total,situation_tags,waveform,audio_url');
@@ -193,7 +193,7 @@ export async function mountMine(el, { sb, user, B }) {
   const flags = {};
   try {
     const { data: fl, error: fe } = await sb.rpc('my_recipe_flags');
-    if (!fe) for (const f of fl || []) flags[f.id] = { on: f.recipe_public === true, studio: f.studio === true };
+    if (!fe) for (const f of fl || []) flags[f.id] = { on: f.recipe_public === true, studio: f.studio === true, lang: f.lang || null };
   } catch { /* 071 전 */ }
   const count = (k) => rows.filter((r) => r.k === k).length;
   const plays = rows.reduce((a, r) => a + Number(r.play_count_total || 0), 0);
@@ -231,6 +231,8 @@ export async function mountMine(el, { sb, user, B }) {
         <div class="mi-row">${wave(t.waveform)}${t.k === 'live' ? `<span class="mi-plays" title="유효 재생 수">${ICONS.headphones}${num(t.play_count_total)}</span>` : ''}</div>
         ${sub(t)}
         ${recipe(t)}
+        ${trans(t)}
+        ${t.k === 'live' ? `<div class="mi-emb"><button class="mi-trb" data-emb="${t.id}">&lt;/&gt; 위젯 코드 복사</button><em>블로그 · 노션 · 사이트에 넣는 미니 플레이어 (15초 미리듣기 · 전체 듣기 · ⚡ 변주하기)</em></div>` : ''}
       </div>
     </article>`;
   };
@@ -240,6 +242,12 @@ export async function mountMine(el, { sb, user, B }) {
     const what = f.studio ? '다른 사람이 이 곡 세팅(장르 · 노브 · 목소리 · 멜로디)으로 변주할 수 있어요 · 가사 · 곡 설명 원문은 안 나가요'
       : '곡 설명(프롬프트) 원문이 차트에 보이고, 다른 사람이 이 곡을 원곡으로 변주할 수 있어요';
     return `<div class="mi-recipe"><button class="mi-sw${f.on ? ' on' : ''}" data-recipe="${t.id}" role="switch" aria-checked="${f.on}" ${f.busy ? 'disabled' : ''}><i></i>⚡ 레시피 공개 ${f.on ? '켜짐' : '꺼짐'}</button><span>${what}${f.on ? ' · 변주곡 수익의 30%가 나에게 와요' : ''}</span></div>`;
+  };
+  // 🌐 다른 언어로 (072 SQL · 공개 중인 내 보컬곡만 · 지금 언어는 빼고)
+  const LANGS = [['en', '🇺🇸 English'], ['ja', '🇯🇵 日本語'], ['ko', '🇰🇷 한국어']];
+  const trans = (t) => {
+    const f = flags[t.id]; if (!onTranslate || !f?.lang || t.is_instrumental || t.k !== 'live') return '';
+    return `<div class="mi-tr"><span>🌐 다른 언어로 부르기</span>${LANGS.filter(([k]) => k !== f.lang).map(([k, n]) => `<button class="mi-trb" data-tr="${t.id}" data-tl="${k}">${n}</button>`).join('')}<em>같은 레시피 · 목소리로, 가사는 음절을 맞춰 개사해요</em></div>`;
   };
   const tile = (k, label, n, extra = '') => `<button class="mi-tile ${k}${filter === k ? ' on' : ''}" data-f="${k}"><span>${label}</span><b>${n}</b>${extra}</button>`;
   const draw = () => {
@@ -258,6 +266,16 @@ export async function mountMine(el, { sb, user, B }) {
   draw();
   el.onclick = async (e) => {
     const f = e.target.closest('[data-f]'); if (f) { filter = f.dataset.f; return draw(); }
+    const em = e.target.closest('[data-emb]');
+    if (em) {
+      const row = rows.find((r) => r.id === em.dataset.emb);
+      const code = `<iframe src="https://yarrmusic.com/embed.html?song_id=${em.dataset.emb}" width="100%" height="152" style="border:0;border-radius:14px;max-width:560px" allow="autoplay" loading="lazy" title="YARR · ${esc(row?.title || '플레이어')}"></iframe>`;
+      try { await navigator.clipboard.writeText(code); B?.toast?.('위젯 코드를 복사했어요 · 블로그 · 노션 · 사이트의 HTML 넣기에 붙여 넣어 주세요'); }
+      catch { window.prompt('아래 코드를 복사해 주세요', code); }
+      return;
+    }
+    const tr = e.target.closest('[data-tr]');
+    if (tr) { tr.disabled = true; try { await onTranslate(tr.dataset.tr, tr.dataset.tl); } finally { tr.disabled = false; } return; }
     const sw = e.target.closest('[data-recipe]');
     if (sw) {
       const fl = flags[sw.dataset.recipe]; if (!fl || fl.busy) return;

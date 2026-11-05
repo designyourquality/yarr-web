@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>YARR 플레이어</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="favicon.png">
+<style>
+/* YARR 퍼가기 위젯 (2026-11-05): 블로그 · 노션 · 사이트에 넣는 미니 플레이어 · embed.html?song_id=<곡 ID>
+   15초 하이라이트(재생 수에 안 들어가요) · 전체 듣기(30초 이상 들으면 웹 재생 수 1 · 차트 · 정산에는 안 들어가요) · 레시피 뱃지 · ⚡ 이 곡 변주하기 */
+:root{--bg:#121318;--card:#1A1C24;--line:rgba(255,255,255,.09);--text:#F4F4F5;--soft:#A1A1AA;--dim:#71717A;--acc:#FF8C00;--acc-hi:#FFB067}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Noto Sans KR","Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+.w{height:100%;display:flex;gap:14px;align-items:stretch;padding:12px;border:1px solid var(--line);border-radius:14px;background:radial-gradient(120% 140% at 100% 100%,rgba(255,140,0,.10),transparent 60%),linear-gradient(160deg,#1C1E27,#121318)}
+.cv{flex:none;width:120px;border-radius:10px;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:8px}
+.cv b{font-size:11px;font-weight:800;letter-spacing:.06em;color:rgba(255,255,255,.85);text-shadow:0 1px 4px rgba(0,0,0,.4)}
+.cv .pp{position:absolute;inset:0;margin:auto;width:46px;height:46px;border-radius:50%;border:0;background:rgba(0,0,0,.45);color:#fff;font-size:18px;cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(4px);transition:transform .12s,background .12s}
+.cv .pp:hover{transform:scale(1.06);background:rgba(255,140,0,.85)}
+.cv .pp:focus-visible,.bt:focus-visible,.wvw:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.mn{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.top{display:flex;align-items:center;gap:8px;min-width:0}
+.tt{font-size:15.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.logo{margin-left:auto;flex:none;font-size:11px;font-weight:900;letter-spacing:.12em;color:var(--acc);text-decoration:none}
+.logo:hover{color:var(--acc-hi)}
+.ar{font-size:12px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tg{display:flex;flex-wrap:wrap;gap:4px;max-height:22px;overflow:hidden}
+.tg span{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--soft);white-space:nowrap}
+.tg .ht{border-color:rgba(255,140,0,.4);color:var(--acc-hi)}
+.row{display:flex;align-items:center;gap:8px;margin-top:auto}
+.wvw{display:flex;align-items:center;gap:6px;flex:1;min-width:0;cursor:pointer;background:none;border:0;color:inherit;padding:0}
+.wv{flex:1;min-width:24px;height:26px;display:flex;align-items:center;gap:1.5px;overflow:hidden}
+.wv i{flex:1;min-width:0;border-radius:1px;background:rgba(255,255,255,.22)}
+.wv i.h{background:var(--acc)}
+.wv i.p{background:#fff}
+.wvl{flex:none;font-size:11px;font-weight:800;color:var(--acc-hi);white-space:nowrap}
+.tm{flex:none;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;width:72px;text-align:right}
+.bt{flex:none;font:inherit;font-size:12px;font-weight:800;padding:6px 11px;border-radius:999px;border:1px solid rgba(255,140,0,.5);background:rgba(255,140,0,.12);color:var(--acc-hi);cursor:pointer;text-decoration:none;white-space:nowrap}
+.bt:hover{background:rgba(255,140,0,.22)}
+.bt.gh{border-color:var(--line);background:rgba(255,255,255,.04);color:var(--text)}
+.msg{margin:auto;color:var(--soft);font-size:13px;text-align:center}
+.msg a{color:var(--acc-hi)}
+@media (max-width:420px){.cv{width:84px}.tm{display:none}.bt{padding:5px 9px;font-size:11.5px}.wv{gap:1px}}
+@media (max-width:340px){.wvl{display:none}}
+@media (max-height:120px){.tg{display:none}}
+</style>
+</head>
+<body>
+<div class="w" id="w"><p class="msg">불러오는 중…</p></div>
+<script>
+(() => {
+  'use strict';
+  const API = 'https://ixgwiwohdczeklnurmon.supabase.co/functions/v1/house-music/web';
+  const SITE = 'https://yarrmusic.com/listen.html';
+  const q = new URLSearchParams(location.search);
+  const id = String(q.get('song_id') || q.get('t') || '');
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+  const fmt = (s) => !isFinite(s) || s < 0 ? '0:00' : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  const hash = (s) => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+  const coverBg = (t) => { const x = hash(t.id), h = x % 360, a = 100 + (x >> 9) % 90; return `linear-gradient(${a}deg,hsl(${h} 62% 54%),hsl(${(h + 50 + (x >> 4) % 30) % 360} 58% 34%) 60%,hsl(${(h + 120) % 360} 50% 17%))`; };
+  const TOUCH = { lyrics: '✍️ 직접 작사', melody: '🎹 멜로디 직접 작곡', repaint: '✂️ 구간 다듬음', voice: '🎚️ 목소리 디렉팅', ai: '🤖 AI 생성' };
+  const FLAG = { ko: '🇰🇷', en: '🇺🇸', ja: '🇯🇵' };
+  const STN = { '#WOOD_CAFE': '☕ 우드톤 카페', '#MORNING_BAKERY': '🥐 모닝 베이커리', '#STUDY_CAFE': '📖 스터디 카페', '#PUB_LOUNGE': '🍸 펍 · 라운지', '#WINE_BAR': '🍷 와인 · 다이닝 바',
+    '#BOUTIQUE': '🕶️ 힙한 편집샵', '#GYM_CARDIO': '💪 헬스장 유산소', '#SPA_YOGA': '🧘 힐링 요가 · 스파', '#ROOFTOP': '🌇 루프탑 · 선셋', '#POCHA_NIGHT': '🏮 포차 · 퇴근길',
+    '#NIGHT_DRIVE': '🌃 야간 드라이브', '#RAINY_LOFI': '🌧️ 비 오는 날', '#FOCUS_CODE': '💻 코딩 집중', '#DAWN_MOOD': '🌙 새벽 감성', '#HANGANG_PICNIC': '🧺 한강 피크닉', '#SUMMER_BEACH': '🏖️ 여름 바다' };
+  const fail = (m) => { $('#w').innerHTML = `<p class="msg">${m}<br><a href="${SITE}" target="_blank" rel="noopener">YARR에서 듣기 →</a></p>`; };
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return fail('곡 주소가 올바르지 않아요');
+
+  let t = null, full = null, prev = null, prevTimer = 0, webSec = 0, webSent = false, lastT = 0;
+  const link = (extra = '') => `${SITE}?t=${encodeURIComponent(id)}${extra}`;
+
+  fetch(API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'track', id }) })
+    .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+    .then((j) => { t = j.tracks && j.tracks[0]; if (!t || t.id !== id) throw 404; draw(); })
+    .catch((s) => fail(s === 404 ? '공개되지 않았거나 내려간 곡이에요' : '곡을 불러오지 못했어요'));
+
+  function draw() {
+    const c = t.card || {};
+    document.title = `${t.title} · ${t.artist} | YARR`;
+    const tags = [...(c.touch || []).filter((k) => TOUCH[k]).map((k) => `<span class="ht">${TOUCH[k]}</span>`),
+      ...[t.bpm ? `${t.bpm} BPM` : '', c.key || '', t.genre || '', c.station && STN[c.station] ? STN[c.station] : '',
+        c.parent ? (c.lang && c.parent.lang && c.lang !== c.parent.lang ? `${FLAG[c.lang] || '🌐'} 다국어 버전` : `🔗 원곡: ${c.parent.title}`) : ''].filter(Boolean).map((x) => `<span>${esc(x)}</span>`)].join('');
+    const wave = Array.isArray(c.wave) && c.wave.length === 48 ? c.wave : null;
+    const hlOk = wave && c.hl != null && c.dur > 0;
+    const a = hlOk ? Math.floor(c.hl / c.dur * 48) : -1, b = hlOk ? Math.max(a + 1, Math.ceil((c.hl + 15) / c.dur * 48)) : -1;
+    $('#w').innerHTML = `
+      <div class="cv" style="background:${coverBg(t)}"><b>YARR</b><button class="pp" id="pp" aria-label="전체 듣기">▶</button></div>
+      <div class="mn">
+        <div class="top"><span class="tt" title="${esc(t.title)}">${esc(t.title)}</span><a class="logo" href="${link()}" target="_blank" rel="noopener" title="YARR에서 듣기">YARR ↗</a></div>
+        <div class="ar">${esc(t.artist)}${t.engine ? ` · ${esc(t.engine)}` : ''}${t.instrumental ? ' · 연주곡' : ''}</div>
+        <div class="tg">${tags}</div>
+        <div class="row">
+          ${wave ? `<button class="wvw" id="wvw" title="${hlOk ? '가장 꽉 찬 15초 미리듣기 · 재생 수에는 들어가지 않아요' : '전체 듣기'}"><span class="wv" id="wv">${wave.map((v, k) => `<i class="${k >= a && k < b ? 'h' : ''}" style="height:${Math.max(8, v)}%"></i>`).join('')}</span>${hlOk ? '<span class="wvl" id="wvl">▶ 15초</span>' : ''}</button>` : '<span style="flex:1"></span>'}
+          <span class="tm" id="tm">${c.dur ? fmt(c.dur) : ''}</span>
+          ${c.fork ? `<a class="bt" href="${SITE}?tab=studio&fork=${encodeURIComponent(id)}" target="_blank" rel="noopener" title="이 곡의 레시피(장르 · 노브 · 목소리 · 멜로디)로 내 버전을 만들어요 · 가사는 직접 써요">⚡ 이 곡 변주하기</a>` : `<a class="bt gh" href="${SITE}?tab=studio" target="_blank" rel="noopener">✨ 나도 만들기</a>`}
+        </div>
+      </div>`;
+    $('#pp').onclick = toggleFull;
+    const w = $('#wvw'); if (w) w.onclick = () => (hlOk ? togglePrev() : toggleFull());
+  }
+
+  // 15초 하이라이트: 따로 만든 소리로 틀어서 재생 수 · 웹 재생 기록에 안 들어가요
+  function stopPrev() {
+    clearTimeout(prevTimer); if (prev) { prev.pause(); prev.removeAttribute('src'); prev.load(); }
+    prev = null; const l = $('#wvl'); if (l) l.textContent = '▶ 15초';
+  }
+  function togglePrev() {
+    if (prev) return stopPrev();
+    if (full && !full.paused) full.pause();
+    const c = t.card;
+    prev = new Audio(t.url); prev.preload = 'auto'; prev.volume = 0;
+    prev.addEventListener('loadedmetadata', () => { try { prev.currentTime = Math.min(c.hl, Math.max(0, prev.duration - 15)); } catch { /* 그대로 */ } }, { once: true });
+    prev.play().then(() => {
+      const l = $('#wvl'); if (l) l.textContent = '■ 듣는 중';
+      const p0 = performance.now();
+      const fade = () => { if (!prev) return; const e = (performance.now() - p0) / 1000; prev.volume = Math.max(0, Math.min(1, e / 0.6, (15 - e) / 1.2)); if (e < 15) requestAnimationFrame(fade); };
+      fade(); prevTimer = setTimeout(stopPrev, 15000);
+    }).catch(() => { stopPrev(); });
+  }
+
+  // 전체 듣기: 30초 넘게 들으면 웹 재생 수 1번 (누가 들었는지는 남기지 않아요 · 차트 · 정산에는 안 들어가요)
+  function toggleFull() {
+    stopPrev();
+    if (!full) {
+      full = new Audio(t.url); full.preload = 'auto';
+      full.addEventListener('play', ui); full.addEventListener('pause', ui); full.addEventListener('ended', ui);
+      full.addEventListener('timeupdate', () => {
+        const d = full.duration || t.card?.dur || 0, cur = full.currentTime;
+        $('#tm').textContent = `${fmt(cur)} / ${fmt(d)}`;
+        if (cur > lastT && cur - lastT < 2) webSec += cur - lastT; lastT = cur;
+        if (!webSent && webSec >= 30) { webSent = true; fetch(API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'play', id }) }).catch(() => {}); }
+        const wv = $('#wv'); if (wv && d) { const k = Math.floor(cur / d * 48); [...wv.children].forEach((x, i) => x.classList.toggle('p', i <= k)); }
+      });
+    }
+    full.paused ? full.play().catch(() => {}) : full.pause();
+  }
+  function ui() { const b = $('#pp'); if (b) { b.textContent = full && !full.paused ? '❚❚' : '▶'; b.setAttribute('aria-label', full && !full.paused ? '일시정지' : '전체 듣기'); } }
+})();
+</script>
+</body>
+</html>
