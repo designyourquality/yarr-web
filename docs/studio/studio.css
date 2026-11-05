@@ -95,9 +95,9 @@
 .transport.on{background:linear-gradient(180deg,#FFA233,#FF8C00);color:#1A0E02;border-color:#FFC27A;box-shadow:0 0 14px rgba(255,140,0,.55)}
 .transport.on .tp-ic{color:#1A0E02}
 .transport:disabled{opacity:.4}
-.seq-meter{display:flex;align-items:center;gap:10px;margin:10px 0 4px}
+.seq-meter{display:flex;align-items:center;gap:10px;margin:10px 0 4px;min-width:0;overflow:hidden}
 .led-lbl{font:600 10px ui-monospace,Menlo,monospace;color:#B4743A}
-canvas.vu.h{flex:1;height:6px;display:block}
+canvas.vu.h{flex:1 1 0;min-width:0;width:0;max-width:100%;height:6px;display:block} /* 캔버스 크기(cv.width)가 바뀌어도 줄 너비가 따라 늘지 않게 (고해상도 화면에서 오른쪽으로 끝없이 늘어나던 문제) */
 .sq-eng{font-size:11px;font-weight:800;letter-spacing:.14em;color:#8C857B;text-shadow:0 1px 0 rgba(0,0,0,.9),0 -1px 0 rgba(255,255,255,.04);margin:18px 0 8px}
 .seq-row{display:flex;align-items:center;gap:8px}
 .seq-row .sq-eng{margin:0;flex:1}
@@ -246,3 +246,43 @@ button.mi-tile:hover{border-color:rgba(255,140,0,.35)}
 .mi-empty.big{display:grid;justify-items:center;gap:8px;padding:36px 0}
 .mi-empty.big p{margin:0;font-size:13px}
 @media (max-width:520px){.mi{grid-template-columns:56px minmax(0,1fr);gap:12px;padding:10px}.mi-cover{width:56px;height:56px}.mi-title{font-size:14.5px}}
+/* 목소리 다듬기 (2026-11-04) */
+.tune-row{display:flex;align-items:center;gap:10px;margin-top:6px}
+.tune-row .tune-l{width:44px;flex:none;font-size:12.5px;font-weight:700;color:var(--soft)}
+.tune-row .chips{flex:1;min-width:0}
+/* 음표 악기 붓 (2026-11-04) */
+.sq-brush{margin-top:10px}
+.sq-brush .brush-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.bchip{--c:#FF8C00;border:1px solid rgba(255,255,255,.1);background:#17181D;color:#C9C3BA;border-radius:10px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;position:relative;padding-left:20px}
+.bchip::before{content:'';position:absolute;left:8px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:var(--c);box-shadow:0 0 6px var(--c)}
+.bchip.on{border-color:var(--c);color:#fff;background:color-mix(in srgb,var(--c) 22%,#17181D)}
+/* 구간 다시 만들기 · 보컬/반주 (2026-11-04) */
+.take-tools{display:flex;gap:6px;justify-content:flex-end;margin:-4px 0 8px;flex-wrap:wrap}
+.rp-box{border:1px solid rgba(255,140,0,.35);border-radius:12px;padding:10px 12px;margin:0 0 10px;background:rgba(255,140,0,.05)}
+/* 변주(Fork) 안내 줄 · 2026-11-05 */
+.st-fork{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,140,0,.55);background:rgba(255,123,47,.10);font-size:13px;line-height:1.5;color:#F4EEE6}
+.st-fork .seq-key{margin-left:auto}
+/* 구간 비교 듣기 · 2026-11-05 */
+.ab-box{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 4px;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,140,0,.5);background:rgba(255,123,47,.1);font-size:13px;color:#F4EEE6}
+.ab-box .seq-key{margin-left:auto}
+.take-tools .seq-key.on{border-color:#FF8C00;color:#FF8C00}
+/* 🎲 자동 찍기 줄 · 2026-11-05 */
+.seq-auto{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:-2px 0 10px}
+.seq-auto .seq-key.on{border-color:#FF8C00;color:#FF8C00}
+.seq-auto-note{flex-basis:100%;font-size:11.5px;color:var(--soft,#B8AFA4)}
+/* 피아노 롤 편집 도구 · 마디 복사 · 고르기 · 2026-11-05 */
+.seq-key:disabled{opacity:.38;cursor:default;box-shadow:none;background:transparent}
+.sq-clip{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-top:8px}
+.sq-clip .seq-key{border:1px solid rgba(255,140,0,.22)}
+.sq-clip-note{flex:1 1 120px;min-width:0;font-size:11.5px;color:var(--soft,#B8AFA4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.sq-tools{margin-top:10px;flex-wrap:wrap;row-gap:8px}
+.sq-tools .sq-mode{flex:0 1 220px;min-width:180px}
+.sq-selbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;flex:1 1 260px;min-width:0}
+.sq-selnum{font-size:12px;font-weight:800;color:#FFB067;white-space:nowrap}
+.sq-selbar .seq-key{border:1px solid rgba(255,140,0,.22);padding:5px 8px}
+.sq-nudge{display:flex;gap:4px;margin-left:auto}
+.sq-nudge .oct-key{width:34px;height:30px}
+.sq-nudge .oct-key:disabled,.oct-key:disabled{opacity:.38;cursor:default}
+.editor canvas:focus{outline:none}
+.editor canvas:focus-visible{outline:1.5px solid rgba(255,140,0,.6);outline-offset:2px}
+@media (max-width:460px){.sq-clip .seq-key,.sq-selbar .seq-key{padding:5px 6px;font-size:11.5px}.sq-clip{gap:4px}.sq-clip-note{text-align:left;flex-basis:100%}}

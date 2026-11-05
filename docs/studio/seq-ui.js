@@ -3,9 +3,10 @@
 //   · 사운드 노브 · 5트랙 믹서(+VU) · MIDI 내보내기(스케치 데이터 안내) · 네온 가이드
 // 데이터 · 합성은 seq-core.js (앱과 같은 계산) · 합성은 seq-worker.js 에서
 import {
-  ComposeDraft, ChordSlot, chordBank, chordQualities, chordQualityNames, composeKeys, composeBars, composeSteps, drumSteps,
-  seqTracks, trackNames, leadVoices, drumLanes, drumNames, noteName, isBlack, vuHop,
-} from './seq-core.js?v=20261107';
+  ComposeDraft, ChordSlot, chordBank, chordQualities, chordQualityNames, composeKeys, composeBars, composeBeats, composeRes, composeSteps, drumSteps,
+  seqTracks, trackNames, leadVoices, drumLanes, drumNames, noteName, isBlack, vuHop, chordLabel, spellRoot, noteInstruments, noteInsColors,
+} from './seq-core.js?v=20261113';
+import { autoFill, autoParts, autoPartNames, autoStyleName, restoreFrom } from './seq-auto.js?v=20261113';
 
 const AMBER = '#FF8C00';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
@@ -21,7 +22,13 @@ export function mountSequencer(root, o) {
   const d = o.draft;
   const toast = o.toast || ((m) => console.log(m));
   const changed = () => { o.onChange?.(); };
-  const S = { track: 'lead', bar: 0, mixer: false, oct: { lead: 4, piano: 4, synth: 4, bass: 2 }, levels: null, playing: false, busy: false };
+  // 🎲 자동 찍기 (2026-11-05 · seq-auto.js): 잠근 줄 · 되돌리기 한 번
+  const A = { locked: new Set(), undo: null, msg: '' };
+  const S = { track: 'lead', bar: 0, mixer: false, oct: { lead: 4, piano: 4, synth: 4, bass: 2 }, grid: 2, page: 0, levels: null, playing: false, busy: false,
+    // ✏️ 찍기 / ▭ 고르기 (2026-11-05) · 고른 음 (지금 트랙의 SeqNote)
+    mode: 'draw', sel: new Set() };
+  // 마디 복사 · 붙여넣기 (seq-core copyBar / pasteBar)
+  const C = { clip: null, from: -1, msg: '' };
   const audio = new Audio();
   audio.preload = 'auto';
   let audioUrl = null;
@@ -36,6 +43,7 @@ export function mountSequencer(root, o) {
       <button class="seq-key" data-act="clear">트랙 지우기</button>
       ${o.onClose ? '<button class="seq-x" data-act="close" title="직접 찍기 끄기">✕</button>' : ''}
     </div>
+    <div class="seq-auto" id="sqAuto"></div>
     <div class="seq-lcdrow" data-g="lcd">
       <div class="lcd"><div class="lcd-1" id="sqL1"></div><div class="lcd-2" id="sqL2"></div></div>
       <button class="transport" data-act="play" id="sqPlay"><span class="tp-ic">▶</span><span class="tp-tx">PLAY</span></button>
@@ -47,6 +55,7 @@ export function mountSequencer(root, o) {
 
     <div class="seq-row"><div class="sq-eng">스마트 코드 뱅크 · 마디를 고르고 패드를 누르세요</div><button class="seq-key" data-act="palette">고급 코드</button></div>
     <div class="sq-bars" id="sqBars" data-g="bars"></div>
+    <div class="sq-clip" id="sqClip" data-g="clip"></div>
     <div class="pads" id="sqPads" data-g="pads"></div>
     <div class="seq-row arp" data-g="arp">
       <span class="sq-eng">ARP</span>
@@ -57,11 +66,17 @@ export function mountSequencer(root, o) {
     <div class="sq-eng" style="margin-top:20px">트랙</div>
     <div class="sq-seg" id="sqTracks" data-g="tracks"></div>
     <div class="sq-seg" id="sqVoice" style="margin-top:10px"></div>
+    <div class="sq-brush" id="sqBrush" data-g="brush"></div>
     <div class="seq-row oct" id="sqOctRow">
       <span class="sq-eng">옥타브</span><span style="flex:1"></span>
       <button class="oct-key" data-act="octDown">▼</button><div class="lcd sm" id="sqOct"></div><button class="oct-key" data-act="octUp">▲</button>
     </div>
-    <div class="editor" data-g="roll"><canvas id="sqRoll"></canvas><div class="drums" id="sqDrums"></div></div>
+    <div class="seq-row sq-gridrow" id="sqGridRow" style="margin-top:8px;flex-wrap:wrap;row-gap:8px">
+      <span class="sq-eng" style="flex:none">격자</span><div class="sq-seg" id="sqGrid" style="flex:1 1 150px;max-width:240px"></div>
+      <div class="sq-pagenav" id="sqPageNav" style="display:flex;align-items:center;gap:6px;margin-left:auto"><button class="oct-key" data-act="pagePrev" id="sqPrev" aria-label="앞 마디">◀</button><div class="lcd sm" id="sqPage"></div><button class="oct-key" data-act="pageNext" id="sqNext" aria-label="다음 마디">▶</button></div>
+    </div>
+    <div class="seq-row sq-tools" id="sqTools" data-g="tools"></div>
+    <div class="editor" data-g="roll"><canvas id="sqRoll" tabindex="0" aria-label="피아노 롤"></canvas><div class="drums" id="sqDrums"></div></div>
     <p class="hint" id="sqHint"></p>
 
     <div class="sq-eng" style="margin-top:18px">사운드 디자인</div>
@@ -77,9 +92,9 @@ export function mountSequencer(root, o) {
 
   // ---------- 그리기 ----------
   function lcd() {
-    $('sqL1').textContent = `RECIPE: ${o.bpm()} BPM · KEY ${d.key} · ${d.chords.join(' ')}`;
+    $('sqL1').textContent = `RECIPE: ${o.bpm()} BPM · KEY ${d.key} · ${d.slots.map((c) => chordLabel(c, d.key)).join(' ')}`;
     const step = curStep(1);
-    $('sqL2').textContent = `${trackNames[S.track]} · NOTES ${d.noteCount} · SWING ${Math.round(d.swing * 100)}%${S.playing && step >= 0 ? ` · ▶ ${step % composeSteps + 1}/16` : ''}`;
+    $('sqL2').textContent = `${trackNames[S.track]} · NOTES ${d.noteCount} · SWING ${Math.round(d.swing * 100)}%${S.playing && step >= 0 ? ` · ▶ ${step % composeBeats + 1}/${composeBeats}` : ''}`;
   }
   function segHtml(labels, sel, attr) {
     return labels.map((l, i) => `<button class="${i === sel ? 'on' : ''}" ${attr}="${i}">${esc(l)}</button>`).join('');
@@ -91,12 +106,63 @@ export function mountSequencer(root, o) {
   }
   function bars() {
     const s = curStep(1);
-    $('sqBars').innerHTML = d.slots.map((c, b) => `<button class="sq-bar${b === S.bar ? ' sq-sel' : ''}${s >= 0 && Math.floor((s % composeSteps) / 4) === b ? ' sq-play' : ''}" data-bar="${b}"><span>${esc(c.name)}</span></button>`).join('');
+    $('sqBars').innerHTML = d.slots.map((c, b) => `<button class="sq-bar${b === S.bar ? ' sq-sel' : ''}${s >= 0 && Math.floor((s % composeBeats) / 4) === b ? ' sq-play' : ''}" data-bar="${b}"><span>${esc(chordLabel(c, d.key))}</span></button>`).join('');
+  }
+  /** 마디 복사 · 붙여넣기 줄 (고른 마디 S.bar 에) */
+  function clipUi() {
+    const has = !!C.clip, drum = S.track === 'drums';
+    $('sqClip').innerHTML = `<button class="seq-key" data-act="barCopy" title="${S.bar + 1}마디 코드 + 음을 복사해요 (Ctrl/⌘+C)">📋 ${S.bar + 1}마디 복사</button>`
+      + `<button class="seq-key" data-act="barPaste" ${has ? '' : 'disabled'} title="${S.bar + 1}마디에 코드 + 네 트랙 음을 붙여요 (Ctrl/⌘+V)">붙여넣기 · 전체</button>`
+      + `<button class="seq-key" data-act="barPasteTrack" ${has && !drum ? '' : 'disabled'} title="${S.bar + 1}마디에 ${esc(trackNames[S.track])} 음만 붙여요 (코드는 그대로)">붙여넣기 · 이 트랙만</button>`
+      + `<span class="sq-clip-note">${C.msg ? esc(C.msg) : has ? `${C.from + 1}마디 복사됨` : '마디를 고르고 복사해 보세요'}</span>`;
+  }
+  /** 고른 음 (트랙에서 사라진 음은 빼요 · 붙여넣기 · 되돌리기 뒤에도 안전하게) */
+  function selNotes() {
+    const list = d.tracks[S.track];
+    if (!list) { S.sel.clear(); return []; }
+    for (const n of S.sel) if (!list.includes(n)) S.sel.delete(n);
+    return [...S.sel];
+  }
+  function clearSel() { S.sel.clear(); }
+  /** ✏️ 찍기 / ▭ 고르기 · 고른 음 도구 */
+  function toolsUi() {
+    const drum = S.track === 'drums', sel = S.mode === 'select', n = selNotes().length, dis = n ? '' : 'disabled';
+    $('sqTools').classList.toggle('hidden', drum);
+    if (drum) return;
+    $('sqTools').innerHTML = `<div class="sq-seg sq-mode"><button class="${sel ? '' : 'on'}" data-mode="draw">✏️ 찍기</button><button class="${sel ? 'on' : ''}" data-mode="select">▭ 고르기</button></div>`
+      + (sel ? `<div class="sq-selbar"><span class="sq-selnum">${n ? `${n}개 고름` : '고른 음 없음'}</span>`
+        + `<button class="seq-key" data-act="selNone" ${dis}>선택 해제</button><button class="seq-key" data-act="selDel" ${dis}>고른 음 지우기</button>`
+        + `<span class="sq-nudge"><button class="oct-key" data-act="nudgeL" ${dis} aria-label="한 칸 앞으로">◀</button><button class="oct-key" data-act="nudgeR" ${dis} aria-label="한 칸 뒤로">▶</button>`
+        + `<button class="oct-key" data-act="nudgeU" ${dis} aria-label="반음 위로">▲</button><button class="oct-key" data-act="nudgeD" ${dis} aria-label="반음 아래로">▼</button></span></div>` : '');
+  }
+  /** 고른 음 옮기기 (틱 · 반음) → 실제로 옮긴 양 */
+  function moveSel(ds, dm) {
+    const sel = selNotes(); if (!sel.length || (!ds && !dm)) return [0, 0];
+    const r = d.moveNotes(S.track, sel, ds, dm);
+    if (r[0] || r[1]) changed();
+    return r;
+  }
+  function deleteSel() {
+    const sel = selNotes(); if (!sel.length) return;
+    const list = d.tracks[S.track];
+    for (const n of sel) list.splice(list.indexOf(n), 1);
+    clearSel(); changed(); lcd(); playBtn(); toolsUi(); drawRoll();
+  }
+  function barCopy() {
+    C.clip = d.copyBar(S.bar); C.from = S.bar; C.msg = '';
+    clipUi();
+  }
+  function barPaste(onlyTrack) {
+    if (!C.clip) { toast('먼저 마디를 복사해 주세요'); return; }
+    if (onlyTrack && S.track === 'drums') return;
+    d.pasteBar(S.bar, C.clip, { only: onlyTrack ? S.track : null });
+    C.msg = `${C.from + 1}마디 → ${S.bar + 1}마디${onlyTrack ? ` (${trackNames[S.track]}만)` : ''} 붙여넣었어요`;
+    selNotes(); changed(); all();
   }
   function pads() {
     const bank = chordBank(d.key);
     const cur = d.slots[S.bar].name;
-    $('sqPads').innerHTML = bank.map((c, i) => `<button class="pad${c.name === cur ? ' on' : ''}" data-pad="${i}">${esc(c.name)}</button>`).join('');
+    $('sqPads').innerHTML = bank.map((c, i) => `<button class="pad${c.name === cur ? ' on' : ''}" data-pad="${i}">${esc(chordLabel(c, d.key))}</button>`).join('');
   }
   function arp() {
     $('sqArp').checked = d.arp;
@@ -104,18 +170,31 @@ export function mountSequencer(root, o) {
     $('sqArpMode').classList.toggle('dim', !d.arp);
   }
   function tracksUi() {
-    $('sqTracks').innerHTML = segHtml(seqTracks.map((t) => trackNames[t]), seqTracks.indexOf(S.track), 'data-track');
+    $('sqTracks').innerHTML = segHtml(seqTracks.map((t) => trackNames[t]), seqTracks.indexOf(S.track), 'data-track'); autoUi();
     const lead = S.track === 'lead';
     $('sqVoice').classList.toggle('hidden', !lead);
     if (lead) $('sqVoice').innerHTML = segHtml(Object.values(leadVoices), Object.keys(leadVoices).indexOf(d.leadVoice), 'data-voice');
+    // 음표 악기 붓: 고른 악기로 새 음표를 찍고, 다른 악기 음표를 누르면 그 악기로 칠해요
+    $('sqBrush').classList.toggle('hidden', !lead);
+    if (lead) {
+      const cur = d.brush && d.brush !== d.leadVoice ? d.brush : null;
+      $('sqBrush').innerHTML = `<span class="sq-eng">음표 악기</span><div class="brush-chips"><button class="bchip${cur ? '' : ' on'}" data-brush="">기본 (${esc(leadVoices[d.leadVoice])})</button>${
+        Object.entries(noteInstruments).filter(([k]) => k !== d.leadVoice).map(([k, label]) => `<button class="bchip${cur === k ? ' on' : ''}" data-brush="${k}" style="--c:${noteInsColors[k]}">${esc(label)}</button>`).join('')}</div>`;
+    }
     const drum = S.track === 'drums';
     $('sqOctRow').classList.toggle('hidden', drum);
+    $('sqGridRow').classList.toggle('hidden', drum);
     if (!drum) $('sqOct').textContent = `C${S.oct[S.track]} – C${S.oct[S.track] + 1}`;
     $('sqRoll').classList.toggle('hidden', drum);
     $('sqDrums').classList.toggle('hidden', !drum);
     $('sqHint').textContent = drum
       ? '한 마디 16칸을 4마디 내내 반복해요 · 스윙 노브로 뒷박을 사람처럼 살짝 밀어요 · 칸을 위아래로 끌면 세기'
-      : '칸을 누르면 음 · 음을 옆으로 끌면 길이 · 음을 위아래로 끌면 세기(벨로시티) · PC에서는 음 위에서 휠로도 세기를 바꿔요';
+      : S.track === 'lead' && d.brush && d.brush !== d.leadVoice
+        ? `지금 붓: ${noteInstruments[d.brush]} · 빈칸을 누르면 이 악기로 찍히고, 다른 악기 음을 누르면 이 악기로 바뀌어요 · 같은 악기 음을 누르면 지워져요`
+        : S.mode === 'select'
+          ? '빈 곳을 끌면 네모로 골라요 · 음을 누르면 고르기/빼기 (Shift+클릭은 더하기) · 고른 음을 끌면 함께 옮겨요 · 키보드 ←→↑↓ 옮기기 · Delete 지우기 · Esc 해제'
+          : `칸을 누르면 음 (격자 ${GRID_LABELS[S.grid]} 한 칸 길이) · 음 오른쪽 손잡이를 끌면 길이 (마디를 넘어 이어져요) · 음을 위아래로 끌거나 아래 세기 막대를 끌면 세기 · 멜로디는 '음표 악기'로 음마다 다른 악기를 넣을 수 있어요`;
+    toolsUi(); clipUi();
   }
   function foot() {
     $('sqFoot').textContent = o.vocal()
@@ -129,14 +208,33 @@ export function mountSequencer(root, o) {
     b.querySelector('.tp-ic').textContent = S.busy ? '…' : S.playing ? '■' : '▶';
     b.querySelector('.tp-tx').textContent = S.playing ? 'STOP' : 'PLAY';
   }
-  function all() { lcd(); keys(); bars(); pads(); arp(); tracksUi(); drawEditor(); knobsUi(); if (S.mixer) mixerUi(); foot(); playBtn(); }
+  function autoUi() {
+    const t = S.track, tn = trackNames[t], lk = A.locked.has(t), lc = A.locked.has('chords');
+    const locked = [...A.locked].map((x) => autoPartNames[x]).join(' · ');
+    $('sqAuto').innerHTML = `<button class="seq-key" data-act="autoAll" title="장르에 맞는 코드 · 베이스 · 반주 · 드럼 · 멜로디를 채워요 (잠근 줄은 그대로)">🎲 전체 채우기</button>`
+      + `<button class="seq-key" data-act="autoTrack">🎲 ${tn}만 다시</button>`
+      + `<button class="seq-key${lk ? ' on' : ''}" data-act="lockTrack">${lk ? '🔓' : '🔒'} ${tn} ${lk ? '잠금 풀기' : '잠그기'}</button>`
+      + `<button class="seq-key${lc ? ' on' : ''}" data-act="lockChords">${lc ? '🔓 코드 잠금 풀기' : '🔒 코드 잠그기'}</button>`
+      + (A.undo ? '<button class="seq-key" data-act="autoUndo">↶ 되돌리기</button>' : '')
+      + (A.msg || locked ? `<span class="seq-auto-note">${A.msg}${A.msg && locked ? ' · ' : ''}${locked ? `잠근 줄: ${locked}` : ''}</span>` : '');
+  }
+  function auto(whole) {
+    const genre = o.genre?.() || 'pop';
+    if (!whole && A.locked.has(S.track)) { toast('잠근 트랙이에요 · 🔒 를 풀고 다시 눌러 주세요'); return; }
+    A.undo = d.toJson(); // 되돌리기 한 번
+    clearSel();
+    autoFill(d, { genre, seed: Math.floor(Math.random() * 0x7fffffff), parts: whole ? autoParts : [S.track], locked: A.locked });
+    A.msg = whole ? `🎲 ${autoStyleName(genre)} 느낌으로 채웠어요 · 마음에 안 드는 음은 눌러서 고쳐 보세요` : `🎲 ${trackNames[S.track]} 트랙을 다시 찍었어요`;
+    changed(); return all();
+  }
+  function all() { autoUi(); lcd(); keys(); bars(); pads(); arp(); tracksUi(); drawEditor(); knobsUi(); if (S.mixer) mixerUi(); foot(); playBtn(); }
 
   // ---------- 재생 위치 ----------
-  // 소수 단위 재생 위치 (멜로디 칸 기준 · 0 ~ composeSteps)
+  // 소수 단위 재생 위치 (틱 기준 · 한 박 = composeRes 틱 · 0 ~ composeSteps)
   function curPos() {
     if (!S.playing) return -1;
     const beat = 60 / Math.min(180, Math.max(60, o.bpm()));
-    return (audio.currentTime / beat) % composeSteps;
+    return (audio.currentTime / beat * composeRes) % composeSteps;
   }
   function curStep(unitsPerBeat) {
     if (!S.playing) return -1;
@@ -144,134 +242,442 @@ export function mountSequencer(root, o) {
     return Math.floor(audio.currentTime / (beat / unitsPerBeat));
   }
 
-  // ---------- 피아노 롤 (canvas) ----------
-  const ROWS = 13, LABEL = 34, ROWH = 24;
+  // ---------- 피아노 롤 (canvas · 틱 단위 · 앱 compose_panel.dart _PianoRoll 과 같은 동작) ----------
+  //   저장은 1/16 틱(composeRes = 한 박 4칸) · 화면 격자는 1/4 · 1/8 · 1/16 중에서 골라요 (기본 1/16)
+  //   칸이 너무 작아지면(좁은 화면) 한 번에 보이는 마디를 4 → 2 → 1 로 줄이고 ◀ ▶ 로 넘겨요
+  const ROWS = 13, LABEL = 34, ROWH = 24, RULER = 16, MIN_CELL = 12;
+  // 세기 막대 줄 (피아노 롤 아래 · 2026-11-05)
+  const LANE_GAP = 6, LANE_H = 46, LANE_PAD = 4;
+  const ROLL_B = RULER + ROWS * ROWH, LANE_T = ROLL_B + LANE_GAP, LANE_B = LANE_T + LANE_H;
+  const BAR_TICKS = 4 * composeRes;
+  const GRIDS = [composeRes, composeRes / 2, 1]; // 1/4 · 1/8 · 1/16 (격자 한 칸 = 틱 몇 개)
+  const GRID_LABELS = ['1/4', '1/8', '1/16'];
   const roll = $('sqRoll');
-  let drag = null; // { kind: 'len'|'vel', note, x0, y0, v0, moved }
+  let drag = null; // { kind: 'len'|'vel'|'grip'|'move'|'rect'|'lane', note, hnote, s0, midi0, x0, y0, v0, moved, ... }
   function rollGeom() {
-    const w = roll.clientWidth || roll.parentElement.clientWidth;
-    return { w, cell: (w - LABEL) / composeSteps };
+    const w = roll.clientWidth || roll.parentElement.clientWidth || 320;
+    const grid = GRIDS[S.grid];
+    const perBar = BAR_TICKS / grid;
+    // 한 화면에 보일 마디 수: 칸 너비가 MIN_CELL 이상이 되는 가장 큰 값 (4 · 2 · 1)
+    let bars = 1;
+    for (const b of [composeBars, 2, 1]) { if ((w - LABEL) / (b * perBar) >= MIN_CELL) { bars = b; break; } }
+    const span = bars * BAR_TICKS;
+    const from = Math.min(Math.floor(S.page / bars) * bars, composeBars - bars) * BAR_TICKS;
+    const cells = span / grid, cellW = (w - LABEL) / cells, tickW = cellW / grid;
+    return { w, grid, bars, span, from, cells, cellW, tickW };
   }
+  const tx = (geo, t) => LABEL + (t - geo.from) * geo.tickW;
   function low() { return 12 * (S.oct[S.track] + 1); }
-  function drawEditor() { if (S.track === 'drums') drawDrums(); else drawRoll(); }
+  function drawEditor() { if (S.track === 'drums') drawDrums(); else { drawRoll(); pageUi(); } }
+  function pageUi() {
+    const geo = rollGeom();
+    const first = geo.from / BAR_TICKS;
+    $('sqGrid').innerHTML = segHtml(GRID_LABELS, S.grid, 'data-grid');
+    $('sqPage').textContent = geo.bars === composeBars ? `1–${composeBars}마디` : geo.bars === 1 ? `${first + 1}마디` : `${first + 1}–${first + geo.bars}마디`;
+    $('sqPrev').disabled = first <= 0;
+    $('sqNext').disabled = first + geo.bars >= composeBars;
+    $('sqPageNav').classList.toggle('hidden', geo.bars === composeBars);
+  }
+  /** 음 색 (멜로디는 음표마다 고른 악기 색) */
+  const insColor = (n) => (S.track === 'lead' && n.ins && n.ins !== d.leadVoice ? noteInsColors[n.ins] : null);
+  const noteFill = (n) => { const a = 0.45 + 0.55 * n.vel / 127; return insColor(n) || `rgba(255,${Math.round(120 + 60 * (1 - a))},0,${a})`; };
+  /** 세기 막대: 이 화면에서 시작하는 (보이는 높이의) 음마다 하나 · 같은 자리에서 시작하는 음은 나란히 */
+  function laneBars(geo) {
+    const lo = low(), hi = lo + ROWS - 1, end = geo.from + geo.span;
+    const xs = d.tracks[S.track].filter((n) => n.midi >= lo && n.midi <= hi && n.step >= geo.from && n.step < end);
+    const steps = [...new Set(xs.map((n) => n.step))].sort((a, b) => a - b);
+    const out = [];
+    steps.forEach((s, i) => {
+      const next = i + 1 < steps.length ? steps[i + 1] : end;
+      const col = Math.max(3, Math.min(geo.cellW, (next - s) * geo.tickW) - 3);
+      const group = xs.filter((n) => n.step === s).sort((a, b) => b.midi - a.midi);
+      const bw = Math.max(2, Math.min(12, (col - (group.length - 1)) / group.length));
+      group.forEach((n, k) => out.push({ n, x: tx(geo, s) + 1.5 + k * (bw + 1), w: bw }));
+    });
+    return out;
+  }
+  const laneY = (vel) => LANE_B - LANE_PAD - (LANE_H - LANE_PAD * 2) * vel / 127;
   function drawRoll() {
-    const { w, cell } = rollGeom();
-    const H = ROWS * ROWH, dpr = window.devicePixelRatio || 1;
+    const geo = rollGeom();
+    const { w, grid, from, span, cellW, tickW } = geo;
+    const H = LANE_B, dpr = window.devicePixelRatio || 1;
     if (roll.width !== Math.round(w * dpr) || roll.height !== Math.round(H * dpr)) { roll.width = Math.round(w * dpr); roll.height = Math.round(H * dpr); roll.style.height = H + 'px'; }
     const g = roll.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, H);
-    const lo = low();
+    const lo = low(), hi = lo + ROWS - 1;
+    const pos = curPos(); // 재생 위치 (틱 · 소수)
+    const ptick = pos >= 0 ? Math.floor(pos) : -1;
+    const sel = new Set(selNotes());
+    // 네모로 고르는 중: 네모에 걸린 음도 미리 밝게
+    if (drag?.kind === 'rect') for (const n of rectNotes(geo, drag.rect)) sel.add(n);
+    // 눈금자: 마디 번호 · 박 번호
+    g.fillStyle = '#0B0C0F'; g.fillRect(0, 0, w, RULER);
+    g.font = '700 9.5px ui-monospace,Menlo,monospace'; g.textBaseline = 'middle';
+    for (let t = from; t < from + span; t += composeRes) {
+      const x = tx(geo, t), bar = t % BAR_TICKS === 0;
+      g.fillStyle = bar ? '#FFB067' : '#6A665F';
+      const b = Math.floor(t / BAR_TICKS) + 1, bt = (t % BAR_TICKS) / composeRes + 1;
+      if (bar || cellW * (composeRes / grid) >= 18) g.fillText(bar ? String(b) : `${b}.${bt}`, x + 3, RULER / 2 + 0.5);
+    }
+    // 줄 바탕 + 이름표 (검은 건반 줄은 더 어둡게)
     for (let r = 0; r < ROWS; r++) {
-      const midi = lo + ROWS - 1 - r, y = r * ROWH;
+      const midi = hi - r, y = RULER + r * ROWH;
       g.fillStyle = isBlack(midi) ? '#0B0C0F' : '#13151A';
       g.fillRect(LABEL, y, w - LABEL, ROWH);
       g.fillStyle = isBlack(midi) ? '#1A1B20' : '#2A2C33';
       g.fillRect(0, y + 1, LABEL - 3, ROWH - 2);
       g.fillStyle = midi % 12 === 0 ? '#FFB067' : '#8A857D';
       g.font = '600 10px ui-monospace,Menlo,monospace';
-      g.textBaseline = 'middle';
       if (!isBlack(midi)) g.fillText(noteName(midi), 4, y + ROWH / 2);
-      g.fillStyle = 'rgba(255,255,255,.04)';
-      g.fillRect(LABEL, y + ROWH - 1, w - LABEL, 1);
     }
-    for (let s = 0; s <= composeSteps; s++) {
-      g.fillStyle = s % 4 === 0 ? 'rgba(255,140,0,.22)' : 'rgba(255,255,255,.05)';
-      g.fillRect(LABEL + s * cell - (s % 4 === 0 ? 0.5 : 0), 0, s % 4 === 0 ? 1.5 : 1, H);
+    // 빈 칸 (격자 한 칸마다 · 마디마다 바탕을 번갈아 · 재생 중인 칸은 밝게)
+    const gap = cellW > 12 ? 1 : 0.5;
+    for (let t = from; t < from + span; t += grid) {
+      const x = tx(geo, t), alt = Math.floor(t / BAR_TICKS) % 2 === 1;
+      const playing = ptick >= t && ptick < t + grid;
+      g.fillStyle = playing ? 'rgba(255,140,0,.16)' : alt ? 'rgba(255,255,255,.035)' : 'rgba(255,255,255,.055)';
+      for (let r = 0; r < ROWS; r++) g.fillRect(x + gap, RULER + r * ROWH + 2, cellW - gap * 2, ROWH - 4);
     }
-    const pos = curPos();
-    if (pos >= 0) {
-      const step = Math.floor(pos);
-      g.fillStyle = 'rgba(255,140,0,.08)';
-      g.fillRect(LABEL + step * cell, 0, cell, H);
-    }
-    for (const n of d.tracks[S.track]) {
-      const r = lo + ROWS - 1 - n.midi;
-      if (r < 0 || r >= ROWS) continue;
-      const x = LABEL + n.step * cell + 1.5, y = r * ROWH + 3, ww = n.len * cell - 3, hh = ROWH - 6;
-      const a = 0.45 + 0.55 * n.vel / 127;
-      g.shadowColor = 'rgba(255,140,0,.55)'; g.shadowBlur = 8 * a;
-      g.fillStyle = `rgba(255,${Math.round(120 + 60 * (1 - a))},0,${a})`;
-      roundRect(g, x, y, ww, hh, 4); g.fill();
-      g.shadowBlur = 0;
-      // 세기 막대
-      g.fillStyle = 'rgba(26,14,2,.55)';
-      g.fillRect(x + 3, y + hh - 4, Math.max(2, (ww - 6) * n.vel / 127), 2);
-      if (drag && drag.kind === 'vel' && drag.note === n) {
-        g.fillStyle = '#fff'; g.font = '700 11px ui-monospace,Menlo,monospace';
-        g.fillText(`VEL ${n.vel}`, Math.min(x + 4, w - 60), Math.max(10, y - 8));
+    // 세기 막대 줄 바탕
+    g.fillStyle = '#0B0C0F'; g.fillRect(0, LANE_T, w, LANE_H);
+    g.fillStyle = '#2A2C33'; g.fillRect(0, LANE_T + 1, LABEL - 3, LANE_H - 2);
+    g.fillStyle = '#8A857D'; g.font = '700 10px system-ui,sans-serif'; g.fillText('세기', 4, LANE_T + LANE_H / 2);
+    g.fillStyle = 'rgba(255,255,255,.05)';
+    for (const v of [32, 64, 96, 127]) g.fillRect(LABEL, Math.round(laneY(v)) - 0.5, w - LABEL, 1);
+    // 격자선: 1/16 (가늘게) · 박 (중간) · 마디 (앰버 · 굵게) · 세기 줄까지 이어서
+    const vlines = (y0, y1, light) => {
+      for (let t = from; t <= from + span; t++) {
+        const bar = t % BAR_TICKS === 0, beat = t % composeRes === 0;
+        if (!bar && !beat && (light || t % grid !== 0)) continue;
+        const x = tx(geo, t);
+        if (bar) { g.fillStyle = 'rgba(255,140,0,.6)'; g.fillRect(x - 0.75, y0, 1.5, y1 - y0); }
+        else if (beat) { g.fillStyle = light ? 'rgba(255,255,255,.1)' : 'rgba(255,255,255,.2)'; g.fillRect(x - 0.5, Math.max(y0, RULER), 1, y1 - Math.max(y0, RULER)); }
+        else { g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(x - 0.5, Math.max(y0, RULER), 1, y1 - Math.max(y0, RULER)); }
       }
+    };
+    vlines(0, ROLL_B, false); vlines(LANE_T, LANE_B, true);
+    const visible = (n) => n.midi >= lo && n.midi <= hi && n.end > from && n.step < from + span;
+    const noteRect = (n) => [tx(geo, n.step) + 1.5, RULER + (hi - n.midi) * ROWH + 3, n.len * tickW - 3, ROWH - 6];
+    g.save(); g.beginPath(); g.rect(LABEL, 0, w - LABEL, ROLL_B); g.clip();
+    const pageEnd = from + span;
+    for (const n of d.tracks[S.track]) {
+      if (!visible(n)) continue;
+      const [x, y, ww, hh] = noteRect(n);
+      const a = 0.45 + 0.55 * n.vel / 127;
+      const ic = insColor(n); // 음표마다 고른 악기 색
+      const on = sel.has(n);
+      g.shadowColor = on ? 'rgba(255,255,255,.9)' : ic || 'rgba(255,140,0,.55)'; g.shadowBlur = on ? 10 : 8 * a;
+      if (ic) { g.globalAlpha = a; g.fillStyle = ic; } else g.fillStyle = noteFill(n);
+      roundRect(g, x, y, Math.max(2, ww), hh, Math.min(4, ww / 2)); g.fill(); g.globalAlpha = 1;
+      g.shadowBlur = 0;
+      if (on) {
+        g.fillStyle = 'rgba(255,255,255,.28)'; roundRect(g, x, y, Math.max(2, ww), hh, Math.min(4, ww / 2)); g.fill();
+        g.strokeStyle = '#FFFFFF'; g.lineWidth = 2; roundRect(g, x + 0.5, y + 0.5, Math.max(1, ww - 1), hh - 1, Math.min(4, ww / 2)); g.stroke();
+      }
+      // 세기 막대 (작게) · 이음줄 · 길이 손잡이
+      g.fillStyle = 'rgba(26,14,2,.55)';
+      g.fillRect(x + 2, y + hh - 4, Math.max(1, (ww - 4) * n.vel / 127), 2);
+      // 이음줄: 마디 선을 넘는 음은 그 자리에 작은 홈 + 붙임줄 (한 음이 이어진다는 표시)
+      for (let b = (Math.floor(n.step / BAR_TICKS) + 1) * BAR_TICKS; b < n.end; b += BAR_TICKS) {
+        if (b <= from || b >= pageEnd) continue;
+        const bx = tx(geo, b);
+        g.fillStyle = isBlack(n.midi) ? '#0B0C0F' : '#13151A';
+        g.beginPath(); g.moveTo(bx - 4, y - 0.5); g.lineTo(bx + 4, y - 0.5); g.lineTo(bx, y + 4); g.closePath(); g.fill();
+        g.beginPath(); g.moveTo(bx - 4, y + hh + 0.5); g.lineTo(bx + 4, y + hh + 0.5); g.lineTo(bx, y + hh - 4); g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(26,14,2,.85)'; g.lineWidth = 1.6;
+        g.beginPath(); g.moveTo(bx - 7, y + hh / 2 - 2); g.quadraticCurveTo(bx, y + hh / 2 + 4, bx + 7, y + hh / 2 - 2); g.stroke();
+      }
+      g.font = '800 11px system-ui,sans-serif'; g.fillStyle = 'rgba(26,14,2,.9)';
+      if (n.step < from) g.fillText('←', LABEL + 2, y + hh / 2 + 0.5); // 앞 화면에서 이어져 온 음
+      if (n.end > pageEnd) g.fillText('→', w - 13, y + hh / 2 + 0.5); // 다음 화면으로 이어지는 음
+      else if (ww >= 12) {
+        // 길이 손잡이 (오른쪽 끝 · 끌면 길이)
+        const gx = x + ww - 6;
+        g.fillStyle = 'rgba(255,255,255,.42)'; roundRect(g, gx, y + 2, 4.5, hh - 4, 2); g.fill();
+        g.fillStyle = 'rgba(26,14,2,.7)'; g.fillRect(gx + 1, y + hh / 2 - 3.5, 1, 7); g.fillRect(gx + 2.8, y + hh / 2 - 3.5, 1, 7);
+      } else { g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(x + ww - 1.5, y + 2, 1.5, hh - 4); }
     }
     // 플레이헤드 · 재생 위치를 얇은 선이 실시간으로 지나가요
-    if (pos >= 0) {
-      const x = LABEL + pos * cell;
+    if (pos >= from && pos < from + span) {
+      const x = tx(geo, pos);
       const grad = g.createLinearGradient(x - 14, 0, x, 0);
       grad.addColorStop(0, 'rgba(255,140,0,0)'); grad.addColorStop(1, 'rgba(255,140,0,.18)');
-      g.fillStyle = grad; g.fillRect(x - 14, 0, 14, H);
+      g.fillStyle = grad; g.fillRect(x - 14, RULER, 14, ROLL_B - RULER);
       g.shadowColor = 'rgba(255,170,60,.95)'; g.shadowBlur = 10;
-      g.fillStyle = '#FFC27A'; g.fillRect(x - 0.75, 0, 1.5, H);
+      g.fillStyle = '#FFC27A'; g.fillRect(x - 0.75, 0, 1.5, ROLL_B);
       g.shadowBlur = 0;
       g.beginPath(); g.moveTo(x - 5, 0); g.lineTo(x + 5, 0); g.lineTo(x, 6); g.closePath(); g.fillStyle = '#FFB067'; g.fill();
       // 선이 지나가는 음은 잠깐 밝게
       for (const n of d.tracks[S.track]) {
-        if (pos < n.step || pos > n.step + n.len) continue;
-        const r = lo + ROWS - 1 - n.midi; if (r < 0 || r >= ROWS) continue;
+        if (!visible(n) || pos < n.step || pos > n.end) continue;
+        const [x2, y2, ww, hh] = noteRect(n);
         g.shadowColor = 'rgba(255,200,120,.9)'; g.shadowBlur = 14;
         g.strokeStyle = 'rgba(255,230,190,.9)'; g.lineWidth = 1.5;
-        roundRect(g, LABEL + n.step * cell + 1.5, r * ROWH + 3, n.len * cell - 3, ROWH - 6, 4); g.stroke();
+        roundRect(g, x2, y2, Math.max(2, ww), hh, Math.min(4, ww / 2)); g.stroke();
         g.shadowBlur = 0;
       }
     }
-    // 바깥 옥타브 음 표시 (위 · 아래에 몇 개)
-    const above = d.tracks[S.track].filter((n) => n.midi > lo + ROWS - 1).length, below = d.tracks[S.track].filter((n) => n.midi < lo).length;
-    g.font = '600 10px system-ui'; g.fillStyle = '#B4743A';
-    if (above) g.fillText(`▲ ${above}`, w - 34, 9);
-    if (below) g.fillText(`▼ ${below}`, w - 34, H - 9);
+    // 네모로 고르기
+    if (drag?.kind === 'rect') {
+      const [x0, y0, x1, y1] = normRect(drag.rect);
+      g.fillStyle = 'rgba(255,179,71,.12)'; g.fillRect(x0, y0, x1 - x0, y1 - y0);
+      g.strokeStyle = '#FFB347'; g.lineWidth = 1.2; g.setLineDash([5, 3]); g.strokeRect(x0 + 0.5, y0 + 0.5, x1 - x0 - 1, y1 - y0 - 1); g.setLineDash([]);
+    }
+    g.restore();
+    // 세기 막대 줄
+    g.save(); g.beginPath(); g.rect(LABEL, LANE_T, w - LABEL, LANE_H); g.clip();
+    for (const { n, x, w: bw } of laneBars(geo)) {
+      const y = laneY(n.vel), on = sel.has(n), act = drag && (drag.kind === 'lane' || drag.kind === 'vel') && drag.note === n;
+      g.globalAlpha = insColor(n) ? 0.6 + 0.4 * n.vel / 127 : 1;
+      g.fillStyle = noteFill(n); g.fillRect(x, y, bw, LANE_B - LANE_PAD - y);
+      g.globalAlpha = 1;
+      g.fillStyle = on || act ? '#FFFFFF' : '#FFD9A8'; g.fillRect(x - 0.5, y - 1, bw + 1, 2.5); // 막대 머리 (잡는 곳)
+      if (on) { g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 1; g.strokeRect(x - 0.5, y - 0.5, bw + 1, LANE_B - LANE_PAD - y + 1); }
+    }
+    g.restore();
+    // 세기 조절 중: 값 표시 ("세기 n")
+    if (drag && (drag.kind === 'vel' || drag.kind === 'lane') && drag.note && d.tracks[S.track].includes(drag.note)) {
+      const n = drag.note, r = hi - n.midi;
+      const inRoll = drag.kind === 'vel' && visible(n);
+      const x = Math.min(Math.max(LABEL, tx(geo, Math.max(from, n.step))), w - 76);
+      const y = inRoll ? Math.max(0, RULER + r * ROWH - 28) : LANE_T - 28;
+      if (inRoll || drag.kind === 'lane') {
+        g.fillStyle = 'rgba(10,7,3,.94)'; roundRect(g, x, y, 74, 24, 6); g.fill();
+        g.strokeStyle = AMBER; g.lineWidth = 1; roundRect(g, x, y, 74, 24, 6); g.stroke();
+        g.fillStyle = AMBER; g.fillRect(x + 6, y + 17, 62 * n.vel / 127, 3);
+        g.fillStyle = '#FFB067'; g.font = '800 11px system-ui,sans-serif'; g.textBaseline = 'middle'; g.fillText(`세기 ${n.vel}`, x + 6, y + 9);
+      }
+    }
+    // 고른 음 옮기는 중: 얼마나 옮겼는지
+    if (drag?.kind === 'move' && (drag.appS || drag.appM)) {
+      const s = drag.appS / composeRes, txt = `${s > 0 ? '+' : ''}${+s.toFixed(2)}박 · ${drag.appM > 0 ? '+' : ''}${drag.appM}반음`;
+      g.font = '800 11px system-ui,sans-serif'; const tw = g.measureText(txt).width + 12;
+      g.fillStyle = 'rgba(10,7,3,.94)'; roundRect(g, w - tw - 4, RULER + 4, tw, 22, 6); g.fill();
+      g.strokeStyle = AMBER; g.lineWidth = 1; roundRect(g, w - tw - 4, RULER + 4, tw, 22, 6); g.stroke();
+      g.fillStyle = '#FFB067'; g.textBaseline = 'middle'; g.fillText(txt, w - tw + 2, RULER + 15);
+    }
+    // 바깥 옥타브 · 다른 마디의 음 표시
+    const xs = d.tracks[S.track];
+    const above = xs.filter((n) => n.midi > hi).length, below = xs.filter((n) => n.midi < lo).length;
+    const left = xs.filter((n) => n.midi >= lo && n.midi <= hi && n.end <= from).length, right = xs.filter((n) => n.midi >= lo && n.midi <= hi && n.step >= from + span).length;
+    g.font = '600 10px system-ui'; g.fillStyle = '#B4743A'; g.textBaseline = 'middle';
+    if (above) g.fillText(`▲ ${above}`, w - 34, RULER + 9);
+    if (below) g.fillText(`▼ ${below}`, w - 34, ROLL_B - 9);
+    // 다른 마디에 있는 음 (눈금자 양 끝)
+    const tag = (txt, x) => { const tw = g.measureText(txt).width + 8; g.fillStyle = '#0B0C0F'; g.fillRect(x, 0, tw, RULER); g.fillStyle = '#FFB067'; g.fillText(txt, x + 4, RULER / 2 + 0.5); };
+    if (left) tag(`◀${left}`, 0);
+    if (right) tag(`${right}▶`, w - g.measureText(`${right}▶`).width - 8);
   }
   function roundRect(g, x, y, w, h2, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h2, r); g.arcTo(x + w, y + h2, x, y + h2, r); g.arcTo(x, y + h2, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+  const normRect = (r) => [Math.min(r[0], r[2]), Math.min(r[1], r[3]), Math.max(r[0], r[2]), Math.max(r[1], r[3])];
+  /** 네모에 걸린 (보이는) 음 */
+  function rectNotes(geo, rect) {
+    const [x0, y0, x1, y1] = normRect(rect), lo = low(), hi = lo + ROWS - 1;
+    return d.tracks[S.track].filter((n) => {
+      if (n.midi < lo || n.midi > hi || n.end <= geo.from || n.step >= geo.from + geo.span) return false;
+      const nx0 = tx(geo, n.step), nx1 = tx(geo, n.end), ny0 = RULER + (hi - n.midi) * ROWH, ny1 = ny0 + ROWH;
+      return nx1 > x0 && nx0 < x1 && ny1 > y0 && ny0 < y1;
+    });
+  }
+  /** 캔버스 안 좌표 */
+  function local(e) { const r = roll.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+  /** 손가락 아래: 격자 칸 시작 틱(찍기용) · 정확한 틱(이미 있는 음 찾기용) · 음 높이 */
   function cellAt(e) {
-    const r = roll.getBoundingClientRect(); const { cell } = rollGeom();
-    const x = e.clientX - r.left, y = e.clientY - r.top;
-    if (x < LABEL) return null;
-    const s = Math.floor((x - LABEL) / cell), row = Math.floor(y / ROWH);
-    if (s < 0 || s >= composeSteps || row < 0 || row >= ROWS) return null;
-    return { s, midi: low() + ROWS - 1 - row, x, y };
+    const r = roll.getBoundingClientRect(), geo = rollGeom();
+    const x = e.clientX - r.left, y = e.clientY - r.top - RULER;
+    if (x < LABEL || y < 0) return null;
+    const c = Math.floor((x - LABEL) / geo.cellW), row = Math.floor(y / ROWH);
+    if (c < 0 || c >= geo.cells || row < 0 || row >= ROWS) return null;
+    const s = geo.from + c * geo.grid;
+    const tick = Math.min(geo.from + geo.span - 1, geo.from + Math.floor((x - LABEL) / geo.tickW));
+    if (s >= composeSteps) return null;
+    return { s, tick, midi: low() + ROWS - 1 - row, x, y };
+  }
+  /** 길이 손잡이 (음 오른쪽 끝 · 손가락이 크면 조금 바깥까지) */
+  function gripAt(e) {
+    const c = cellAt(e); if (!c) return null;
+    const geo = rollGeom(), end = geo.from + geo.span;
+    let best = null, bd = 1e9;
+    for (const n of d.tracks[S.track]) {
+      if (n.midi !== c.midi || n.end > end || n.end <= geo.from) continue;
+      const right = tx(geo, n.end) - 1.5, ww = n.len * geo.tickW - 3;
+      const hz = Math.max(5, Math.min(12, ww * 0.45));
+      if (c.x >= right - hz && c.x <= right + 5 && Math.abs(c.x - right) < bd) { best = n; bd = Math.abs(c.x - right); }
+    }
+    return best;
+  }
+  /** 세기 막대 줄에서 손가락 아래 막대 */
+  function laneAt(e) {
+    const [x, y] = local(e);
+    if (y < LANE_T - 2 || y > LANE_B + 2 || x < LABEL) return null;
+    let best = null, bd = 1e9;
+    for (const b of laneBars(rollGeom())) {
+      const dist = x < b.x ? b.x - x : x > b.x + b.w ? x - b.x - b.w : 0;
+      if (dist < bd) { bd = dist; best = b.n; }
+    }
+    return bd <= 10 ? best : null;
+  }
+  const laneVel = (e) => Math.max(1, Math.min(127, Math.round((LANE_B - LANE_PAD - local(e)[1]) / (LANE_H - LANE_PAD * 2) * 127)));
+  /** 길이 손잡이: 가장 가까운 격자선으로 끝을 맞춰요 (마디를 넘어도 돼요 · 화면 끝까지)
+   *  화면 끝에 잠깐 머물면 다음(앞) 화면으로 넘어가서 계속 늘릴(줄일) 수 있어요 */
+  function gripApply() {
+    if (!drag || drag.kind !== 'grip') return;
+    const geo = rollGeom(), n = drag.hnote, x = drag.lastX, g0 = geo.grid, pageEnd = geo.from + geo.span;
+    let endT = geo.from + Math.round(Math.max(0, Math.min(geo.w - LABEL, x - LABEL)) / geo.cellW) * g0;
+    endT = Math.min(endT, pageEnd, composeSteps);
+    if (endT <= n.step) endT = Math.floor(n.step / g0) * g0 + g0;
+    const before = n.len; d.setLen(S.track, n, endT - n.step);
+    if (n.len !== before) { drag.moved = true; lcd(); changed(); }
+    const dir = x >= geo.w - 6 && n.end >= pageEnd && pageEnd < composeSteps ? 1 : x <= LABEL + 4 && n.step < geo.from ? -1 : 0;
+    clearTimeout(drag.edgeT);
+    if (dir) drag.edgeT = setTimeout(() => { if (drag?.kind === 'grip') { turnPage(dir); gripApply(); } }, 450);
+    drawRoll();
   }
   roll.addEventListener('pointerdown', (e) => {
+    try { roll.focus({ preventScroll: true }); } catch { /* */ }
+    if (e.button > 0) return;
+    // 세기 막대 줄: 막대를 위아래로 끌어요
+    const ln = laneAt(e);
+    if (ln) {
+      roll.setPointerCapture(e.pointerId);
+      drag = { kind: 'lane', note: ln, moved: false };
+      const v = laneVel(e); if (v !== ln.vel) { ln.vel = v; drag.moved = true; changed(); }
+      drawRoll(); e.preventDefault(); return;
+    }
     const c = cellAt(e); if (!c) return;
-    const n = d.noteAt(S.track, c.s, c.midi);
+    // 격자보다 잘게 찍힌 음(긴 음의 가운데 포함)도 잡아요
+    const n = d.notesCovering(S.track, c.tick, c.midi);
     roll.setPointerCapture(e.pointerId);
-    drag = { note: n, s0: c.s, midi0: c.midi, x0: e.clientX, y0: e.clientY, v0: n ? n.vel : 0, kind: null, moved: false };
+    drag = { note: n, hnote: gripAt(e), s0: c.s, midi0: c.midi, x0: e.clientX, y0: e.clientY, v0: n ? n.vel : 0, kind: null, moved: false,
+      select: S.mode === 'select', shift: e.shiftKey, rect: null, appS: 0, appM: 0, wantS: 0, wantM: 0, snap: null };
     e.preventDefault();
   });
   roll.addEventListener('pointermove', (e) => {
-    if (!drag) { roll.style.cursor = cellAt(e) ? 'pointer' : 'default'; return; }
+    if (!drag) {
+      roll.style.cursor = laneAt(e) ? 'ns-resize' : gripAt(e) ? 'ew-resize' : !cellAt(e) ? 'default'
+        : S.mode === 'select' ? (S.sel.has(d.notesCovering(S.track, cellAt(e).tick, cellAt(e).midi)) ? 'move' : 'crosshair') : 'pointer';
+      return;
+    }
+    if (drag.kind === 'lane') {
+      const v = laneVel(e);
+      if (v !== drag.note.vel) { drag.note.vel = v; drag.moved = true; drawRoll(); changed(); }
+      return;
+    }
     const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
-    if (!drag.kind && drag.note && Math.hypot(dx, dy) > 6) drag.kind = Math.abs(dx) >= Math.abs(dy) ? 'len' : 'vel';
-    if (drag.kind === 'len') {
-      const { cell } = rollGeom(); const r = roll.getBoundingClientRect();
-      const s = Math.max(0, Math.min(composeSteps - 1, Math.floor((e.clientX - r.left - LABEL) / cell)));
-      const before = drag.note.len; d.setLen(S.track, drag.note, s - drag.note.step + 1);
+    if (!drag.kind && Math.hypot(dx, dy) > 6) {
+      const horiz = Math.abs(dx) >= Math.abs(dy);
+      if (drag.hnote && horiz) drag.kind = 'grip';
+      else if (drag.select) {
+        if (drag.note) {
+          if (!S.sel.has(drag.note)) { if (!drag.shift) S.sel.clear(); S.sel.add(drag.note); toolsUi(); }
+          drag.kind = 'move';
+          // 끌기 시작할 때 트랙을 그대로 기억해요: 지나가기만 한 음은 지우지 않고, 놓은 자리에서만 겹친 음을 지워요
+          drag.snap = { list: [...d.tracks[S.track]], pos: new Map(d.tracks[S.track].map((x) => [x, [x.step, x.midi, x.len]])) };
+        } else { const [x, y] = local({ clientX: drag.x0, clientY: drag.y0 }); drag.kind = 'rect'; drag.rect = [x, y, x, y]; }
+      } else if (drag.note) { drag.kind = horiz ? 'len' : 'vel'; if (drag.kind === 'vel') drawRoll(); }
+    }
+    if (drag.kind === 'grip') {
+      drag.lastX = local(e)[0]; gripApply();
+    } else if (drag.kind === 'len') {
+      // 손가락이 있는 격자 칸의 끝까지 늘려요 (격자 단위로 딱딱 맞게)
+      const geo = rollGeom(), r = roll.getBoundingClientRect();
+      const c = Math.max(0, Math.min(geo.cells - 1, Math.floor((e.clientX - r.left - LABEL) / geo.cellW)));
+      const endTick = geo.from + (c + 1) * geo.grid;
+      const before = drag.note.len; d.setLen(S.track, drag.note, endTick - drag.note.step);
       if (drag.note.len !== before) { drag.moved = true; drawRoll(); lcd(); changed(); }
     } else if (drag.kind === 'vel') {
       const v = Math.max(1, Math.min(127, Math.round(drag.v0 - dy * 1.2)));
       if (v !== drag.note.vel) { drag.note.vel = v; drag.moved = true; drawRoll(); changed(); }
+    } else if (drag.kind === 'move') {
+      // 고른 음 모두: 가로는 격자 한 칸씩, 세로는 반음씩 · 매번 처음 상태로 되돌린 뒤 시작점부터의 전체 이동량으로 옮겨요
+      const geo = rollGeom();
+      const wantS = Math.round(dx / geo.cellW) * geo.grid, wantM = -Math.round(dy / ROWH);
+      if (wantS !== drag.wantS || wantM !== drag.wantM) {
+        drag.wantS = wantS; drag.wantM = wantM;
+        restoreSnap(drag.snap);
+        const [ms, mm] = d.moveNotes(S.track, selNotes(), wantS, wantM);
+        if (ms !== drag.appS || mm !== drag.appM) { drag.appS = ms; drag.appM = mm; drag.moved = true; changed(); lcd(); }
+      }
+      drawRoll();
+    } else if (drag.kind === 'rect') {
+      const [x, y] = local(e), geo = rollGeom();
+      drag.rect[2] = Math.max(LABEL, Math.min(geo.w, x)); drag.rect[3] = Math.max(RULER, Math.min(ROLL_B, y));
+      drawRoll();
     }
   });
+  /** 끌기 시작 때의 트랙으로 되돌리기 (같은 SeqNote 들 · 같은 순서 · 위치 · 길이) */
+  function restoreSnap(snap) {
+    const list = d.tracks[S.track];
+    list.length = 0; list.push(...snap.list);
+    for (const [n, [st, m, l]] of snap.pos) { n.step = st; n.midi = m; n.len = l; }
+  }
   const endDrag = () => {
     if (!drag) return;
-    if (!drag.kind && !drag.moved) { d.toggle(S.track, drag.s0, drag.midi0); changed(); lcd(); playBtn(); }
+    clearTimeout(drag.edgeT);
+    if (drag.kind === 'rect') {
+      if (!drag.shift) S.sel.clear();
+      for (const n of rectNotes(rollGeom(), drag.rect)) S.sel.add(n);
+      toolsUi();
+    } else if (drag.kind === 'move') {
+      toolsUi(); playBtn();
+    } else if (!drag.kind && !drag.moved && drag.select) {
+      // 고르기: 음을 누르면 고르기/빼기 (Shift 는 더하기) · 빈 곳을 누르면 해제
+      if (drag.note) { if (drag.shift) S.sel.add(drag.note); else if (S.sel.has(drag.note)) S.sel.delete(drag.note); else S.sel.add(drag.note); }
+      else if (!drag.shift) S.sel.clear();
+      toolsUi();
+    } else if (!drag.kind && !drag.moved) {
+      // 이미 있는 음을 누르면 지우고(붓을 든 멜로디면 그 악기로 칠하고), 빈 칸이면 격자 한 칸 길이로 찍어요
+      const grid = GRIDS[S.grid];
+      if (drag.note) d.toggle(S.track, drag.note.step, drag.note.midi, { len: grid });
+      else d.toggle(S.track, drag.s0, drag.midi0, { len: grid });
+      changed(); lcd(); playBtn();
+    }
     drag = null; drawRoll();
   };
   roll.addEventListener('pointerup', endDrag);
-  roll.addEventListener('pointercancel', () => { drag = null; drawRoll(); });
+  roll.addEventListener('pointercancel', () => {
+    if (drag) { clearTimeout(drag.edgeT); if (drag.kind === 'move' && drag.snap) { restoreSnap(drag.snap); changed(); lcd(); toolsUi(); } }
+    drag = null; drawRoll();
+  });
   roll.addEventListener('wheel', (e) => {
-    const c = cellAt(e); if (!c) return;
-    const n = d.noteAt(S.track, c.s, c.midi); if (!n) return;
+    const c = cellAt(e);
+    const n = c ? d.notesCovering(S.track, c.tick, c.midi) : laneAt(e); if (!n) return;
     e.preventDefault();
     n.vel = Math.max(1, Math.min(127, n.vel + (e.deltaY < 0 ? 6 : -6)));
     drawRoll(); changed();
   }, { passive: false });
+  // 키보드 (시퀀서에 포커스가 있거나 포인터가 위에 있을 때): Delete · 화살표 · Esc · Ctrl/⌘+C · V
+  let hover = false;
+  root.addEventListener('pointerenter', () => { hover = true; });
+  root.addEventListener('pointerleave', () => { hover = false; });
+  const onKey = (e) => {
+    if (!root.isConnected || (!hover && !root.contains(document.activeElement))) return;
+    const t = e.target;
+    if (t && (t.closest?.('input,textarea,select,[contenteditable=""],[contenteditable="true"],.knob') || t.isContentEditable)) return;
+    if (document.querySelector('.seq-modal') || guideEl) return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && !e.shiftKey && !e.altKey && (e.key === 'c' || e.key === 'C')) {
+      if (String(window.getSelection?.() || '')) return;
+      e.preventDefault(); barCopy(); toast(`${S.bar + 1}마디를 복사했어요`); return;
+    }
+    if (mod && !e.shiftKey && !e.altKey && (e.key === 'v' || e.key === 'V')) { e.preventDefault(); barPaste(false); return; }
+    if (mod || e.altKey || S.track === 'drums') return;
+    const sel = selNotes();
+    if (e.key === 'Escape') { if (sel.length) { e.preventDefault(); clearSel(); toolsUi(); drawRoll(); } return; }
+    if (!sel.length) return;
+    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSel(); return; }
+    const mv = { ArrowLeft: [-GRIDS[S.grid], 0], ArrowRight: [GRIDS[S.grid], 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key];
+    if (mv) { e.preventDefault(); moveSel(mv[0], mv[1]); lcd(); toolsUi(); drawRoll(); }
+  };
+  document.addEventListener('keydown', onKey);
+  /** 보이는 마디 넘기기 (좁은 화면 · 잘게 나눈 격자) */
+  function turnPage(dir) {
+    const geo = rollGeom();
+    const first = geo.from / BAR_TICKS + dir * geo.bars;
+    if (first < 0 || first >= composeBars) return;
+    S.page = first; drawEditor();
+  }
 
   // ---------- 드럼 머신 ----------
   function drawDrums() {
@@ -374,7 +780,7 @@ export function mountSequencer(root, o) {
     st.shown = norm >= st.shown ? norm : Math.max(norm, st.shown - dt * 1.5);
     if (norm >= st.peak) { st.peak = norm; st.peakAt = now; } else if (now - st.peakAt > 900) st.peak = Math.max(st.shown, st.peak - dt * 0.7);
     meters.set(cv, st);
-    const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+    const dpr = window.devicePixelRatio || 1, W = Math.min(cv.clientWidth, cv.parentElement?.clientWidth || cv.clientWidth), H = cv.clientHeight; // 줄 너비를 넘지 않게 (캔버스가 스스로 늘어나는 것 방지)
     if (!W || !H) return st.shown + st.peak;
     if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
     const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
@@ -411,7 +817,7 @@ export function mountSequencer(root, o) {
 
   // ---------- 미리 듣기 ----------
   function getWorker() {
-    if (!worker) worker = new Worker(new URL('./seq-worker.js?v=20261107', import.meta.url), { type: 'module' });
+    if (!worker) worker = new Worker(new URL('./seq-worker.js?v=20261113', import.meta.url), { type: 'module' });
     return worker;
   }
   function render() {
@@ -454,8 +860,8 @@ export function mountSequencer(root, o) {
     </div></div>`);
     const q = (id) => box.querySelector('#' + id);
     const ui = () => {
-      q('pcName').textContent = cur.name;
-      q('pcRoot').innerHTML = composeKeys.map((r) => `<button class="led${cur.root === r ? ' on' : ''}" data-r="${r}">${r}</button>`).join('');
+      q('pcName').textContent = chordLabel(cur, d.key);
+      q('pcRoot').innerHTML = composeKeys.map((r) => `<button class="led${cur.root === r ? ' on' : ''}" data-r="${r}">${spellRoot(r, d.key)}</button>`).join('');
       q('pcQ').innerHTML = chordQualityNames.map((k) => `<button class="led${cur.quality === k ? ' on' : ''}" data-q="${esc(k)}">${esc(k || 'maj')}</button>`).join('');
       const n = (chordQualities[cur.quality] || [0, 0, 0]).length;
       const inv = ['기본', '1전위', '2전위', '3전위'].slice(0, n > 3 ? 4 : 3);
@@ -506,7 +912,7 @@ export function mountSequencer(root, o) {
   const SPOTS = () => [
     ['lcd', '▶ 내가 찍은 걸 바로 들어 보기'], ['meter', '지금 소리 크기 (빨간 칸 = 가장 큰 소리)'], ['key', '곡의 기본 음 (조)'],
     ['bars', '마디 4칸 · 고른 마디에 코드가 들어가요'], ['pads', '코드 패드 · 누르면 그 마디 코드로'], ['arp', '코드를 한 음씩 굴려서 연주'],
-    ['tracks', '악기 고르기'], ['roll', S.track === 'drums' ? '드럼 비트 찍기' : '칸을 눌러 음 찍기'],
+    ['tracks', '악기 고르기'], ['brush', '음표마다 다른 악기'], ['roll', S.track === 'drums' ? '드럼 비트 찍기' : '칸을 눌러 음 찍기'],
     ['k_swing', '리듬 출렁임'], ['k_cutoff', '소리 먹먹하게 ↔ 또렷하게'], ['k_reverb', '소리 공간감'], ['k_delay', '메아리'],
     ['mixer', '악기별 크기 · 좌우 · 끄기'], ['midi', 'DAW로 가져갈 MIDI 파일'],
   ];
@@ -560,8 +966,23 @@ export function mountSequencer(root, o) {
     const act = b.dataset.act;
     if (act === 'play') return play();
     if (act === 'guide') return guide();
-    if (act === 'example') { d.loadExample(); changed(); return all(); }
-    if (act === 'clear') { d.clearTrack(S.track); changed(); return all(); }
+    if (act === 'example') { d.loadExample(); clearSel(); changed(); return all(); }
+    if (act === 'autoAll') return auto(true);
+    if (act === 'autoTrack') return auto(false);
+    if (act === 'lockTrack') { A.locked.has(S.track) ? A.locked.delete(S.track) : A.locked.add(S.track); return autoUi(); }
+    if (act === 'lockChords') { A.locked.has('chords') ? A.locked.delete('chords') : A.locked.add('chords'); return autoUi(); }
+    if (act === 'autoUndo') { const b = ComposeDraft.fromJson(A.undo); if (b) restoreFrom(d, b); clearSel(); A.undo = null; A.msg = '되돌렸어요'; changed(); return all(); }
+    if (act === 'clear') { d.clearTrack(S.track); clearSel(); changed(); return all(); }
+    if (act === 'barCopy') return barCopy();
+    if (act === 'barPaste') return barPaste(false);
+    if (act === 'barPasteTrack') return barPaste(true);
+    if (act === 'selNone') { clearSel(); toolsUi(); return drawRoll(); }
+    if (act === 'selDel') return deleteSel();
+    if (act === 'nudgeL' || act === 'nudgeR' || act === 'nudgeU' || act === 'nudgeD') {
+      const g0 = GRIDS[S.grid], mv = { nudgeL: [-g0, 0], nudgeR: [g0, 0], nudgeU: [0, 1], nudgeD: [0, -1] }[act];
+      moveSel(mv[0], mv[1]); lcd(); toolsUi(); return drawRoll();
+    }
+    if (b.dataset.mode !== undefined) { S.mode = b.dataset.mode === 'select' ? 'select' : 'draw'; if (S.mode === 'draw') clearSel(); tracksUi(); return drawRoll(); }
     if (act === 'close') { stop(); return o.onClose?.(); }
     if (act === 'palette') return palette();
     if (act === 'midi') return midi();
@@ -570,11 +991,15 @@ export function mountSequencer(root, o) {
     if (act === 'octUp' && S.oct[S.track] < 6) { S.oct[S.track]++; return tracksUi(), drawRoll(); }
     if (b.dataset.key !== undefined) { d.setKey(composeKeys[+b.dataset.key]); changed(); return all(); }
     if (b.dataset.key6 !== undefined) { d.setKey(composeKeys[+b.dataset.key6 + 6]); changed(); return all(); }
-    if (b.dataset.bar !== undefined) { S.bar = +b.dataset.bar; bars(); pads(); return; }
-    if (b.dataset.pad !== undefined) { d.placeChord(S.bar, chordBank(d.key)[+b.dataset.pad]); S.bar = (S.bar + 1) % composeBars; changed(); lcd(); bars(); pads(); drawEditor(); playBtn(); return; }
+    if (b.dataset.bar !== undefined) { S.bar = +b.dataset.bar; S.page = S.bar; C.msg = ''; bars(); pads(); clipUi(); if (S.track !== 'drums') drawEditor(); return; }
+    if (act === 'pagePrev') return turnPage(-1);
+    if (act === 'pageNext') return turnPage(1);
+    if (b.dataset.grid !== undefined) { S.grid = +b.dataset.grid; tracksUi(); return drawEditor(); }
+    if (b.dataset.pad !== undefined) { d.placeChord(S.bar, chordBank(d.key)[+b.dataset.pad]); S.bar = (S.bar + 1) % composeBars; C.msg = ''; changed(); lcd(); bars(); pads(); clipUi(); drawEditor(); playBtn(); return; }
     if (b.dataset.arp !== undefined) { d.arpMode = ['up', 'down', 'random'][+b.dataset.arp]; changed(); return arp(); }
-    if (b.dataset.track !== undefined) { S.track = seqTracks[+b.dataset.track]; tracksUi(); lcd(); return drawEditor(); }
+    if (b.dataset.track !== undefined) { S.track = seqTracks[+b.dataset.track]; clearSel(); tracksUi(); lcd(); return drawEditor(); }
     if (b.dataset.voice !== undefined) { d.leadVoice = Object.keys(leadVoices)[+b.dataset.voice]; changed(); return tracksUi(); }
+    if (b.dataset.brush !== undefined) { d.brush = b.dataset.brush || null; return tracksUi(); }
   });
   $('sqArp').addEventListener('change', (e) => { d.arp = e.target.checked; changed(); arp(); });
   const ro = new ResizeObserver(() => drawEditor()); ro.observe(root);
@@ -587,6 +1012,6 @@ export function mountSequencer(root, o) {
   return {
     refresh: all,
     stop,
-    destroy() { stop(); ro.disconnect(); cancelAnimationFrame(raf); worker?.terminate(); if (audioUrl) URL.revokeObjectURL(audioUrl); guideEl?.remove(); },
+    destroy() { stop(); ro.disconnect(); document.removeEventListener('keydown', onKey); cancelAnimationFrame(raf); worker?.terminate(); if (audioUrl) URL.revokeObjectURL(audioUrl); guideEl?.remove(); },
   };
 }

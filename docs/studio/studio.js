@@ -5,13 +5,12 @@
 import {
   STATIONS, ST, GENRES, GENRE, LEADS, FLOWS, WEATHERS, TIMES, DURATIONS, KNOBS, VOICE_CATS, VOICES, QUICK_VOICES, QUIET_VOICES, LOUD_GENRES,
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
-  lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel,
-} from './studio-data.js?v=20261107';
-import { ComposeDraft } from './seq-core.js?v=20261107';
-import { mountSequencer } from './seq-ui.js?v=20261107';
-import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261107';
+  lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS } from './studio-data.js?v=20261109';
+import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
+import { mountSequencer } from './seq-ui.js?v=20261113';
+import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261109';
 
-const V = '20261107';
+const V = '20261113';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -20,7 +19,7 @@ const chips = (list, sel, attr, extra = '') => list.map(([id, label]) => `<butto
 let B, sb, root, user = null, q = null;
 const S = {
   view: 'make', vocal: false, recipe: newRecipe(), title: '', story: '', photo: null, ly: { v: '', c: '', b: '' }, bridgeOn: false, aiDraft: null,
-  aiLang: 'ko', consent: false, tone: 'f_clear', voiceCat: 'f', adlib: [], narr: { pos: 'none', tone: 'deep', voice: 'auto', text: '' },
+  aiLang: 'ko', aiForm: 'basic', parent: null, recipePublic: false, consent: false, tone: 'f_clear', voiceCat: 'f', adlib: [], tune: {}, narr: { pos: 'none', tone: 'deep', voice: 'auto', text: '' },
   pro: false, moreGenres: false, composeOn: false, draft: null, busy: false, aiBusy: false, err: '',
   batch: null, status: null, sel: null, range: [0, 150], donate: false, done: null, polls: 0, timer: 0, startedAt: 0, checking: false,
 };
@@ -77,15 +76,56 @@ export async function mount(el, bridge) {
 }
 export function show() { if (user && S.batch && !S.timer) check(); }
 
+/** 차트의 ⚡ 변주 (2026-11-05 · 068 SQL track_recipe): 레시피를 공개한 곡의 세팅만 빌려 와요
+ *  가사 · 프롬프트 원문은 안 와요 · 올리면 '원곡: ○○' 으로 이어지고 원작자 몫이 정산돼요 */
+export async function fork(id) {
+  if (!sb) return;
+  const { data, error } = await sb.rpc('track_recipe', { p_track: id });
+  const t = Array.isArray(data) ? data[0] : null;
+  if (error || !t) return B.toast('이 곡은 레시피가 공개되지 않았어요');
+  stopPoll(); stopTake();
+  const station = ST[t.station] ? t.station : '#WOOD_CAFE';
+  const rc = t.recipe && typeof t.recipe === 'object' ? t.recipe : {};
+  S.recipe = { ...newRecipe(station), ...rc, station };
+  if (!t.recipe) S.recipe.genre = 'auto';
+  S.vocal = t.instrumental === false;
+  if (t.voice && VOICES.some((v) => v[0] === t.voice)) { S.tone = t.voice; S.voiceCat = VOICES.find((v) => v[0] === t.voice)[1]; }
+  S.adlib = String(t.adlib || '').split(',').filter(Boolean);
+  S.ly = { v: '', c: '', b: '' }; S.bridgeOn = false; S.aiDraft = null; S.consent = false; S.tune = {}; // 가사는 내 걸로
+  S.draft = t.compose ? draftOf(t.compose) : null; S.composeOn = !!S.draft; if (S.draft) S.pro = true;
+  S.parent = { id, title: t.title || '' };
+  S.title = `${t.title || ''} (내 버전)`.slice(0, 60);
+  Object.assign(S, { view: 'make', batch: null, status: null, sel: null, done: null, err: '' });
+  if (user) { layout(); loadQuota(); renderMake(); }
+  B.toast(`'${t.title}' 세팅을 불러왔어요 · 가사는 직접 써 주세요`);
+}
+/** 서버에 저장된 멜로디(검사 뒤 모양) → 시퀀서 초안 */
+function draftOf(c) {
+  try {
+    const pro = c.pro && typeof c.pro === 'object' ? c.pro : null;
+    // 앱 · 웹이 v3(틱 · res)로 보냈으면 서버가 pro.fine(틱) + pro.res 를 같이 저장해요 → 그대로 v3 로 읽어요 (fromJson 이 res 를 지금 틱으로 바꿔요)
+    //   fine 이 없으면 pro.tracks(박) = 예전 v2
+    const fine = pro && pro.fine && typeof pro.fine === 'object' && !Array.isArray(pro.fine);
+    const res = fine && Number.isInteger(pro.res) && pro.res >= 1 && pro.res <= composeRes && composeRes % pro.res === 0 ? pro.res : 0;
+    const j = { key: c.key, chords: c.chords, notes: c.notes, drums: c.drums, parts: c.parts,
+      ...(pro ? { pro: { ...(res ? { v: 3, res, tracks: pro.fine } : { v: 2, tracks: pro.tracks }), drum: pro.drum, lead: pro.lead, mix: pro.mix, fx: { swing: pro.swing ?? 0 } } } : {}) };
+    const d = ComposeDraft.fromJson(j);
+    if (d && pro && Array.isArray(c.chords) && c.chords.length === composeBars) d.slots = c.chords.map((x) => ChordSlot.parse(String(x)));
+    return d;
+  } catch { return null; }
+}
+
 async function boot() {
   if (!user) return gate();
   if (!ls.get('yarr_web_age_ok', false)) ls.set('yarr_web_age_ok', true); // 로그인 화면에서 동의를 받았어요
-  S.recipe.station = ls.get('yarr_web_studio_station', '#WOOD_CAFE');
-  if (!ST[S.recipe.station]) S.recipe.station = '#WOOD_CAFE';
-  S.title = defaultTitle(S.recipe.station);
+  if (!S.parent) { // 변주로 들어왔으면 빌려 온 세팅 그대로
+    S.recipe.station = ls.get('yarr_web_studio_station', '#WOOD_CAFE');
+    if (!ST[S.recipe.station]) S.recipe.station = '#WOOD_CAFE';
+    S.title = defaultTitle(S.recipe.station);
+  }
   layout();
   await loadQuota();
-  S.batch = ls.get('studio_batch', null);
+  S.batch = S.parent ? null : ls.get('studio_batch', null);
   if (S.batch) check(); else renderMake();
 }
 
@@ -184,7 +224,7 @@ function renderMake() {
   seq?.destroy(); seq = null;
   const r = S.recipe, vocal = S.vocal, st = ST[r.station];
   const stOrder = [st, ...STATIONS.filter((x) => x.code !== r.station)];
-  body().innerHTML = `<div class="st-grid">
+  body().innerHTML = `${S.parent ? `<div class="st-fork">🔗 <b>'${esc(S.parent.title)}'</b> 세팅을 빌려왔어요 · 가사는 직접 써요 · 올리면 <b>원곡: ${esc(S.parent.title)}</b> 표시가 붙어요<button class="seq-key" id="mUnfork">✕ 해제</button></div>` : ''}<div class="st-grid">
     <div>
       <div class="st-card">
         <div class="st-tabs" style="margin-bottom:6px"><button data-vocal="0" class="${vocal ? '' : 'on'}">🎹 연주곡 · 매장 · 차트</button><button data-vocal="1" class="${vocal ? 'on' : ''}">🎤 보컬곡 · 내 가사로</button></div>
@@ -221,6 +261,7 @@ function vocalSimple() {
     <div class="st-cnt"><span id="mStoryN">${S.story.length}</span>/80</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span class="chip-b" style="cursor:default">가사 언어</span>${chips([['ko', '한국어'], ['en', 'English'], ['ja', '日本語']], S.aiLang, 'data-lang')}
+      <span class="chip-b" style="cursor:default">곡 구조</span>${chips([['short', '짧게 · 절 2줄'], ['basic', '기본 · 절 4줄'], ['long', '길게 · 1절 + 2절']], S.aiForm, 'data-lform')}
       <label class="btn sub" style="padding:8px 12px;font-size:12.5px;margin-left:auto">📷 사진 첨부<input type="file" accept="image/*" id="mPhoto" hidden></label>
     </div>
     ${S.photo ? `<div style="display:flex;gap:10px;align-items:center;margin-top:10px"><img src="${S.photo.url}" style="width:56px;height:56px;object-fit:cover;border-radius:10px"><span class="st-note" style="margin:0;flex:1">이 사진의 분위기로 가사를 써요 · 사진은 저장하지 않아요</span><button class="seq-x" id="mPhotoX" title="사진 빼기">✕</button></div>` : ''}
@@ -243,6 +284,9 @@ function proPanel() {
     ${vocal ? `<div class="st-q">보컬 톤</div><div class="chips">${chips(VOICE_CATS, S.voiceCat, 'data-vcat')}</div>
       <div class="chips" style="margin-top:8px">${VOICES.filter((v) => v.cat === S.voiceCat).map((v) => `<button class="chip-b${v.id === S.tone ? ' on' : ''}" data-tone="${v.id}">${esc(v.label)}</button>`).join('')}</div>
       <p class="st-note">${esc(VOICES.find((v) => v.id === S.tone)?.desc || '예전에 쓰던 목소리예요. 이 곡은 그대로 이어서 만들 수 있어요.')} · 같은 버튼이어도 곡마다 조금씩 다르게 불러요.</p>
+      <div class="st-q">목소리 다듬기 <span class="r">가운데는 자동 · 고른 칸만 반영돼요</span></div>
+      ${VOICE_TUNE_ROWS.map(([k, label, lo, hi]) => `<div class="tune-row"><span class="tune-l">${label}</span><div class="chips">${[[-1, lo], [0, '자동'], [1, hi]].map(([v, t]) => `<button class="chip-b${(S.tune[k] || 0) === v ? ' on' : ''}" data-tune="${k}:${v}">${esc(t)}</button>`).join('')}</div></div>`).join('')}
+      ${S.tune.texture === -1 && ['f_jazz', 'm_rock', 'm_ballad'].includes(S.tone) ? '<p class="st-warn" style="margin-top:6px">허스키한 목소리에 \'맑게\'를 고르면 서로 부딪혀요. 원하는 쪽 하나만 고르면 더 또렷하게 나와요.</p>' : ''}
       ${['duet', 'indie_duo'].includes(S.tone) ? '<p class="st-note">절은 남자, 후렴 앞부분은 여자가 부르고 끝은 둘이 함께 부르도록 야르가 파트를 나눠요.</p>' : S.tone === 'choir' ? '<p class="st-note">첫 소절부터 여럿이 함께 부르는 합창으로 만들어요.</p>' : ['group_girl', 'group_boy'].includes(S.tone) ? '<p class="st-note">절은 멤버들이 주고받고, 후렴은 다 함께 부르도록 야르가 파트를 나눠요.</p>' : ''}`
     : `<div class="st-q">주인공 악기</div><div class="chips">${chips(LEADS, r.lead, 'data-lead')}</div>`}
     <div class="st-q">곡 흐름</div><div class="chips">${chips(FLOWS, r.flow, 'data-flow')}</div>
@@ -324,6 +368,8 @@ function bindMake() {
     if (d.time) { r.time = d.time; return renderMake(); }
     if (d.dur) { r.duration = +d.dur; return renderMake(); }
     if (d.lang) { S.aiLang = d.lang; return renderMake(); }
+    if (d.lform) { S.aiForm = d.lform; return renderMake(); }
+    if (d.tune) { const [k, v] = d.tune.split(':'); if (+v) S.tune[k] = +v; else delete S.tune[k]; return renderMake(); }
     if (d.adlib) { S.adlib = S.adlib.includes(d.adlib) ? S.adlib.filter((x) => x !== d.adlib) : [...S.adlib, d.adlib]; t.classList.toggle('on'); return; }
     if (d.npos) { S.narr.pos = d.npos; return renderMake(); }
     if (d.ntone) { S.narr.tone = d.ntone; return renderMake(); }
@@ -333,6 +379,7 @@ function bindMake() {
     if (t.id === 'mBridge') { S.bridgeOn = !S.bridgeOn; return renderMake(); }
     if (t.id === 'mPhotoX') { S.photo = null; return renderMake(); }
     if (t.id === 'mAi') return aiWrite(false);
+    if (t.id === 'mUnfork') { S.parent = null; return renderMake(); }
     if (t.id === 'mAiBridge') return aiBridge();
     if (t.id === 'mGo') return go();
   };
@@ -366,6 +413,8 @@ function mountSeq() {
   const host = root.querySelector('#mSeq'); if (!host) return;
   seq = mountSequencer(host, {
     draft: S.draft, bpm: () => Math.min(180, Math.max(60, bpmOf(S.recipe))), vocal: () => S.vocal, toast: B.toast,
+    // 🎲 자동 찍기 장르: 고른 장르 · '자동'이면 스테이션 장르 (서버 가사 말투와 같은 규칙)
+    genre: () => (S.recipe.genre && S.recipe.genre !== 'auto' ? S.recipe.genre : (GENRES.find((g) => g[0] !== 'auto' && g[1] === ST[S.recipe.station]?.ko)?.[0] || 'pop')),
     beforePlay: () => { B.pauseMain(); stopTake(); },
     onChange: () => { const l = root.querySelector('.lcd-1'); if (l) l.textContent = l.textContent.replace(/ · MY MELODY .*$/, '') + ' · MY MELODY ' + S.draft.chords.join('-'); },
     onClose: () => { S.composeOn = false; renderMake(); },
@@ -389,7 +438,7 @@ async function aiWrite(quiet) {
   S.aiBusy = true; err(''); goBtn();
   const ai = root.querySelector('#mAi'); if (ai) ai.innerHTML = '<span class="spin"></span>';
   try {
-    const j = await call('lyrics', { topic, station: S.recipe.station, genre: S.recipe.genre, bridge: S.bridgeOn, lang: S.aiLang, recipe: S.recipe, vocal: S.tone, ...(S.photo ? { image: { media: S.photo.media, data: S.photo.data } } : {}) }, 60000);
+    const j = await call('lyrics', { topic, station: S.recipe.station, genre: S.recipe.genre, bridge: S.bridgeOn, lang: S.aiLang, form: S.aiForm, recipe: S.recipe, vocal: S.tone, ...(S.photo ? { image: { media: S.photo.media, data: S.photo.data } } : {}) }, 60000);
     S.ly = { v: (j.verse || []).join('\n'), c: (j.chorus || []).join('\n'), b: S.bridgeOn ? (j.bridge || []).join('\n') : S.ly.b };
     S.aiDraft = normLyrics(S.ly.v, S.ly.c, S.bridgeOn ? S.ly.b : '');
     if (j.title && (!S.title.trim() || S.title === defaultTitle(S.recipe.station))) S.title = String(j.title).slice(0, 60);
@@ -418,8 +467,8 @@ async function go() {
   if (!confirm(`이 레시피로 만들까요?\n\n${text} ${q?.useLine || ''}`)) return;
   S.busy = true; err(''); goBtn();
   try {
-    const bodyJ = { recipe: S.recipe, title: S.title.trim(), ...(S.composeOn && S.draft ? { compose: S.draft.toJson() } : {}) };
-    if (S.vocal) Object.assign(bodyJ, { mode: 'vocal', lyrics: { verse: S.ly.v, chorus: S.ly.c, ...(S.bridgeOn && S.ly.b.trim() ? { bridge: S.ly.b } : {}) }, vocal: S.tone, adlib: S.adlib, consent: S.consent, ...(S.narr.pos !== 'none' ? { narration: S.narr } : {}) });
+    const bodyJ = { recipe: S.recipe, title: S.title.trim(), ...(S.composeOn && S.draft ? { compose: S.draft.toJson() } : {}), ...(S.parent ? { parent: S.parent.id } : {}) };
+    if (S.vocal) Object.assign(bodyJ, { mode: 'vocal', lyrics: { verse: S.ly.v, chorus: S.ly.c, ...(S.bridgeOn && S.ly.b.trim() ? { bridge: S.ly.b } : {}) }, vocal: S.tone, adlib: S.adlib, ...(Object.keys(S.tune).length ? { voiceTune: S.tune } : {}), consent: S.consent, ...(S.narr.pos !== 'none' ? { narration: S.narr } : {}) });
     const j = await call('make', bodyJ);
     S.batch = j.batch; ls.set('studio_batch', j.batch);
     if (q) { q.left -= 1; if (q.freeLeft <= 0 && q.bonusLeft > 0) q.bonusLeft -= 1; q.freeLeft = Math.max(0, q.freeLeft - 1); }
@@ -476,7 +525,8 @@ function renderResult() {
       <div class="lcd"><div class="lcd-1">MAKING…  ${st.bpm || bpmOf(S.recipe)} BPM</div><div class="lcd-2">${esc(st.prompt || '')}</div></div>
       <h3 style="margin-top:18px"><span class="spin"></span> AI가 곡을 만들고 있어요 (약 ${Math.round(p * 100)}%)</h3>
       <div class="take" style="display:block;margin-top:10px;padding:10px"><div class="sq-bar" style="margin:0"><i style="width:${Math.round(p * 100)}%"></i></div></div>
-      <p class="st-note">${stage}</p>
+      ${st.ahead > 0 ? `<div class="lcd" style="margin-top:10px"><div class="lcd-1">앞에 ${Number(st.ahead) | 0}곡 대기 중</div><div class="lcd-2">차례가 오면 바로 시작해요</div></div>` : ''}
+      <p class="st-note">${st.ahead > 0 ? '순서를 기다리는 중…' : stage}</p>
       <p class="st-note">보통 2~5분, 붐비는 시간에는 20분까지 걸려요. 화면을 닫아도 계속 만들어지고, 다시 열면 이어서 볼 수 있어요.${sec > 60 ? ` · ${Math.floor(sec / 60)}분째 기다리는 중` : ''}</p>
       <button class="btn sub" data-r="chart" style="margin-top:8px">기다리는 동안 인기 차트 듣기</button>
     </div>${vocal && lyr ? `<div class="st-card"><h3>이 곡의 가사</h3><div class="lyr">${esc(lyr)}</div></div>` : ''}</div>`;
@@ -495,7 +545,7 @@ function renderResult() {
   const nonFailed = takes.filter((t) => t.status !== 'FAILED').length;
   const canMore = !waiting() && ready.length && nonFailed < (q?.maxTakes ?? 2);
   const base = takes[0];
-  const label = (t) => t.status === 'READY' ? (t.edited ? `테이크 ${t.take} · 고친 버전` : t.take === 1 ? '테이크 1 (리듬 편곡 · 그루브 중심)' : `테이크 ${t.take} (선율 편곡 · 멜로디 중심)`) : t.status === 'FAILED' ? `테이크 ${t.take} · 만들지 못했어요` : `테이크 ${t.take} · 만드는 중…`;
+  const label = (t) => t.status === 'READY' && t.repaint ? `테이크 ${t.take} · ${fmt(t.repaint.start)}~${fmt(t.repaint.end)} 구간을 다시 만든 버전` : t.status === 'READY' ? (t.edited ? `테이크 ${t.take} · 고친 버전` : t.take === 1 ? '테이크 1 (리듬 편곡 · 그루브 중심)' : `테이크 ${t.take} (선율 편곡 · 멜로디 중심)`) : t.status === 'FAILED' ? `테이크 ${t.take} · 만들지 못했어요` : `테이크 ${t.take} · 만드는 중…`;
   const keep = S.range[1] - S.range[0];
   const other = ready.some((t) => t.id !== S.sel);
   body().innerHTML = `<div class="st-grid">
@@ -506,7 +556,12 @@ function renderResult() {
         <button class="tp" data-play="${t.id}" ${t.status === 'READY' && t.url ? '' : 'disabled'}>${playingTake === t.id ? '■' : '▶'}</button>
         <div><b>${esc(label(t))}</b><small>${t.status === 'READY' ? (t.voice ? esc(voiceLabel(t.voice)) + ' · ' : '') + `${t.duration || st.duration}초` : t.status === 'FAILED' ? esc(t.error || '') : '조금만 기다려 주세요'}</small><div class="sq-bar"><i id="tb_${t.id}"></i></div></div>
         ${t.status === 'READY' ? `<button class="btn ${t.id === S.sel ? '' : 'sub'}" data-sel="${t.id}" style="padding:9px 14px;font-size:13px">${t.id === S.sel ? '이걸로 결정' : '이 버전 선택'}</button>` : ''}
-      </div>`).join('')}</div>
+      </div>${t.status === 'READY' && (canMore || vocal) ? `<div class="take-tools">${t.repaint && takes.some((x) => x.id === t.repaint.from && x.url) ? `<button class="seq-key${ab?.id === t.id ? ' on' : ''}" data-ab="${t.id}">${ab?.id === t.id ? '■ 비교 멈추기' : '🎧 바뀐 구간 비교 듣기'}</button>` : ''}${canMore ? `<button class="seq-key" data-rp="${t.id}">✂ 구간 다시 만들기</button>` : ''}${vocal ? (S.stemLinks?.[t.id] ? `<a class="seq-key" href="${esc(S.stemLinks[t.id].vocals)}" target="_blank" rel="noopener">🎤 보컬 받기</a><a class="seq-key" href="${esc(S.stemLinks[t.id].backing)}" target="_blank" rel="noopener">🎹 반주 받기</a>` : `<button class="seq-key" data-stems="${t.id}" ${S.stemsBusy?.[t.id] ? 'disabled' : ''}>${S.stemsBusy?.[t.id] ? '나누는 중… (1~3분)' : t.stems === 'READY' ? '🎤🎹 나눈 파일 받기' : t.stems === 'FAILED' ? '🎚 다시 나누기 (지난번 실패)' : t.stems === 'RUNNING' ? '🎚 나누는 중 · 눌러서 확인' : '🎚 보컬 · 반주 따로'}</button>`) : ''}</div>` : ''}${
+        ab?.id === t.id ? `<div class="ab-box"><span>지금 듣는 것 <b>${ab.phase === 0 ? '① 원래 버전' : '② 다시 만든 버전'}</b> · ${fmt(ab.a)}~${fmt(ab.b)} (바뀐 곳 ${fmt(t.repaint.start)}~${fmt(t.repaint.end)})</span><button class="seq-key" data-abswap="1">↔ 바꿔 듣기</button></div>` : ''}${
+        S.rp === t.id ? `<div class="rp-box"><div class="st-note" style="margin:0 0 6px">고른 구간만 새로 만들고 앞뒤는 그대로 둬요 · 테이크 1개를 써요 · 3~90초</div>
+          <div class="st-range"><span class="st-note" style="margin:0;width:44px">시작</span><input type="range" min="0" max="${Math.floor(t.duration || st.duration)}" step="1" value="${S.rpRange[0]}" data-rpr="0"><span class="lcdv">${fmt(S.rpRange[0])}</span></div>
+          <div class="st-range"><span class="st-note" style="margin:0;width:44px">끝</span><input type="range" min="0" max="${Math.floor(t.duration || st.duration)}" step="1" value="${S.rpRange[1]}" data-rpr="1"><span class="lcdv">${fmt(S.rpRange[1])}</span></div>
+          <button class="btn" data-r="rpgo" style="margin-top:6px" ${S.busy ? 'disabled' : ''}>이 구간 다시 만들기 (${Math.round(S.rpRange[1] - S.rpRange[0])}초)</button></div>` : ''}`).join('')}</div>
       ${canMore ? `<button class="btn st-go" data-r="edit" style="margin-top:14px">✏️ 고쳐서 다시 만들기 · 말로 해도 돼요</button>
         <button class="btn sub" data-r="more" style="width:100%;justify-content:center;margin-top:8px">선율 편곡 버전도 만들어 보기 · 같은 레시피 · 추가 횟수 없음</button>
         <p class="st-note">둘 중 하나만 만들 수 있어요 (이 곡의 두 번째 버전)</p>` : ''}
@@ -521,6 +576,7 @@ function renderResult() {
       ${fitCard(keep)}
       <div class="st-q">곡 제목</div><input class="st-in" id="rTitle" maxlength="60" value="${esc(S.title || st.title || '')}">
       ${other && !vocal ? `<label class="st-check"><input type="checkbox" id="rDonate" ${S.donate ? 'checked' : ''}><span><b>고르지 않은 버전은 야르 스테이션 곡으로 기부할게요</b><br><span class="st-note" style="margin:0">YARR Originals 이름으로 스테이션 · 매장에 나가고, 내 곡 · 정산에는 포함되지 않아요. 체크하지 않으면 지워져요.</span></span></label>` : ''}
+      <label class="st-check"><input type="checkbox" id="rPublic" ${S.recipePublic ? 'checked' : ''}><span><b>⚡ 레시피 공개</b><br><span class="st-note" style="margin:0">다른 사람이 이 곡의 세팅(장르 · 노브 · 목소리 · 멜로디)으로 변주할 수 있어요. 가사 · 곡 설명 원문은 공개되지 않고, 변주곡이 올라오면 원곡으로 표시되며 수익의 30%가 나에게 와요.</span></span></label>
       <button class="btn st-go" data-r="pick" ${S.busy || keep < 60 ? 'disabled' : ''}>이 테이크로 올리기</button>
     </div>
   </div>`;
@@ -530,6 +586,11 @@ function renderResult() {
     if (b.dataset.play) return playTake(takes.find((t) => t.id === b.dataset.play));
     if (b.dataset.sel) { if (S.sel !== b.dataset.sel) { S.sel = b.dataset.sel; const t = takes.find((x) => x.id === S.sel); S.range = [0, t?.duration || st.duration || S.recipe.duration]; } return renderResult(); }
     const r = b.dataset.r;
+    if (b.dataset.rp) { S.rp = S.rp === b.dataset.rp ? null : b.dataset.rp; const t = takes.find((x) => x.id === S.rp); const d = t?.duration || st.duration || 120; S.rpRange = [Math.min(30, d - 10), Math.min(50, d)]; return renderResult(); }
+    if (b.dataset.stems) return stems(b.dataset.stems);
+    if (b.dataset.ab) return abPlay(takes.find((t) => t.id === b.dataset.ab), takes);
+    if (b.dataset.abswap && ab) { ab.swapped = true; return ab.go(1 - ab.phase, takeAudio?.currentTime ?? ab.a); }
+    if (r === 'rpgo') return repaint();
     if (r === 'more') return more(null);
     if (r === 'edit') return editSheet();
     if (r === 'leave') { ls.set('studio_batch', null); return restart(); }
@@ -545,10 +606,12 @@ function renderResult() {
       kp.textContent = `${fmt(S.range[0])} ~ ${fmt(S.range[1])} · ${Math.round(k)}초 남겨요`; kp.classList.toggle('st-err', k < 60);
       root.querySelector('[data-r="pick"]').disabled = S.busy || k < 60;
     }
+    if (t.dataset.rpr !== undefined) { S.rpRange[+t.dataset.rpr] = +t.value; t.nextElementSibling.textContent = fmt(+t.value); const k = S.rpRange[1] - S.rpRange[0], go = root.querySelector('[data-r="rpgo"]'); if (go) { go.textContent = `이 구간 다시 만들기 (${Math.round(k)}초)`; go.disabled = S.busy || k < 3 || k > 90; } }
     if (t.id === 'rTitle') S.title = t.value;
     if (t.id === 'rDonate') S.donate = t.checked;
+    if (t.id === 'rPublic') S.recipePublic = t.checked;
   };
-  el.onchange = (e) => { if (e.target.id === 'rDonate') S.donate = e.target.checked; };
+  el.onchange = (e) => { if (e.target.id === 'rDonate') S.donate = e.target.checked; if (e.target.id === 'rPublic') S.recipePublic = e.target.checked; };
 }
 function playTake(t) {
   if (!t?.url) return;
@@ -561,14 +624,72 @@ function playTake(t) {
   takeAudio.onerror = () => { stopTake(); B.toast('재생 주소가 만료됐어요. 잠시 뒤 다시 눌러 주세요.'); check(); };
   takeAudio.play().catch(() => {}); renderResult();
 }
-function stopTake() { if (takeAudio) { takeAudio.pause(); takeAudio = null; } playingTake = null; }
+function stopTake() { if (takeAudio) { takeAudio.pause(); takeAudio = null; } playingTake = null; ab = null; }
+
+/** 구간 다시 만들기 비교 듣기 (2026-11-05): 바뀐 구간 앞 4초 ~ 뒤 2초를 ① 원래 → ② 다시 만든 순서로 이어 틀어요
+ *  ↔ 바꿔 듣기: 같은 시점에서 다른 버전으로 바로 바꿔요 (차이를 귀로 바로 비교) */
+let ab = null;
+function abPlay(t, takes) {
+  if (!t?.repaint) return;
+  if (ab?.id === t.id) { stopTake(); return renderResult(); }
+  const src = takes.find((x) => x.id === t.repaint.from);
+  if (!src?.url || !t.url) return B.toast('원래 테이크를 찾지 못했어요');
+  stopTake(); B.pauseMain(); seq?.stop();
+  const cur = { id: t.id, phase: 0, swapped: false, a: Math.max(0, t.repaint.start - 4), b: t.repaint.end + 2, urls: [src.url, t.url] };
+  cur.go = (phase, at) => {
+    if (ab !== cur) return;
+    if (takeAudio) takeAudio.pause();
+    const a = new Audio(cur.urls[phase]); takeAudio = a; cur.phase = phase;
+    a.addEventListener('loadedmetadata', () => { if (takeAudio !== a) return; a.currentTime = Math.min(at, cur.b - 0.5); a.play().catch(() => {}); }, { once: true });
+    a.ontimeupdate = () => {
+      if (takeAudio !== a || ab !== cur || a.currentTime < cur.b) return;
+      if (cur.phase === 0 && !cur.swapped) cur.go(1, cur.a); // ① 끝 → ② 같은 구간
+      else { stopTake(); renderResult(); }
+    };
+    a.onerror = () => { if (takeAudio === a) { stopTake(); B.toast('재생 주소가 만료됐어요. 잠시 뒤 다시 눌러 주세요.'); check(); } };
+    renderResult();
+  };
+  ab = cur;
+  cur.go(0, cur.a);
+}
 
 async function more(edit) {
   try {
+    // 고쳐서 다시 만들기에도 목소리 다듬기 값을 이어 보내요 (2026-11-05 · 고친 화면에서 따로 안 정했으면 지금 값)
+    if (edit && !edit.voiceTune && Object.keys(S.tune || {}).length) edit = { ...edit, voiceTune: S.tune };
     const j = await call('make-more', { batch: S.batch, ...(edit ? { edit } : {}) });
     S.status.takes.push({ id: 'pending', take: j.take, status: 'SUBMITTED' });
     startPoll(); renderResult();
   } catch (x) { err(x.message); }
+}
+// 구간 다시 만들기 · 보컬/반주 따로 받기 (2026-11-04 · 서버 make-repaint · make-stems)
+async function repaint() {
+  const [a, b] = S.rpRange;
+  if (b - a < 3 || b - a > 90) return err(errText('REPAINT_RANGE'));
+  try {
+    const j = await call('make-repaint', { make_id: S.rp, start: a, end: b });
+    S.rp = null; S.status.takes.push({ id: 'pending', take: j.take, status: 'SUBMITTED' });
+    startPoll(); renderResult();
+  } catch (x) { err(x.message); }
+}
+async function stems(id) {
+  S.stemsBusy = { ...(S.stemsBusy || {}), [id]: true }; renderResult();
+  try {
+    for (let i = 0; i < 30; i++) {
+      const j = await call('make-stems', { make_id: id }, 60000);
+      if (j.status === 'READY') {
+        S.stemLinks = { ...(S.stemLinks || {}), [id]: { vocals: j.vocals, backing: j.backing } };
+        const tk = S.status?.takes?.find((x) => x.id === id); if (tk) tk.stems = 'READY';
+        B.toast('보컬 · 반주가 준비됐어요 · 테이크 아래 🎤 보컬 받기 · 🎹 반주 받기 버튼을 눌러요 (주소는 1시간 동안 열려요)');
+        break;
+      }
+      if (j.status === 'FAILED') { B.toast('보컬 · 반주를 나누지 못했어요. 한 번 더 눌러 주세요.'); err('보컬 · 반주를 나누지 못했어요. 한 번 더 눌러 주세요.'); break; }
+      if (i === 29) B.toast('아직 나누는 중이에요 · 잠시 뒤 버튼을 다시 눌러 확인해 주세요');
+      if (i === 0) B.toast('보컬과 반주를 나누는 중이에요 · 1~2분 걸려요');
+      await new Promise((r) => setTimeout(r, 10000));
+    }
+  } catch (x) { err(x.message); }
+  delete S.stemsBusy[id]; renderResult();
 }
 async function pick() {
   const t = S.status.takes.find((x) => x.id === S.sel); if (!t) return;
@@ -579,7 +700,8 @@ async function pick() {
   S.busy = true; stopTake(); renderResult();
   try {
     const title = (S.title || S.status.title || '').trim();
-    const j = await call('make-pick', { make_id: t.id, title, donate: !!(S.donate && other && !S.status.vocal), ...(whole ? {} : { trim_start: S.range[0], trim_end: S.range[1] }) });
+    const j = await call('make-pick', { make_id: t.id, title, donate: !!(S.donate && other && !S.status.vocal), ...(S.recipePublic ? { recipe_public: true } : {}), ...(whole ? {} : { trim_start: S.range[0], trim_end: S.range[1] }) });
+    S.parent = null; S.recipePublic = false;
     ls.set('studio_batch', null); S.batch = null;
     S.done = { title: j.title, vocal: S.status.vocal };
     B.toast(S.status.vocal ? `'${j.title}' 올렸어요 · 보컬곡은 운영팀이 들어 보고 승인하면 바로 공개돼요` : `'${j.title}' 올렸어요 · 자동 검수가 끝나면 바로 차트에 올라가요`);
@@ -587,7 +709,7 @@ async function pick() {
 }
 function restart() {
   stopPoll(); stopTake();
-  Object.assign(S, { batch: null, status: null, sel: null, done: null, donate: false, err: '', consent: false });
+  Object.assign(S, { batch: null, status: null, sel: null, done: null, donate: false, err: '', consent: false, parent: null, recipePublic: false });
   S.title = defaultTitle(S.recipe.station); ls.set('studio_batch', null);
   loadQuota(); renderMake();
 }

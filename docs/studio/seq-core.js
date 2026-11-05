@@ -10,7 +10,12 @@
 
 // ─── constants ───
 export const composeBars = 4;
-export const composeSteps = composeBars * 4;
+/** 한 박을 몇 칸(틱)으로 나눠 저장하는지 (4 = 16분음표 · 앱 compose.dart 와 같아요 · 예전 v2 는 1박 = 1칸) */
+export const composeRes = 4;
+/** 4마디 × 4박 */
+export const composeBeats = composeBars * 4;
+/** 피아노 롤 전체 틱 (4마디 × 4박 × 4) */
+export const composeSteps = composeBeats * composeRes;
 export const drumSteps = 16;
 export const composeKeys = Object.freeze(['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']);
 const _names = composeKeys;
@@ -18,6 +23,17 @@ const _names = composeKeys;
 export const seqTracks = Object.freeze(['lead', 'piano', 'synth', 'bass', 'drums']);
 export const trackNames = Object.freeze({ lead: '멜로디', piano: '피아노', synth: '신스', bass: '베이스', drums: '드럼' });
 export const leadVoices = Object.freeze({ guitar: '🎸 기타', piano: '🎹 피아노', strings: '🎻 스트링', synth: '🔊 신스' });
+/** 음표마다 고르는 악기 (2026-11-04) · 멜로디 트랙 음표에 'i' 로 붙어요 (없으면 트랙 기본 악기) · 서버 PRO_NOTE_INS · GPU guide.py 와 같은 키 */
+export const noteInstruments = Object.freeze({
+  guitar: '🎸 기타', piano: '🎹 피아노', strings: '🎻 스트링', synth: '🔊 신스',
+  flute: '🪈 플루트', sax: '🎷 색소폰', brass: '🎺 브라스', marimba: '🪵 마림바',
+  bell: '🔔 벨', organ: '⛪ 오르간', epiano: '🎹 일렉 피아노', pluck: '🪕 플럭',
+});
+/** 악기별 음표 색 (피아노 롤) · 트랙 기본 악기는 주황 그대로 */
+export const noteInsColors = Object.freeze({
+  guitar: '#FF8C00', piano: '#F5D06B', strings: '#E0736B', synth: '#B07CFF', flute: '#7FD6FF', sax: '#FFB347',
+  brass: '#FFD23F', marimba: '#C98B5A', bell: '#9FF0E0', organ: '#7F9CFF', epiano: '#FF7FBF', pluck: '#8BE37F',
+});
 export const composeParts = Object.freeze({
   guitar: '🎸 기타',
   piano: '🎹 피아노',
@@ -270,6 +286,21 @@ export function pcOf(n) {
   const i = _names.indexOf(n);
   return i >= 0 ? i : (hasKey(_alias, n) ? _alias[n] : 0);
 }
+// 화면 표시용 이름 (키에 맞춰 #/♭): 샵 키(G D A E B F# C#)는 C# D# F# G# A#, 그 밖은 Db Eb Gb Ab Bb
+//   저장 · 서버로 보내는 값은 그대로(composeKeys 이름) · 소리도 같아요. 이름만 키에 맞게 보여 줘요.
+const _sharpNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const _flatNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+const _sharpKeys = ['G', 'D', 'A', 'E', 'B', 'F#', 'C#'];
+export const usesSharps = (key) => _sharpKeys.includes(key);
+export const spellPc = (pc, key) => (usesSharps(key) ? _sharpNames : _flatNames)[mod(pc, 12)];
+export const spellRoot = (root, key) => spellPc(pcOf(root), key);
+/** 'Abm7' → 키 E 에서는 'G#m7' (자리바꿈 /베이스 포함) */
+export function chordLabel(slot, key) {
+  const base = `${spellRoot(slot.root, key)}${slot.quality}`;
+  if (!slot.inv) return base;
+  const iv = hasQ(slot.quality) ? chordQualities[slot.quality] : chordQualities[''];
+  return `${base}/${spellPc(pcOf(slot.root) + iv[clamp(slot.inv, 0, iv.length - 1)], key)}`;
+}
 export const noteName = (midi) => `${_names[mod(midi, 12)]}${Math.floor(midi / 12) - 1}`;
 export const isBlack = (midi) => [1, 3, 6, 8, 10].includes(mod(midi, 12));
 
@@ -286,6 +317,10 @@ export class ChordSlot {
     const iv = hasQ(this.quality) ? chordQualities[this.quality] : chordQualities[''];
     const bass = mod(pcOf(this.root) + iv[clamp(this.inv, 0, iv.length - 1)], 12);
     return `${base}/${_names[bass]}`;
+  }
+  /** 화면에 보여 줄 이름 (키에 맞춰 #/♭) */
+  labelIn(key) {
+    return chordLabel(this, key);
   }
   get serverName() {
     return `${this.root}${hasKey(_serverQuality, this.quality) ? _serverQuality[this.quality] : ''}`;
@@ -340,23 +375,29 @@ export function parseChord(c) {
 
 // ─── SeqNote ───
 export class SeqNote {
-  constructor(step, midi, { len = 1, vel = 100 } = {}) {
+  constructor(step, midi, { len = 1, vel = 100, ins = null } = {}) {
     this.step = step;
     this.midi = midi;
     this.len = len;
     this.vel = vel;
+    /** 이 음표만의 악기 (null = 트랙 기본) */
+    this.ins = ins;
   }
   get end() {
     return this.step + this.len;
   }
   toJson() {
-    return { s: this.step, m: this.midi, l: this.len, v: this.vel };
+    return { s: this.step, m: this.midi, l: this.len, v: this.vel, ...(this.ins ? { i: this.ins } : {}) };
   }
-  static fromJson(j) {
+  /** [mul] : 저장된 값 한 칸이 지금 틱 몇 개인지 (예전 v2 = 1박 → composeRes) */
+  static fromJson(j, mul = 1) {
     if (!isMap(j)) return null;
-    const s = toInt(j.s), m = toInt(j.m);
-    if (s === null || m === null || s < 0 || s >= composeSteps || m < 24 || m > 108) return null;
-    return new SeqNote(s, m, { len: clamp(toInt(j.l) ?? 1, 1, composeSteps - s), vel: clamp(toInt(j.v) ?? 100, 1, 127) });
+    const s0 = toInt(j.s), m = toInt(j.m);
+    if (s0 === null || m === null) return null;
+    const s = s0 * mul;
+    if (s < 0 || s >= composeSteps || m < 24 || m > 108) return null;
+    const i = typeof j.i === 'string' && hasKey(noteInstruments, j.i) ? j.i : null;
+    return new SeqNote(s, m, { len: clamp((toInt(j.l) ?? 1) * mul, 1, composeSteps - s), vel: clamp(toInt(j.v) ?? 100, 1, 127), ins: i });
   }
 }
 
@@ -388,9 +429,18 @@ const _voices = {
   guitar: { partials: [1, 0.75, 0.5, 0.32, 0.2, 0.12], decay: 3.4, attack: 0.003, vibrato: 0 },
   strings: { partials: [1, 0.62, 0.45, 0.3, 0.2, 0.12], decay: 0.12, attack: 0.14, vibrato: 0.006 },
   synth: { partials: [1, 0.5, 0.33, 0.25, 0.2, 0.16, 0.14, 0.12], decay: 0.45, attack: 0.01, vibrato: 0.003 },
+  // 음표마다 고르는 악기 (2026-11-04 · 미리 듣기용 간단한 합성 · 실제 곡은 AI 가 진짜 악기로 연주해요)
+  flute: { partials: [1, 0.22, 0.08, 0.03], decay: 0.12, attack: 0.05, vibrato: 0.005 },
+  sax: { partials: [1, 0.8, 0.6, 0.45, 0.3, 0.2, 0.12], decay: 0.2, attack: 0.03, vibrato: 0.004 },
+  brass: { partials: [1, 0.9, 0.7, 0.55, 0.4, 0.3, 0.2], decay: 0.25, attack: 0.04, vibrato: 0.002 },
+  marimba: { partials: [1, 0, 0.35, 0, 0.08], decay: 3.0, attack: 0.002, vibrato: 0 },
+  bell: { partials: [1, 0.6, 0.4, 0.25, 0.15], decay: 1.2, attack: 0.002, vibrato: 0 },
+  organ: { partials: [1, 0.7, 0.5, 0.4, 0.3, 0.25], decay: 0.05, attack: 0.01, vibrato: 0.003 },
+  epiano: { partials: [1, 0.35, 0.1, 0.05], decay: 1.6, attack: 0.004, vibrato: 0.002 },
+  pluck: { partials: [1, 0.5, 0.3, 0.15, 0.08], decay: 4.0, attack: 0.002, vibrato: 0 },
   bass: { partials: [1, 0.55, 0.2, 0.08], decay: 2.0, attack: 0.004, vibrato: 0 },
 };
-const _gmProgram = { guitar: 25, piano: 0, strings: 48, synth: 81 };
+const _gmProgram = { guitar: 25, piano: 0, strings: 48, synth: 81, flute: 73, sax: 65, brass: 61, marimba: 12, bell: 9, organ: 16, epiano: 4, pluck: 45 };
 const _gmDrum = { kick: 36, snare: 38, hat: 42, clap: 39 };
 const _keySig = { C: 0, G: 1, D: 2, A: 3, E: 4, B: 5, 'F#': 6, 'C#': 7, F: -1, Bb: -2, Eb: -3, Ab: -4 };
 const _deg = [[0, 0], [1, 2], [2, 4], [3, 5], [4, 4], [6, 2], [7, 1], [8, 0], [9, 2], [10, 5], [12, 4], [13, 3], [14, 2], [15, 1]];
@@ -408,6 +458,10 @@ export class ComposeDraft {
     this.drum = {};
     for (const l of drumLanes) this.drum[l] = new Array(drumSteps).fill(0);
     this.leadVoice = 'guitar';
+    /** 새로 찍는 멜로디 음표의 악기 (null = 트랙 기본) · 저장 안 해요 */
+    this.brush = null;
+    /** 🎲 자동 찍기로 채운 멜로디의 모양 (null = 자동 찍기를 안 씀 · 앱 autoLeadSig 와 같아요) */
+    this.autoLeadSig = null;
     this.swing = 0;
     this.cutoff = 1;
     this.reverb = 0.25;
@@ -443,13 +497,22 @@ export class ComposeDraft {
   static _topLine(xs) {
     const by = new Map();
     for (const n of xs) {
-      const cur = by.get(n.step);
-      if (cur == null || n.midi > cur.midi) by.set(n.step, n);
+      const b = idiv(n.step, composeRes);
+      const cur = by.get(b);
+      if (cur == null || n.midi > cur.midi) by.set(b, n);
     }
     return dartSort([...by.values()], (a, b) => a.step - b.step);
   }
   get ready() {
     return this._melodySource.length >= 3;
+  }
+
+  /** 이 칸(틱)을 덮고 있는 음 (긴 음의 가운데를 눌러도 찾아요 · 지우개 · 세기 도구용) */
+  notesCovering(track, step, midi) {
+    for (const n of this.tracks[track]) {
+      if (n.midi === midi && step >= n.step && step < n.step + n.len) return n;
+    }
+    return null;
   }
 
   noteAt(track, step, midi) {
@@ -459,10 +522,17 @@ export class ComposeDraft {
     return null;
   }
 
-  /** tap a cell: remove if hit, else add a new note (lead: one note per beat) */
-  toggle(track, step, midi) {
+  /** tap a cell (ticks): remove if hit, else add a new note of [len] ticks (lead: one note at a time) */
+  toggle(track, step, midi, { len = composeRes } = {}) {
+    if (typeof arguments[3] === 'number') len = arguments[3];
     const list = this.tracks[track];
     const hit = this.noteAt(track, step, midi);
+    // 멜로디 + 붓(악기)을 든 상태: 다른 악기 음표를 누르면 지우지 않고 그 악기로 칠해요
+    const brush = track === 'lead' && this.brush && this.brush !== this.leadVoice ? this.brush : null;
+    if (hit && track === 'lead' && (hit.ins ?? null) !== brush) {
+      hit.ins = brush;
+      return;
+    }
     if (hit) {
       list.splice(list.indexOf(hit), 1);
       return;
@@ -474,10 +544,64 @@ export class ComposeDraft {
     for (const n of list) if (n.midi === midi && n.step < step && n.end > step) n.len = step - n.step;
     let next = composeSteps;
     for (const n of list) if (n.midi === midi && n.step > step) next = Math.min(next, n.step);
-    list.push(new SeqNote(step, midi, { len: clamp(1, 1, next - step) }));
+    list.push(new SeqNote(step, midi, { len: clamp(len, 1, Math.max(1, next - step)), ins: track === 'lead' ? brush : null }));
   }
 
   /** change length (not past the next note in the same row; lead: not past any next note) */
+  // ─── 마디 복사 · 붙여넣기 · 여러 음 옮기기 (2026-11-05 · 앱 compose.dart 와 같아요) ───
+
+  /** 마디 하나 복사: 그 마디 코드 + 드럼 빼고 네 트랙에서 그 마디에서 시작하는 음 (위치는 마디 안 틱으로) */
+  copyBar(bar) {
+    const bt = 4 * composeRes;
+    const tracks = {};
+    for (const t of Object.keys(this.tracks)) {
+      tracks[t] = this.tracks[t].filter((n) => n.step >= bar * bt && n.step < bar * bt + bt).map((n) => new SeqNote(n.step - bar * bt, n.midi, { len: n.len, vel: n.vel, ins: n.ins }));
+    }
+    return { chord: this.slots[bar].copy(), tracks };
+  }
+
+  /** 붙여넣기: 그 마디 코드를 바꾸고, 트랙마다 그 마디에서 시작하는 음을 지운 뒤 복사한 음을 넣어요 · only 가 있으면 그 트랙만 (코드는 그대로) */
+  pasteBar(bar, clip, { only = null } = {}) {
+    const bt = 4 * composeRes;
+    if (only === null) this.slots[bar] = clip.chord.copy();
+    for (const t of Object.keys(this.tracks)) {
+      if (only !== null && t !== only) continue;
+      const list = this.tracks[t];
+      for (let i = list.length - 1; i >= 0; i--) if (list[i].step >= bar * bt && list[i].step < bar * bt + bt) list.splice(i, 1);
+      for (const n of clip.tracks[t] ?? []) {
+        const s = bar * bt + n.step;
+        list.push(new SeqNote(s, n.midi, { len: clamp(n.len, 1, composeSteps - s), vel: n.vel, ins: n.ins }));
+      }
+      dartSort(list, (a, b) => (a.step !== b.step ? a.step - b.step : a.midi - b.midi));
+      if (t === 'lead') this._monoLead();
+    }
+  }
+
+  /** 고른 음들을 한꺼번에 옮겨요 (틱 · 반음) · 판 밖으로 나가지 않게 이동량을 줄이고, 옮긴 자리에 겹치는 다른 음은 지워요 · 실제로 옮긴 양 [ds, dm] */
+  moveNotes(track, sel, dStep, dMidi) {
+    if (!sel.length) return [0, 0];
+    let ds = dStep, dm = dMidi;
+    for (const n of sel) {
+      ds = clamp(ds, -n.step, composeSteps - n.end);
+      dm = clamp(dm, 24 - n.midi, 108 - n.midi);
+    }
+    for (const n of sel) { n.step += ds; n.midi += dm; }
+    const list = this.tracks[track];
+    for (let i = list.length - 1; i >= 0; i--) {
+      const x = list[i];
+      if (!sel.includes(x) && sel.some((n) => x.step < n.end && n.step < x.end && (track === 'lead' || x.midi === n.midi))) list.splice(i, 1);
+    }
+    dartSort(list, (a, b) => (a.step !== b.step ? a.step - b.step : a.midi - b.midi));
+    if (track === 'lead') this._monoLead();
+    return [ds, dm];
+  }
+
+  /** 멜로디는 한 번에 한 음: 다음 음과 겹치는 앞 음은 다음 음 직전까지로 줄여요 */
+  _monoLead() {
+    const xs = this.tracks.lead;
+    for (let i = 0; i + 1 < xs.length; i++) if (xs[i].end > xs[i + 1].step) xs[i].len = Math.max(1, xs[i + 1].step - xs[i].step);
+  }
+
   setLen(track, n, len) {
     const xs = this.tracks[track];
     let next = composeSteps;
@@ -499,13 +623,14 @@ export class ComposeDraft {
   placeChord(bar, c) {
     this.slots[bar] = c.copy();
     const piano = this.tracks.piano;
+    const bt = 4 * composeRes; // 한 마디 틱
     for (let i = piano.length - 1; i >= 0; i--) {
       const n = piano[i];
-      if (n.step >= bar * 4 && n.step < bar * 4 + 4) piano.splice(i, 1);
+      if (n.step >= bar * bt && n.step < bar * bt + bt) piano.splice(i, 1);
     }
     const v = c.voicing();
     if (!this.arp) {
-      for (const m of v) piano.push(new SeqNote(bar * 4, m, { len: 4, vel: 88 }));
+      for (const m of v) piano.push(new SeqNote(bar * bt, m, { len: bt, vel: 88 }));
       return;
     }
     let order;
@@ -513,7 +638,7 @@ export class ComposeDraft {
     else if (this.arpMode === 'random') order = dartShuffle([...v], new DartRandom(bar * 31 + v[0]));
     else order = v;
     for (let i = 0; i < 4; i++) {
-      piano.push(new SeqNote(bar * 4 + i, order[i % order.length], { len: 1, vel: i === 0 ? 100 : 84 }));
+      piano.push(new SeqNote(bar * bt + i * composeRes, order[i % order.length], { len: composeRes, vel: i === 0 ? 100 : 84 }));
     }
   }
 
@@ -533,7 +658,7 @@ export class ComposeDraft {
     const lead = this.tracks.lead;
     lead.length = 0;
     for (const [step, dg] of _deg) {
-      lead.push(new SeqNote(step, 60 + k + _scale8[dg], { len: step === 4 || step === 10 ? 2 : 1, vel: step % 4 === 0 ? 112 : 96 }));
+      lead.push(new SeqNote(step * composeRes, 60 + k + _scale8[dg], { len: (step === 4 || step === 10 ? 2 : 1) * composeRes, vel: step % 4 === 0 ? 112 : 96 }));
     }
     this.tracks.piano.length = 0;
     this.tracks.synth.length = 0;
@@ -545,7 +670,7 @@ export class ComposeDraft {
     bass.length = 0;
     for (let b = 0; b < composeBars; b++) {
       const r = pcOf(this.slots[b].root);
-      bass.push(new SeqNote(b * 4, 36 + r, { len: 2, vel: 110 }), new SeqNote(b * 4 + 2, 36 + r + 7, { len: 2, vel: 92 }));
+      bass.push(new SeqNote(b * 4 * composeRes, 36 + r, { len: 2 * composeRes, vel: 110 }), new SeqNote((b * 4 + 2) * composeRes, 36 + r + 7, { len: 2 * composeRes, vel: 92 }));
     }
     for (const l of drumLanes) this.drum[l].fill(0);
     for (const i of [0, 8, 10]) this.drum.kick[i] = 115;
@@ -581,7 +706,7 @@ export class ComposeDraft {
         if (Math.abs(_scale8[i] - rel) < Math.abs(_scale8[best] - rel)) best = i;
       }
       if (best === 7 && n.midi < 60 + k + 6) best = 0;
-      return { beat: n.step, pitch: best, len: clamp(n.len, 1, 8) };
+      return { beat: idiv(n.step, composeRes), pitch: best, len: clamp(Math.ceil(n.len / composeRes), 1, 8) };
     });
   }
   get _legacyParts() {
@@ -591,6 +716,10 @@ export class ComposeDraft {
     if (live('synth')) p.push('synth');
     if (live('bass')) p.push('bass');
     return [...new Set(p)].slice(0, 4);
+  }
+
+  get leadSig() {
+    return JSON.stringify(this.tracks.lead.map((n) => n.toJson()));
   }
 
   toJson() {
@@ -607,7 +736,9 @@ export class ComposeDraft {
       drums: this.drums && !this.mix.drums.mute,
       parts: this._legacyParts,
       pro: {
-        v: 2,
+        // v3: 음 위치 · 길이를 틱(한 박 = res 칸)으로 · 예전 v2 는 박 단위
+        v: 3,
+        res: composeRes,
         slots: this.slots.map((s) => s.toJson()),
         tracks,
         drum,
@@ -616,6 +747,7 @@ export class ComposeDraft {
         arp: { on: this.arp, mode: this.arpMode },
         mix,
         master: this.master,
+        ...(this.autoLeadSig !== null ? { made: { lead: this.autoLeadSig === this.leadSig ? 'auto' : 'edited' } } : {}),
       },
     };
   }
@@ -631,9 +763,9 @@ export class ComposeDraft {
     d.key = _names.includes(k) ? k : 'C';
     const pro = j.pro;
     if (isMap(pro) && (pro.v === 2 || pro.v === 3)) {
-      // v3 (앱 2026-11-04 · 한 박 = res 틱): 웹 시퀀서는 박 단위라 박에 맞춰 읽어요 (같은 박 · 같은 음은 하나로)
-      const res = pro.v === 3 && [1, 2, 4].includes(pro.res) ? pro.res : 1;
-      const beatOf = (x) => (res === 1 || !isMap(x) ? x : { ...x, s: Math.floor(toInt(x.s) / res), l: Math.max(1, Math.round((toInt(x.l) ?? res) / res)) });
+      // 저장된 한 칸 → 지금 틱: v2 는 1박 = 1칸, v3 는 res 를 보고 (지금보다 더 잘게 저장된 값은 받지 않아요 · 앱과 같아요)
+      const res = pro.v === 3 ? (toInt(pro.res) ?? 1) : 1;
+      const mul = res >= 1 && res <= composeRes && composeRes % res === 0 ? idiv(composeRes, res) : 1;
       const sl = pro.slots;
       if (Array.isArray(sl) && sl.length === composeBars) d.slots = sl.map((x) => ChordSlot.fromJson(x));
       const tr = pro.tracks;
@@ -641,11 +773,15 @@ export class ComposeDraft {
         for (const t of Object.keys(d.tracks)) {
           const xs = Array.isArray(tr[t]) ? tr[t] : [];
           for (const x of xs) {
-            const n = SeqNote.fromJson(beatOf(x));
-            if (n && !d.tracks[t].some((o) => o.step === n.step && o.midi === n.midi)) d.tracks[t].push(n);
+            const n = SeqNote.fromJson(x, mul);
+            if (n) d.tracks[t].push(n);
           }
         }
       }
+      // 🎲 자동 찍기 표시 이어 가기 (앱과 같아요)
+      const made = pro.made;
+      if (isMap(made) && made.lead === 'auto') d.autoLeadSig = d.leadSig;
+      if (isMap(made) && made.lead === 'edited') d.autoLeadSig = '';
       const dr = pro.drum;
       if (isMap(dr)) {
         for (const l of drumLanes) {
@@ -681,8 +817,8 @@ export class ComposeDraft {
     for (const n of Array.isArray(j.notes) ? j.notes : []) {
       if (!isMap(n)) continue;
       const b = toInt(n.beat), p = toInt(n.pitch);
-      if (b !== null && p !== null && b >= 0 && b < composeSteps && p >= 0 && p < 8) {
-        d.tracks.lead.push(new SeqNote(b, 60 + pcOf(d.key) + _scale8[p], { len: clamp(toInt(n.len) ?? 1, 1, 8) }));
+      if (b !== null && p !== null && b >= 0 && b < composeBeats && p >= 0 && p < 8) {
+        d.tracks.lead.push(new SeqNote(b * composeRes, 60 + pcOf(d.key) + _scale8[p], { len: clamp(toInt(n.len) ?? 1, 1, 8) * composeRes }));
       }
     }
     const parts = (Array.isArray(j.parts) ? j.parts : []).map(dstr);
@@ -747,12 +883,13 @@ export class ComposeDraft {
         const v = _voices[t === 'lead' ? this.leadVoice : t];
         const amp = t === 'lead' ? 0.34 : t === 'bass' ? 0.32 : t === 'synth' ? 0.16 : 0.12;
         for (const n of tracks[t]) {
-          const at = base + dartRound(n.step * beat * sr);
-          tone(bufs[t], at, hz(n.midi), n.len * beat * 0.98, amp * (0.35 + (0.65 * n.vel) / 127), {
-            decay: t === 'synth' ? 0.2 : v.decay,
-            partials: v.partials,
-            attack: t === 'synth' ? 0.06 : v.attack,
-            vibrato: v.vibrato,
+          const at = base + dartRound(((n.step * beat) / composeRes) * sr);
+          const nv = t === 'lead' && n.ins && _voices[n.ins] ? _voices[n.ins] : v; // 음표마다 다른 악기
+          tone(bufs[t], at, hz(n.midi), ((n.len * beat) / composeRes) * 0.98, amp * (0.35 + (0.65 * n.vel) / 127), {
+            decay: t === 'synth' ? 0.2 : nv.decay,
+            partials: nv.partials,
+            attack: t === 'synth' ? 0.06 : nv.attack,
+            vibrato: nv.vibrato,
           });
         }
       }
@@ -1030,11 +1167,20 @@ export class ComposeDraft {
       if (this.tracks[t].length === 0) continue;
       const ch = chans[t];
       const ev = [];
-      for (const n of this.tracks[t]) note(ev, ch, n.step * beat, n.len * beat - 10, n.midi, n.vel);
+      for (const n of this.tracks[t]) if (t !== 'lead' || !n.ins || n.ins === this.leadVoice) note(ev, ch, idiv(n.step * beat, composeRes), idiv(n.len * beat, composeRes) - 10, n.midi, n.vel);
+      if (ev.length === 0) continue;
       const prog = t === 'lead' ? (hasKey(_gmProgram, this.leadVoice) ? _gmProgram[this.leadVoice] : 25) : t === 'piano' ? 0 : t === 'synth' ? 89 : 33;
       const lv = this.leadVoice;
       chunks.push(track(t === 'lead' ? `Lead (${lv[0].toUpperCase()}${lv.substring(1)})` : names[t], ev, setup(ch, prog, t)));
     }
+    // 음표마다 고른 악기: 악기마다 따로 트랙 · 채널 (5~8 · 10~15)
+    const used = [...new Set(this.tracks.lead.map((n) => n.ins).filter((x) => x && x !== this.leadVoice))];
+    const freeCh = [5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
+    used.slice(0, freeCh.length).forEach((ins, k) => {
+      const ev = [];
+      for (const n of this.tracks.lead) if (n.ins === ins) note(ev, freeCh[k], idiv(n.step * beat, composeRes), idiv(n.len * beat, composeRes) - 10, n.midi, n.vel);
+      chunks.push(track(`Lead (${ins[0].toUpperCase()}${ins.substring(1)})`, ev, setup(freeCh[k], _gmProgram[ins] ?? 25, 'lead')));
+    });
     if (this.tracks.piano.length === 0 && this.tracks.synth.length === 0) {
       const ev = [];
       for (let b = 0; b < composeBars; b++) {
