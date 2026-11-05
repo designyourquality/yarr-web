@@ -761,6 +761,14 @@ def pending(sb) -> list[dict]:
                 .eq('status', 'PENDING').is_('inspected_at', 'null')
                 .like('original_url', 'storage:uploads/%')
                 .order('created_at').limit(BATCH).execute().data) or []
+    # 071 SQL: 레시피 비공개 곡은 공개 칸(prompt_recipe)이 비어 있어요 → 검수는 원문(prompt_private)으로 해요
+    try:
+        rows = q('id,title,original_url,creator_id,ai_plan,prompt_recipe,prompt_private,lyrics,trim_start_sec,trim_end_sec,bpm')
+        for r in rows:
+            r['prompt_recipe'] = r.get('prompt_private') or r.get('prompt_recipe') or ''
+        return rows
+    except Exception:
+        pass
     try:
         return q('id,title,original_url,creator_id,ai_plan,prompt_recipe,lyrics,trim_start_sec,trim_end_sec,bpm')
     except Exception:

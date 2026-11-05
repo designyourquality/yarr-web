@@ -236,6 +236,16 @@ button.mi-tile:hover{border-color:rgba(255,140,0,.35)}
 .mi-plays svg{width:15px;height:15px;color:var(--soft)}
 .mi-msg{margin:0;font-size:12.5px;color:var(--dim)}
 .mi-msg.bad{color:#FCA5A5}
+/* ⚡ 레시피 공개 스위치 (내 곡 · 071 SQL) */
+.mi-recipe{display:flex;align-items:flex-start;gap:10px;margin-top:4px;font-size:12px;color:var(--dim);line-height:1.45}
+.mi-sw{flex:none;display:inline-flex;align-items:center;gap:7px;padding:5px 10px 5px 6px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--soft);font-size:12px;font-weight:700;cursor:pointer}
+.mi-sw i{width:26px;height:15px;border-radius:999px;background:rgba(255,255,255,.18);position:relative;transition:background .15s}
+.mi-sw i::after{content:'';position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:#D4D4D8;transition:transform .15s}
+.mi-sw.on{color:#FFB067;border-color:rgba(255,140,0,.45);background:rgba(255,140,0,.1)}
+.mi-sw.on i{background:#FF8C00}.mi-sw.on i::after{transform:translateX(11px);background:#fff}
+.mi-sw[disabled]{opacity:.55;cursor:wait}
+.mi-sw:focus-visible{outline:2px solid #FF8C00;outline-offset:2px}
+@media (max-width:560px){.mi-recipe{flex-direction:column;gap:5px}}
 .mi-steps{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11.5px;color:var(--dim);margin-top:2px}
 .mi-steps i{width:14px;height:1px;background:rgba(255,255,255,.15)}
 .mi-steps span{display:inline-flex;align-items:center;gap:5px}

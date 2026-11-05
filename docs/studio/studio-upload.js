@@ -189,6 +189,12 @@ export async function mountMine(el, { sb, user, B }) {
   const kind = (t) => t.status === 'PENDING' ? 'wait' : t.status === 'ACTIVE' ? (t.publish_at && new Date(t.publish_at) > now ? 'soon' : 'live') : t.status === 'REJECTED' ? 'bad' : 'off';
   const LABEL = { live: '공개 중', soon: '공개 예정', wait: '검수 중', bad: '반려', off: '내려감' };
   const rows = data.map((t) => ({ ...t, k: kind(t) }));
+  // ⚡ 레시피 공개 (071 SQL · 내 곡마다 켜고 끄기 · 071 전이면 스위치를 안 보여요)
+  const flags = {};
+  try {
+    const { data: fl, error: fe } = await sb.rpc('my_recipe_flags');
+    if (!fe) for (const f of fl || []) flags[f.id] = { on: f.recipe_public === true, studio: f.studio === true };
+  } catch { /* 071 전 */ }
   const count = (k) => rows.filter((r) => r.k === k).length;
   const plays = rows.reduce((a, r) => a + Number(r.play_count_total || 0), 0);
   let filter = 'all', audio = null, playing = null;
@@ -224,8 +230,16 @@ export async function mountMine(el, { sb, user, B }) {
         <div class="mi-meta">${meta}<span class="mi-date">${new Date(t.created_at).toLocaleDateString('ko-KR')}</span></div>
         <div class="mi-row">${wave(t.waveform)}${t.k === 'live' ? `<span class="mi-plays" title="유효 재생 수">${ICONS.headphones}${num(t.play_count_total)}</span>` : ''}</div>
         ${sub(t)}
+        ${recipe(t)}
       </div>
     </article>`;
+  };
+  // 레시피 공개 스위치: 스튜디오 곡은 세팅(변주) · 올린 곡은 곡 설명 원문 · 내려간 곡은 안 보여요
+  const recipe = (t) => {
+    const f = flags[t.id]; if (!f || t.k === 'off' || t.k === 'bad') return '';
+    const what = f.studio ? '다른 사람이 이 곡 세팅(장르 · 노브 · 목소리 · 멜로디)으로 변주할 수 있어요 · 가사 · 곡 설명 원문은 안 나가요'
+      : '곡 설명(프롬프트) 원문이 차트에 보이고, 다른 사람이 이 곡을 원곡으로 변주할 수 있어요';
+    return `<div class="mi-recipe"><button class="mi-sw${f.on ? ' on' : ''}" data-recipe="${t.id}" role="switch" aria-checked="${f.on}" ${f.busy ? 'disabled' : ''}><i></i>⚡ 레시피 공개 ${f.on ? '켜짐' : '꺼짐'}</button><span>${what}${f.on ? ' · 변주곡 수익의 30%가 나에게 와요' : ''}</span></div>`;
   };
   const tile = (k, label, n, extra = '') => `<button class="mi-tile ${k}${filter === k ? ' on' : ''}" data-f="${k}"><span>${label}</span><b>${n}</b>${extra}</button>`;
   const draw = () => {
@@ -244,6 +258,16 @@ export async function mountMine(el, { sb, user, B }) {
   draw();
   el.onclick = async (e) => {
     const f = e.target.closest('[data-f]'); if (f) { filter = f.dataset.f; return draw(); }
+    const sw = e.target.closest('[data-recipe]');
+    if (sw) {
+      const fl = flags[sw.dataset.recipe]; if (!fl || fl.busy) return;
+      const want = !fl.on; fl.busy = true; draw();
+      const { data: ok, error: er } = await sb.rpc('set_recipe_public', { p_track: sw.dataset.recipe, p_on: want }).catch((x) => ({ error: x }));
+      fl.busy = false;
+      if (er || ok !== true) { draw(); return B?.toast?.('바꾸지 못했어요 · 잠시 뒤 다시 해 주세요'); }
+      fl.on = want; draw();
+      return B?.toast?.(want ? '레시피를 공개했어요' : '레시피를 비공개로 바꿨어요');
+    }
     const p = e.target.closest('[data-play]'); if (!p) return;
     const t = rows.find((r) => r.id === p.dataset.play); if (!t) return;
     if (playing === t.id && audio && !audio.paused) { audio.pause(); return draw(); }
