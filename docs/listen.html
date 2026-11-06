@@ -1083,12 +1083,20 @@ html,body{background:var(--bg)}
       toast('이어서 들을 곡을 찾지 못했어요');
     } finally { extending = false; }
   }
+  let followId = null; // 마지막으로 따라간 곡 (2026-11-06: 다음 · 이전 · 자동으로 넘어가면 그 줄이 보이게 내려가요)
   function markPlaying() {
     const cur = mode === 'listen' ? list[idx] : null;
+    const moved = !!cur && cur.id !== followId;
+    if (cur) followId = cur.id;
     document.querySelectorAll('.trk').forEach((r) => {
       const host = r.parentElement; const arr = host.id === 'chartList' ? shown : host.id === 'stationList' ? stationShown : [];
       const t = arr[+r.dataset.i]; const on = !!cur && t && t.id === cur.id;
       r.classList.toggle('on', on);
+      if (on && moved && r.offsetParent) {
+        // 화면 밖(또는 아래 플레이어에 가려진 곳)에 있을 때만 가운데로 (보이는 줄을 눌렀으면 화면은 그대로)
+        const b = r.getBoundingClientRect(); const bottom = innerHeight - 140;
+        if (b.top < 80 || b.bottom > bottom) r.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
       const no = r.querySelector('.no');
       if (on) no.innerHTML = '<span class="eq"><i></i><i></i><i></i></span>';
       else if (no.querySelector('.eq')) no.textContent = (host.id === 'chartList' && !shared && t?.rank) ? t.rank : +r.dataset.i + 1;
