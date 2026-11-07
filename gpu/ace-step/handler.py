@@ -249,10 +249,98 @@ def stems(inp: dict, t0: float) -> dict:
     return {**out, 'format': 'mp3', 'took': round(time.time() - t0, 1), 'task': 'stems'}
 
 
+def _src_file(inp: dict, tmp: str) -> str:
+    data = base64.b64decode(str(inp.get('src_audio_b64') or ''), validate=False)
+    if not 1000 <= len(data) <= 8 * 1024 * 1024:
+        raise ValueError('src_audio 는 1KB~8MB')
+    path = os.path.join(tmp, 'in.wav' if data[:4] == b'RIFF' else 'in.mp3')
+    with open(path, 'wb') as f:
+        f.write(data)
+    return path
+
+
+def align(inp: dict, t0: float) -> dict:
+    """구간 찾기 (2026-11-07): 노래 줄이 나오는 시간 → 서버가 1절 · 후렴 버튼 시간을 맞춰요 (align.py · /opt/conda)"""
+    lang = str(inp.get('vocal_language') or 'ko')
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _src_file(inp, tmp)
+        r = subprocess.run([VOCAL_PY, '/app/yarr_align.py', src, lang], capture_output=True, text=True, timeout=400)
+        if r.returncode != 0 or not r.stdout.strip():
+            raise RuntimeError(f'구간 찾기 실패: {(r.stderr or r.stdout)[-300:]}')
+        res = json.loads(r.stdout.strip().splitlines()[-1])
+    return {'segments': res.get('segments') or [], 'took': round(time.time() - t0, 1), 'task': 'align'}
+
+
+_RUBBER = None
+
+
+def _has_rubberband() -> bool:
+    global _RUBBER
+    if _RUBBER is None:
+        r = subprocess.run(['ffmpeg', '-v', 'error', '-filters'], capture_output=True, text=True)
+        _RUBBER = 'rubberband' in (r.stdout or '')
+    return _RUBBER
+
+
+def _num(v, lo: float, hi: float, d: float = 0.0) -> float:
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return d
+    return d if x != x else min(hi, max(lo, x))
+
+
+REVERB = {1: 'aecho=0.8:0.6:50|90:0.16|0.09', 2: 'aecho=0.8:0.7:70|130|190:0.26|0.16|0.09'}
+
+
+def mix(inp: dict, t0: float) -> dict:
+    """믹스 · 키 · 빠르기 (2026-11-07): 보컬/반주 크기(dB) · 보컬 울림 · 키(반음) · 빠르기(배)
+    보컬/반주/울림을 안 바꾸면 Demucs 없이 키 · 빠르기만 바꿔요. 소리가 넘치지 않게 마지막에 리미터."""
+    vdb, bdb = _num(inp.get('vocal_db'), -9, 6), _num(inp.get('backing_db'), -9, 6)
+    rev = int(_num(inp.get('reverb'), 0, 2))
+    pitch = int(round(_num(inp.get('pitch'), -3, 3)))
+    tempo = round(_num(inp.get('tempo'), 0.9, 1.1, 1.0), 3)
+    sr = 44100
+    if pitch or abs(tempo - 1.0) > 0.001:
+        ratio = 2 ** (pitch / 12)
+        tail = (f'rubberband=pitch={ratio:.5f}:tempo={tempo}:formant=preserved' if _has_rubberband()
+                else f'asetrate={sr}*{ratio:.5f},aresample={sr},atempo={tempo / ratio:.5f}')
+    else:
+        tail = 'anull'
+    with tempfile.TemporaryDirectory() as tmp:
+        src = _src_file(inp, tmp)
+        out = os.path.join(tmp, 'mix.wav')
+        if vdb or bdb or rev:
+            r = subprocess.run([STEMS_PY, '/app/yarr_stems.py', src, tmp], capture_output=True, text=True, timeout=600)
+            if r.returncode != 0:
+                raise RuntimeError(f'스템 나누기 실패: {(r.stderr or r.stdout)[-300:]}')
+            vf = f'volume={vdb}dB' + (f',{REVERB[rev]}' if rev else '')
+            graph = (f'[0:a]aresample={sr},{vf}[v];[1:a]aresample={sr},volume={bdb}dB[b];'
+                     f'[v][b]amix=inputs=2:normalize=0:duration=longest,{tail},alimiter=limit=0.97[o]')
+            cmd = ['ffmpeg', '-v', 'error', '-y', '-i', os.path.join(tmp, 'vocals.wav'), '-i', os.path.join(tmp, 'backing.wav'),
+                   '-filter_complex', graph, '-map', '[o]', out]
+        else:
+            cmd = ['ffmpeg', '-v', 'error', '-y', '-i', src, '-af', f'aresample={sr},{tail},alimiter=limit=0.97', out]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if r.returncode != 0:
+            raise RuntimeError(f'믹스 실패: {r.stderr[-300:]}')
+        data = encode_mp3(out)
+        d = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', out],
+                           capture_output=True, text=True)
+    seconds = round(_num((d.stdout or '').strip(), 0, 1000), 1)
+    return {'audio_b64': base64.b64encode(data).decode('ascii'), 'format': 'mp3', 'seconds': seconds,
+            'params': {'vocal_db': vdb, 'backing_db': bdb, 'reverb': rev, 'pitch': pitch, 'tempo': tempo},
+            'rubberband': _has_rubberband(), 'took': round(time.time() - t0, 1), 'task': 'mix'}
+
+
 def handler(job: dict) -> dict:
     t0 = time.time()
     if isinstance(job.get('input'), dict) and job['input'].get('task') == 'stems':
         return stems(job['input'], t0)
+    if isinstance(job.get('input'), dict) and job['input'].get('task') == 'align':
+        return align(job['input'], t0)
+    if isinstance(job.get('input'), dict) and job['input'].get('task') == 'mix':
+        return mix(job['input'], t0)
     p = clean_input(job.get('input'))
     _, llm = load_models()
     dit = get_dit(p['dit'])
