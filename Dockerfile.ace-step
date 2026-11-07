@@ -20,6 +20,8 @@ RUN /opt/conda/bin/python -c "import torch; print('torch==' + torch.__version__.
  && /opt/conda/bin/python -c "from demucs.pretrained import get_model; get_model('htdemucs')"
 COPY gpu/ace-step/stems.py /app/yarr_stems.py
 COPY gpu/ace-step/vocal_check.py /app/yarr_vocal_check.py
+# Edit tools (2026-11-07): section timing (align.py · same whisper model) · mix/key/tempo uses ffmpeg in handler.py
+COPY gpu/ace-step/align.py /app/yarr_align.py
 COPY gpu/ace-step/handler.py /app/yarr_handler.py
 COPY worker/guide.py /app/yarr_guide.py
 ENV ACE_CKPT=/tmp/ace_ckpt HF_HOME=/tmp/hf PYTHONUNBUFFERED=1 TOKENIZERS_PARALLELISM=false

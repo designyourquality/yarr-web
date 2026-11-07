@@ -5,12 +5,12 @@
 import {
   STATIONS, ST, GENRES, GENRE, LEADS, FLOWS, WEATHERS, TIMES, DURATIONS, KNOBS, VOICE_CATS, VOICES, QUICK_VOICES, QUIET_VOICES, LOUD_GENRES,
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
-  lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS } from './studio-data.js?v=20261109';
+  lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS } from './studio-data.js?v=20261115';
 import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
-import { mountSequencer } from './seq-ui.js?v=20261113';
-import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261109';
+import { mountSequencer } from './seq-ui.js?v=20261115';
+import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261117';
 
-const V = '20261113';
+const V = '20261118';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -98,6 +98,35 @@ export async function fork(id) {
   Object.assign(S, { view: 'make', batch: null, status: null, sel: null, done: null, err: '' });
   if (user) { layout(); loadQuota(); renderMake(); }
   B.toast(`'${t.title}' 세팅을 불러왔어요 · 가사는 직접 써 주세요`);
+}
+// 🌐 내 곡을 다른 언어로 (2026-11-05): 줄별 음절을 맞춘 개사 가사 + 원곡 레시피 · 목소리 → 만들기 화면 (가사는 고칠 수 있어요)
+export const LANG_FLAG = { ko: '🇰🇷', en: '🇺🇸', ja: '🇯🇵' };
+export const LANG_NAME = { ko: '한국어', en: '영어', ja: '일본어' };
+export async function translate(id, lang) {
+  if (!sb || !user) return;
+  B.toast(`${LANG_FLAG[lang] || '🌐'} ${LANG_NAME[lang] || ''} 가사로 개사하는 중… (20초쯤)`);
+  let j;
+  try { j = await call('lyrics', { mode: 'translate', track: id, lang }, 70000); } catch (x) {
+    return B.toast(x.message);
+  }
+  stopPoll(); stopTake();
+  const station = ST[j.station] ? j.station : '#WOOD_CAFE';
+  const rc = j.recipe && typeof j.recipe === 'object' ? j.recipe : {};
+  S.recipe = { ...newRecipe(station), ...rc, station };
+  if (!j.recipe) S.recipe.genre = 'auto';
+  S.vocal = true;
+  if (j.vocal && VOICES.some((v) => v[0] === j.vocal)) { S.tone = j.vocal; S.voiceCat = VOICES.find((v) => v[0] === j.vocal)[1]; }
+  S.adlib = String(j.adlib || '').split(',').filter(Boolean);
+  S.ly = { v: (j.verse || []).join('\n'), c: (j.chorus || []).join('\n'), b: (j.bridge || []).join('\n') };
+  S.bridgeOn = (j.bridge || []).length > 0;
+  S.aiDraft = normLyrics(S.ly.v, S.ly.c, S.bridgeOn ? S.ly.b : ''); S.aiLang = lang;
+  S.consent = false; S.tune = {}; S.narr = { ...(S.narr || {}), pos: 'none' };
+  S.draft = j.compose ? draftOf(j.compose) : null; S.composeOn = !!S.draft; if (S.draft) S.pro = true;
+  S.parent = { id, title: j.parent?.title || '', lang, from: j.from };
+  S.title = String(j.title || `${j.parent?.title || ''} (${LANG_NAME[lang]})`).slice(0, 60);
+  Object.assign(S, { view: 'make', batch: null, status: null, sel: null, done: null, err: '' });
+  layout(); loadQuota(); renderMake();
+  B.toast('개사 가사가 왔어요 · 확인하고 고친 뒤 [필수] 동의에 체크해 주세요');
 }
 /** 서버에 저장된 멜로디(검사 뒤 모양) → 시퀀서 초안 */
 function draftOf(c) {
@@ -201,7 +230,7 @@ function layout() {
     stopTake(); seq?.stop();
     if (S.view === 'make') { S.batch ? renderResult() : renderMake(); }
     else if (S.view === 'upload') mountUpload(body(), { sb, user, B, err, call, onDone: loadQuota });
-    else mountMine(body(), { sb, user, B });
+    else mountMine(body(), { sb, user, B, onTranslate: translate });
   };
   header();
 }
@@ -224,7 +253,9 @@ function renderMake() {
   seq?.destroy(); seq = null;
   const r = S.recipe, vocal = S.vocal, st = ST[r.station];
   const stOrder = [st, ...STATIONS.filter((x) => x.code !== r.station)];
-  body().innerHTML = `${S.parent ? `<div class="st-fork">🔗 <b>'${esc(S.parent.title)}'</b> 세팅을 빌려왔어요 · 가사는 직접 써요 · 올리면 <b>원곡: ${esc(S.parent.title)}</b> 표시가 붙어요<button class="seq-key" id="mUnfork">✕ 해제</button></div>` : ''}<div class="st-grid">
+  body().innerHTML = `${S.parent ? (S.parent.lang
+    ? `<div class="st-fork">🌐 <b>'${esc(S.parent.title)}'</b>의 ${LANG_FLAG[S.parent.lang]} ${LANG_NAME[S.parent.lang]} 버전 · 원곡 레시피 · 목소리 그대로, 가사는 줄마다 음절을 맞춰 개사했어요 (고쳐도 돼요) · 올리면 차트에서 원곡 아래 <b>같은 분위기의 다국어 버전</b>으로 묶여요<button class="seq-key" id="mUnfork">✕ 해제</button></div>`
+    : `<div class="st-fork">🔗 <b>'${esc(S.parent.title)}'</b> 세팅을 빌려왔어요 · 가사는 직접 써요 · 올리면 <b>원곡: ${esc(S.parent.title)}</b> 표시가 붙어요<button class="seq-key" id="mUnfork">✕ 해제</button></div>`) : ''}<div class="st-grid">
     <div>
       <div class="st-card">
         <div class="st-tabs" style="margin-bottom:6px"><button data-vocal="0" class="${vocal ? '' : 'on'}">🎹 연주곡 · 매장 · 차트</button><button data-vocal="1" class="${vocal ? 'on' : ''}">🎤 보컬곡 · 내 가사로</button></div>
@@ -556,7 +587,7 @@ function renderResult() {
         <button class="tp" data-play="${t.id}" ${t.status === 'READY' && t.url ? '' : 'disabled'}>${playingTake === t.id ? '■' : '▶'}</button>
         <div><b>${esc(label(t))}</b><small>${t.status === 'READY' ? (t.voice ? esc(voiceLabel(t.voice)) + ' · ' : '') + `${t.duration || st.duration}초` : t.status === 'FAILED' ? esc(t.error || '') : '조금만 기다려 주세요'}</small><div class="sq-bar"><i id="tb_${t.id}"></i></div></div>
         ${t.status === 'READY' ? `<button class="btn ${t.id === S.sel ? '' : 'sub'}" data-sel="${t.id}" style="padding:9px 14px;font-size:13px">${t.id === S.sel ? '이걸로 결정' : '이 버전 선택'}</button>` : ''}
-      </div>${t.status === 'READY' && (canMore || vocal) ? `<div class="take-tools">${t.repaint && takes.some((x) => x.id === t.repaint.from && x.url) ? `<button class="seq-key${ab?.id === t.id ? ' on' : ''}" data-ab="${t.id}">${ab?.id === t.id ? '■ 비교 멈추기' : '🎧 바뀐 구간 비교 듣기'}</button>` : ''}${canMore ? `<button class="seq-key" data-rp="${t.id}">✂ 구간 다시 만들기</button>` : ''}${vocal ? (S.stemLinks?.[t.id] ? `<a class="seq-key" href="${esc(S.stemLinks[t.id].vocals)}" target="_blank" rel="noopener">🎤 보컬 받기</a><a class="seq-key" href="${esc(S.stemLinks[t.id].backing)}" target="_blank" rel="noopener">🎹 반주 받기</a>` : `<button class="seq-key" data-stems="${t.id}" ${S.stemsBusy?.[t.id] ? 'disabled' : ''}>${S.stemsBusy?.[t.id] ? '나누는 중… (1~3분)' : t.stems === 'READY' ? '🎤🎹 나눈 파일 받기' : t.stems === 'FAILED' ? '🎚 다시 나누기 (지난번 실패)' : t.stems === 'RUNNING' ? '🎚 나누는 중 · 눌러서 확인' : '🎚 보컬 · 반주 따로'}</button>`) : ''}</div>` : ''}${
+      </div>${t.status === 'READY' && (canMore || vocal) ? `<div class="take-tools">${t.repaint && takes.some((x) => x.id === t.repaint.from && x.url) ? `<button class="seq-key${ab?.id === t.id ? ' on' : ''}" data-ab="${t.id}">${ab?.id === t.id ? '■ 비교 멈추기' : '🎧 바뀐 구간 비교 듣기'}</button>` : ''}${canMore ? `<button class="seq-key" data-rp="${t.id}">✂ 구간 다시 만들기</button>` : ''}${vocal ? (S.stemLinks?.[t.id] ? `<a class="seq-key" href="${esc(S.stemLinks[t.id].vocals)}" target="_blank" rel="noopener">🎤 보컬 받기</a><a class="seq-key" href="${esc(S.stemLinks[t.id].backing)}" target="_blank" rel="noopener">🎹 반주 받기</a><span class="ai-mark" title="AI 기본법에 따라 AI로 만든 음원임을 파일에 표시해요">🤖 AI로 만든 음원 · 파일 정보에 'Generated with YARR AI (yarrmusic.com)'가 들어가요</span>` : `<button class="seq-key" data-stems="${t.id}" ${S.stemsBusy?.[t.id] ? 'disabled' : ''}>${S.stemsBusy?.[t.id] ? '나누는 중… (1~3분)' : t.stems === 'READY' ? '🎤🎹 나눈 파일 받기' : t.stems === 'FAILED' ? '🎚 다시 나누기 (지난번 실패)' : t.stems === 'RUNNING' ? '🎚 나누는 중 · 눌러서 확인' : '🎚 보컬 · 반주 따로'}</button>`) : ''}</div>` : ''}${
         ab?.id === t.id ? `<div class="ab-box"><span>지금 듣는 것 <b>${ab.phase === 0 ? '① 원래 버전' : '② 다시 만든 버전'}</b> · ${fmt(ab.a)}~${fmt(ab.b)} (바뀐 곳 ${fmt(t.repaint.start)}~${fmt(t.repaint.end)})</span><button class="seq-key" data-abswap="1">↔ 바꿔 듣기</button></div>` : ''}${
         S.rp === t.id ? `<div class="rp-box"><div class="st-note" style="margin:0 0 6px">고른 구간만 새로 만들고 앞뒤는 그대로 둬요 · 테이크 1개를 써요 · 3~90초</div>
           <div class="st-range"><span class="st-note" style="margin:0;width:44px">시작</span><input type="range" min="0" max="${Math.floor(t.duration || st.duration)}" step="1" value="${S.rpRange[0]}" data-rpr="0"><span class="lcdv">${fmt(S.rpRange[0])}</span></div>

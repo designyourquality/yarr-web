@@ -133,10 +133,25 @@ h2.sec small{font-size:12.5px;color:var(--soft);font-weight:400}
 .ht{display:inline-flex;align-items:center;gap:3px;padding:1px 8px;border-radius:999px;font-size:10.5px;font-weight:700;border:1px solid var(--line);white-space:nowrap}
 .ht.lyrics{color:#FDBA74;border-color:rgba(251,146,60,.45)}.ht.melody{color:#86EFAC;border-color:rgba(74,222,128,.4)}.ht.repaint{color:#93C5FD;border-color:rgba(96,165,250,.4)}.ht.voice{color:#F9A8D4;border-color:rgba(244,114,182,.4)}.ht.ai{color:var(--dim)}
 .trk .cd .par{color:#FDBA74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px}
+.trk .cd .fam{font:inherit;font-size:11.5px;color:#FDBA74;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline dotted rgba(253,186,116,.5);text-underline-offset:3px}.trk .cd .fam:hover{color:#FFD7A8}
+/* 🌳 변주 가계도 (071 SQL) */
+.fam-tree{margin:10px 0 4px;display:flex;flex-direction:column;gap:2px;max-height:56vh;overflow-y:auto}
+.fam-n{position:relative;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;font-size:13.5px;color:#D4D4D8;min-width:0}
+.fam-n::before{content:'';position:absolute;left:calc(var(--d) * 18px - 9px);top:0;bottom:50%;width:8px;border-left:1px solid rgba(255,255,255,.18);border-bottom:1px solid rgba(255,255,255,.18);border-bottom-left-radius:6px}
+.fam-n.root::before{display:none}
+.fam-n{padding-left:calc(var(--d) * 18px + 10px)}
+.fam-n b{color:#fff;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.fam-n .who{color:var(--soft);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fam-n .pl{margin-left:auto;flex:none;color:var(--dim);font-size:11.5px;font-variant-numeric:tabular-nums}
+.fam-n.me{background:rgba(255,140,0,.12);outline:1px solid rgba(255,140,0,.35)}
+.fam-n.can{cursor:pointer}.fam-n.can:hover{background:rgba(255,255,255,.06)}
+.fam-n .flag{flex:none;font-size:14px}
+.fam-n .tag{flex:none;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px;border:1px solid rgba(255,140,0,.45);color:#FDBA74}
 .wvw{display:flex;align-items:center;gap:8px;margin-top:6px;max-width:340px;cursor:pointer;border-radius:8px;padding:2px 4px 2px 0}.wvw:hover .wv i{background:rgba(255,255,255,.3)}
 .wv{display:flex;align-items:flex-end;gap:1px;height:22px;flex:1;min-width:0}.wv i{flex:1;min-width:2px;background:rgba(255,255,255,.17);border-radius:1px}.wv i.h,.wvw:hover .wv i.h{background:rgba(255,140,0,.7)}
 .wvw.on .wv i.h{background:#FF8C00;animation:wvp .5s ease-in-out infinite alternate}.wvl{font-size:11px;font-weight:800;color:#FDBA74;white-space:nowrap}.wvw.on .wvl{color:#FF8C00}
 @keyframes wvp{from{opacity:.55}to{opacity:1}}
+.emb{font:inherit;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;font-weight:800;padding:4px 8px;border-radius:999px;border:1px solid var(--line,rgba(255,255,255,.12));background:rgba(255,255,255,.04);color:#D4D4D8;cursor:pointer;white-space:nowrap}.emb:hover{border-color:rgba(255,140,0,.5);color:#FDBA74}
 .fk{font:inherit;font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:999px;border:1px solid rgba(255,140,0,.6);background:rgba(255,123,47,.12);color:#FDBA74;cursor:pointer;white-space:nowrap}.fk:hover{background:rgba(255,123,47,.25)}
 .eq{display:inline-flex;gap:2px;align-items:flex-end;height:18px}
 .eq i{width:3px;border-radius:1px;background:var(--orange)}
@@ -393,6 +408,10 @@ html,body{background:var(--bg)}
 .trk{border-color:rgba(255,255,255,.06)!important}
 .trk:hover{border-color:rgba(255,140,0,.45)!important}
 /* 휴대폰으로 매장 웹을 열었을 때만: 하루 종일 틀려면 앱 안내 (2026-11-04) */
+.safe-note{display:flex;gap:12px;align-items:flex-start;margin:0 0 14px;padding:14px 16px;border-radius:16px;background:linear-gradient(135deg,rgba(52,211,153,.12),rgba(52,211,153,.03));border:1px solid rgba(52,211,153,.35)}
+.safe-note .sn-ic{font-size:20px;line-height:1.2}.safe-note b{display:block;font-size:14px;color:#D1FAE5;line-height:1.45}
+.safe-note p{margin:4px 0 0;font-size:12.5px;color:var(--soft,#A1A1AA);line-height:1.55}.safe-note a{color:#6EE7B7}
+.rpt{font:inherit;font-size:11px;padding:4px 7px;border-radius:999px;border:1px solid var(--line,rgba(255,255,255,.12));background:none;color:#A1A1AA;cursor:pointer;text-decoration:none;white-space:nowrap}.rpt:hover{border-color:rgba(248,113,113,.6);color:#FCA5A5}
 .appnudge{display:none;align-items:center;gap:12px;margin:0 0 14px;padding:14px 16px;border-radius:16px;background:linear-gradient(135deg,rgba(255,122,31,.14),rgba(255,122,31,.04));border:1px solid rgba(255,140,0,.35)}
 .appnudge b{display:block;font-size:14.5px;margin-bottom:3px}
 .appnudge p{margin:0;font-size:12.5px;line-height:1.55;color:var(--soft,#B9B4AC)}
@@ -502,6 +521,9 @@ html,body{background:var(--bg)}
 
 <!-- 매장 -->
 <section class="view" id="v-store">
+  <!-- 매장 BGM 안심 안내 (2026-11-05): 약관 · 확인서와 같은 범위로만 (법적 보증은 아님) -->
+  <div class="safe-note" role="note"><span class="sn-ic">🛡️</span><div><b>매장에서 트는 곡은 저작권 신탁단체(KOMCA 등)에 등록되지 않은 AI 창작곡만 골라요</b>
+    <p>YARR 매장 모드는 검수에서 신탁단체 비등록 · AI 생성으로 확인된 곡만 틀어서, 신탁단체가 매장에서 걷는 공연권료 대상 곡이 아니에요. 다른 음원(라디오 · 일반 스트리밍 등)을 함께 틀면 그 곡은 따로 확인해 주세요. 안내와 이용 확인서는 YARR 검수 결과를 알려 드리는 것이며 법률 자문이나 법적 보증은 아니에요 (<a href="terms.html">이용약관</a>).</p></div></div>
   <div id="storeLoading" class="login glass"><p class="soft" style="margin:0">매장 정보를 확인하는 중…</p></div>
 
   <div id="storeLogin" class="login glass hidden">
@@ -621,6 +643,12 @@ html,body{background:var(--bg)}
   <div class="card"><b>매장 BGM 모드</b> · 영업시간 예약 · 안내방송 · 오프라인 재생 · 이용 확인서</div>
   <p class="soft" style="font-size:12.5px">Android 앱이에요. Google Play 정식 출시를 준비하고 있어요. 곡 만들기 · 올리기는 이 사이트의 <a href="?tab=studio" style="color:#FB923C">스튜디오</a> 탭에서도 바로 할 수 있어요.</p>
   <a class="btn" style="width:100%;justify-content:center" href="https://play.google.com/store/apps/details?id=kr.dyq.yarr" rel="noopener">Google Play에서 보기</a>
+</div></div>
+
+<div class="modal" id="mFamily"><div class="box glass" style="border-color:rgba(255,140,0,.3)"><button class="x" data-close aria-label="닫기">✕</button>
+  <span class="kick" style="color:#FB923C">🌳 변주 가계도</span><h3 id="famSum">가계도</h3>
+  <p class="soft" style="font-size:12.5px;margin:0">원곡의 세팅으로 만든 변주곡과, 원곡 크리에이터가 다른 언어로 부른 다국어 버전(🇺🇸 · 🇯🇵 · 🇰🇷)이에요. 지금 목록에 있는 곡은 눌러서 바로 들을 수 있어요.</p>
+  <div class="fam-tree" id="famTree"></div>
 </div></div>
 
 <div class="modal" id="mAward"><div class="box glass" style="border-color:rgba(245,158,11,.3)"><button class="x" data-close aria-label="닫기">✕</button>
@@ -779,7 +807,9 @@ html,body{background:var(--bg)}
     const tags = [t.bpm ? `${t.bpm} BPM` : '', c.key || '', t.genre || '', c.voice && VOICE_SHORT[c.voice] ? VOICE_SHORT[c.voice] : ''].filter(Boolean);
     const s = c.station && ST[c.station];
     const st = s ? `${s.emoji} ${s.name}${c.srank ? ` ${c.srank}위` : ''}` : '';
-    return `<span class="cd">${touch}${tags.map((x) => `<span class="rt">${esc(x)}</span>`).join('')}${st ? `<span class="rt">${esc(st)}</span>` : ''}${c.parent ? `<span class="par" title="이 곡은 '${esc(c.parent.title)}'의 세팅으로 만든 변주곡이에요">🔗 원곡: ${esc(c.parent.title)}</span>` : ''}</span>`;
+    return `<span class="cd">${touch}${tags.map((x) => `<span class="rt">${esc(x)}</span>`).join('')}${st ? `<span class="rt">${esc(st)}</span>` : ''}${c.parent ? (c.lang && c.parent.lang && c.lang !== c.parent.lang
+      ? `<button class="par fam" data-family="${esc(t.id)}" title="'${esc(c.parent.title)}'와 같은 분위기의 다국어 버전이에요 · 눌러서 가계도 보기">${FLAG[c.lang] || '🌐'} 다국어 버전 · 원곡: ${esc(c.parent.title)}</button>`
+      : `<button class="par fam" data-family="${esc(t.id)}" title="이 곡은 '${esc(c.parent.title)}'의 세팅으로 만든 변주곡이에요 · 눌러서 가계도 보기">🔗 원곡: ${esc(c.parent.title)}</button>`) : ''}${c.forks > 0 ? `<button class="fam" data-family="${esc(t.id)}" title="이 곡을 원곡으로 만든 변주곡 가계도 보기">🌳 변주 ${c.forks}곡</button>` : ''}</span>`;
   }
   // 15초 하이라이트 미리듣기 (2026-11-05 · 069 SQL): 미니 파형의 주황 칸이 가장 꽉 찬 15초 · 누르면 거기서부터 15초만
   // 따로 만든 소리로 틀어서 재생 수 · 웹 재생 기록 · 정산에 들어가지 않아요
@@ -806,19 +836,39 @@ html,body{background:var(--bg)}
     prevT = setTimeout(() => { let v = 1; const f = setInterval(() => { if (prevA !== a) return clearInterval(f); v -= 0.1; a.volume = Math.max(0, v); if (v <= 0) { clearInterval(f); stopPreview(); } }, 80); }, 14200);
     document.querySelectorAll(`.wvw[data-prev="${id}"]`).forEach((x) => { x.classList.add('on'); const l = x.querySelector('.wvl'); if (l) l.textContent = '■ 듣는 중'; });
   }
+  // 🌳 변주 가계도 (2026-11-05 · 071 SQL track_family): 맨 위 원곡부터 공개 변주곡 전부 · 지금 목록에 있는 곡은 눌러서 듣기
+  const FLAG = { ko: '🇰🇷', en: '🇺🇸', ja: '🇯🇵' };
+  async function openFamily(id, list, src) {
+    const m = $('mFamily'), box = $('famTree');
+    box.innerHTML = '<p class="soft" style="margin:8px 0">가계도를 불러오는 중…</p>';
+    document.querySelectorAll('.modal.on').forEach((x) => x.classList.remove('on')); m.classList.add('on');
+    let rows = null;
+    try { await loadSb(); const { data, error } = await sb.rpc('track_family', { p_track: id }); if (!error) rows = data; } catch { /* 아래에서 안내 */ }
+    if (!rows || !rows.length) { box.innerHTML = '<p class="soft" style="margin:8px 0">가계도를 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</p>'; return; }
+    const idx = new Map(list.map((t, i) => [t.id, i]));
+    const multi = new Set(rows.map((r) => r.lang).filter(Boolean)).size > 1; // 여러 언어가 섞이면 국기 표시
+    $('famSum').textContent = rows.length > 1 ? `원곡 1곡 · 변주 ${rows.length - 1}곡` : '아직 변주곡이 없어요';
+    box.innerHTML = rows.map((r) => {
+      const i = idx.get(r.id), can = i != null;
+      return `<div class="fam-n${r.depth === 0 ? ' root' : ''}${r.id === id ? ' me' : ''}${can ? ' can' : ''}" style="--d:${Math.min(r.depth, 8)}" ${can ? `data-fi="${i}" role="button" tabindex="0" aria-label="${esc(r.title)} 재생"` : ''}>${r.depth === 0 ? '<span class="tag">원곡</span>' : ''}${multi && FLAG[r.lang] ? `<span class="flag" title="노래 언어">${FLAG[r.lang]}</span>` : ''}<b>${esc(r.title)}</b><span class="who">${esc(r.creator_nickname || '')}</span><span class="pl">${can ? '▶ · ' : ''}${Number(r.plays || 0).toLocaleString('ko-KR')}회</span></div>`;
+    }).join('');
+    const play = (el) => { m.classList.remove('on'); listenPlay(list, +el.dataset.fi, src); };
+    box.onclick = (e) => { const n = e.target.closest('[data-fi]'); if (n) play(n); };
+    box.onkeydown = (e) => { const n = e.target.closest('[data-fi]'); if (n && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); play(n); } };
+  }
   function rowHtml(t, i, ranked) {
     const no = ranked && t.rank ? t.rank : i + 1;
     return `<div class="trk" data-i="${i}" tabindex="0" role="button" aria-label="${esc(t.title)} 재생">
       <span class="no${no <= 3 && ranked ? ' top' : ''}">${no}${ranked ? moveHtml(t.move) : ''}</span>
       <span class="cover md ph" style="${coverCss(t)}">${coverEmo(t)}</span>
       <span style="min-width:0"><b>${esc(t.title)}</b><span class="sub">${esc(t.artist)}${t.card ? '' : `${t.genre ? ' · ' + esc(t.genre) : ''} · ${kindOf(t)}`}</span>${cardHtml(t)}${waveHtml(t)}</span>
-      <span class="right">${t.card?.fork ? `<button class="fk" data-fork="${esc(t.id)}" title="이 곡의 세팅(장르 · 노브 · 목소리 · 멜로디)으로 내 버전 만들기 · 가사는 직접 써요">⚡ 변주</button>` : ''}${t.engine ? `<span class="eng">${esc(t.engine)}</span>` : ''}<span class="badge ${t.store ? 'store' : 'chart'}" title="${t.store ? '매장 BGM으로도 나와요' : '사람이 쓴 가사가 들어간 곡이라 매장 BGM에서는 빠지고, 차트 · 스테이션 듣기에만 나와요'}">${t.store ? '매장 가능' : '매장 제외'}</span></span>
+      <span class="right"><a class="rpt" data-report href="${reportHref(t)}" title="권리 침해 신고 (운영팀 메일 · 24시간 안에 확인해요)" aria-label="권리 침해 신고">🚨</a><button class="emb" data-embed="${esc(t.id)}" title="블로그 · 노션 · 사이트에 넣는 미니 플레이어 코드 복사" aria-label="위젯 코드 복사">&lt;/&gt;</button>${t.card?.fork ? `<button class="fk" data-fork="${esc(t.id)}" title="이 곡의 세팅(장르 · 노브 · 목소리 · 멜로디)으로 내 버전 만들기 · 가사는 직접 써요">⚡ 변주</button>` : ''}${t.engine ? `<span class="eng">${esc(t.engine)}</span>` : ''}<span class="badge ${t.store ? 'store' : 'chart'}" title="${t.store ? '매장 BGM으로도 나와요' : '사람이 쓴 가사가 들어간 곡이라 매장 BGM에서는 빠지고, 차트 · 스테이션 듣기에만 나와요'}">${t.store ? '매장 가능' : '매장 제외'}</span></span>
     </div>`;
   }
   function bindRows(el, getList) {
     const src = () => (el.id === 'stationList' ? `station:${curStation}` : 'chart');
-    el.onclick = (e) => { const pv = e.target.closest('[data-prev]'); if (pv) { e.stopPropagation(); return preview(getList(), pv.dataset.prev); } const fk = e.target.closest('[data-fork]'); if (fk) { e.stopPropagation(); return forkTo(fk.dataset.fork); } const r = e.target.closest('.trk'); if (r) listenPlay(getList(), +r.dataset.i, src()); };
-    el.onkeydown = (e) => { const pv = e.target.closest('[data-prev]'); if (pv && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); return preview(getList(), pv.dataset.prev); } if (e.target.closest('[data-fork]')) return; if (e.key === 'Enter' || e.key === ' ') { const r = e.target.closest('.trk'); if (r) { e.preventDefault(); listenPlay(getList(), +r.dataset.i, src()); } } };
+    el.onclick = (e) => { const pv = e.target.closest('[data-prev]'); if (pv) { e.stopPropagation(); return preview(getList(), pv.dataset.prev); } const fk = e.target.closest('[data-fork]'); if (fk) { e.stopPropagation(); return forkTo(fk.dataset.fork); } if (e.target.closest('[data-report]')) { e.stopPropagation(); return; } const em = e.target.closest('[data-embed]'); if (em) { e.stopPropagation(); return copyEmbed(em.dataset.embed, getList().find((x) => x.id === em.dataset.embed)?.title); } const fm = e.target.closest('[data-family]'); if (fm) { e.stopPropagation(); return openFamily(fm.dataset.family, getList(), src()); } const r = e.target.closest('.trk'); if (r) listenPlay(getList(), +r.dataset.i, src()); };
+    el.onkeydown = (e) => { const pv = e.target.closest('[data-prev]'); if (pv && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); return preview(getList(), pv.dataset.prev); } if (e.target.closest('[data-fork],[data-family],[data-embed],[data-report]')) return; if (e.key === 'Enter' || e.key === ' ') { const r = e.target.closest('.trk'); if (r) { e.preventDefault(); listenPlay(getList(), +r.dataset.i, src()); } } };
   }
   function stationCards(el, opts = {}) {
     const list = opts.only ? STATIONS.slice(0, opts.only) : STATIONS;
@@ -1033,12 +1083,20 @@ html,body{background:var(--bg)}
       toast('이어서 들을 곡을 찾지 못했어요');
     } finally { extending = false; }
   }
+  let followId = null; // 마지막으로 따라간 곡 (2026-11-06: 다음 · 이전 · 자동으로 넘어가면 그 줄이 보이게 내려가요)
   function markPlaying() {
     const cur = mode === 'listen' ? list[idx] : null;
+    const moved = !!cur && cur.id !== followId;
+    if (cur) followId = cur.id;
     document.querySelectorAll('.trk').forEach((r) => {
       const host = r.parentElement; const arr = host.id === 'chartList' ? shown : host.id === 'stationList' ? stationShown : [];
       const t = arr[+r.dataset.i]; const on = !!cur && t && t.id === cur.id;
       r.classList.toggle('on', on);
+      if (on && moved && r.offsetParent) {
+        // 화면 밖(또는 아래 플레이어에 가려진 곳)에 있을 때만 가운데로 (보이는 줄을 눌렀으면 화면은 그대로)
+        const b = r.getBoundingClientRect(); const bottom = innerHeight - 140;
+        if (b.top < 80 || b.bottom > bottom) r.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
       const no = r.querySelector('.no');
       if (on) no.innerHTML = '<span class="eq"><i></i><i></i><i></i></span>';
       else if (no.querySelector('.eq')) no.textContent = (host.id === 'chartList' && !shared && t?.rank) ? t.rank : +r.dataset.i + 1;
@@ -1183,11 +1241,26 @@ html,body{background:var(--bg)}
   let studioMod = null, pendingFork = null;
   // ⚡ 변주: 스튜디오를 열고 그 곡의 공개 레시피를 불러와요 (로그인 전이면 로그인 뒤에 그대로)
   function forkTo(id) { pendingFork = id; go('studio'); }
+  // 🚨 권리 침해 신고 (2026-11-05): 운영팀 메일로 · 곡 정보와 필요한 내용을 미리 채워 둬요
+  function reportHref(t) {
+    const sub = `[권리 침해 신고] ${t.title} (${t.id})`;
+    const body = `신고할 곡: ${t.title} · ${t.artist}\n곡 주소: ${location.origin}/listen.html?t=${t.id}\n\n1. 신고하시는 분 (이름 · 연락처):\n2. 권리자와의 관계 (본인 · 대리인):\n3. 침해된 원래 작품 (곡명 · 가수 · 발매 정보 등):\n4. 침해 내용 (어느 부분이 어떻게 같은지):\n5. 권리를 확인할 수 있는 자료 (링크 또는 첨부):\n\n접수되면 24시간 안에 확인하고, 필요하면 곡을 먼저 내려요.`;
+    return `mailto:contact@yarrmusic.com?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`;
+  }
+  // </> 퍼가기 위젯 (2026-11-05): embed.html 미니 플레이어 iframe 코드 복사
+  function embedCode(id, title) {
+    return `<iframe src="${location.origin}/embed.html?song_id=${id}" width="100%" height="152" style="border:0;border-radius:14px;max-width:560px" allow="autoplay" loading="lazy" title="YARR · ${esc(title || '플레이어')}"></iframe>`;
+  }
+  async function copyEmbed(id, title) {
+    const code = embedCode(id, title);
+    try { await navigator.clipboard.writeText(code); toast('위젯 코드를 복사했어요 · 블로그 · 노션 · 사이트의 HTML 넣기에 붙여 넣어 주세요'); }
+    catch { window.prompt('아래 코드를 복사해 주세요', code); }
+  }
   function runFork() { if (pendingFork && studioMod?.fork) { const id = pendingFork; pendingFork = null; studioMod.fork(id); } }
   async function studioBoot() {
     if (studioMod) { studioMod.show?.(); return runFork(); }
     try {
-      studioMod = await import('./studio/studio.js?v=20261113');
+      studioMod = await import('./studio/studio.js?v=20261118');
       await studioMod.mount($('studioRoot'), {
         loadSb, SB_URL, SB_KEY, STATIONS, ST, toast, esc, stPhoto, base, coverCss,
         pauseMain: () => { A.forEach((a) => a.pause()); },
@@ -1362,7 +1435,9 @@ html,body{background:var(--bg)}
   const sParam = q.get('s');
   if (sParam && ST['#' + sParam.toUpperCase()]) curStation = '#' + sParam.toUpperCase();
   loadChart();
-  if (q.get('tab') === 'studio' || (q.has('code') && store.get('yarr_login_for', '') === 'studio')) go('studio', false);
+  const fkParam = q.get('fork'); // 퍼가기 위젯의 ⚡ 이 곡 변주하기
+  if (fkParam && /^[0-9a-f-]{36}$/i.test(fkParam)) { pendingFork = fkParam; go('studio', false); }
+  else if (q.get('tab') === 'studio' || (q.has('code') && store.get('yarr_login_for', '') === 'studio')) go('studio', false);
   else if (q.get('tab') === 'store' || q.has('code')) go('store', false);
   else if (sParam) go('stations', false);
 })();
