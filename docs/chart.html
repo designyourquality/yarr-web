@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>차트 집계 기준 · YARR</title>
+<meta name="description" content="YARR(야르) AI 음악 차트를 어떻게 세는지 공개해요">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <a href="index.html" class="logo" aria-label="YARR 홈"><span></span></a>
+  <a href="index.html" class="brand" style="color:inherit;text-decoration:none">YARR</a>
+  <nav class="top">
+    <a href="index.html">소개</a>
+    <a href="privacy.html">개인정보 처리방침</a>
+    <a href="terms.html">이용약관</a>
+    <a href="chart.html">차트 기준</a>
+    <a href="delete-account.html">계정 삭제</a>
+  </nav>
+</header>
+<h1>차트 집계 기준</h1>
+<p class="soft">YARR 차트가 어떻게 순위를 세는지 그대로 공개해요. 처음 공개: 2026년 11월 8일 · 기준을 바꾸면 아래 '바뀐 기록'에 날짜와 이유를 남겨요.</p>
+
+<h2>1. 한 번으로 세는 재생</h2>
+<p>곡을 <b>60초 이상</b> 들어야 1번으로 세요. 시간은 앱이 보낸 값이 아니라 서버 시각으로 확인해요. 60초가 안 되는 재생은 기록하지 않아요.</p>
+
+<h2>2. 세지 않는 재생</h2>
+<ul>
+<li>같은 사람이 같은 곡을 하루에 6번째부터 들은 재생 (하루 5번까지만 세요)</li>
+<li>같은 인터넷 주소에서 같은 곡을 하루에 51번째부터 들은 재생 (카페 · 회사처럼 여럿이 같은 와이파이를 쓰는 경우를 생각해 넉넉하게 잡았어요)</li>
+<li>곡을 만든 사람이 자기 곡을 들은 재생</li>
+<li>매장 모드에서 나간 재생 (매장 송출은 따로 세요)</li>
+</ul>
+<p>'하루'는 한국 시간 0시부터 다음 날 0시까지예요.</p>
+
+<h2>3. 차트 종류</h2>
+<ul>
+<li><b>TOP 100 (실시간)</b>: 최근 24시간 동안 센 재생 수 순서. 5분마다 새로 계산해요. 매장 송출 수는 TOP 100 점수에 넣지 않고 따로 세요</li>
+<li><b>주간 기록</b>: 월요일 0:00부터 일요일 23:59까지(한국 시간) 센 재생 수. 월요일 0시 5분에 지난주 순위를 기록으로 남겨요</li>
+<li><b>월간 순위</b>: 그달 센 재생 수. 1~3위에게 보상(곡 만들기 횟수 · 배지)을 줘요</li>
+<li><b>최신곡</b>: 공개된 날짜가 최근인 순서 (재생 수와 무관)</li>
+</ul>
+<p>YARR가 매장용으로 직접 만든 곡(YARR 오리지널)은 순위에서 빼요. 크리에이터들끼리만 겨뤄요.</p>
+
+<h2>4. 차트에 오를 수 있는 곡</h2>
+<ul>
+<li>운영팀 검수를 통과해 공개된 곡</li>
+<li>모든 곡은 AI로 만든 곡이고, 화면(🤖 AI)과 파일에 AI 표시가 붙어요</li>
+<li>음악 저작권 단체(음저협 등)에 등록된 곡이거나 그 단체 회원의 곡으로 확인되면 차트에서 바로 빼고 비공개로 돌려요 (<a href="terms.html">이용약관 3</a>)</li>
+<li>실존 가수 이름 · 목소리를 흉내 낸 곡은 올릴 수 없어요</li>
+</ul>
+
+<h2>5. 조작이 의심될 때</h2>
+<p>자동화 프로그램(봇)이나 비정상적인 반복 패턴이 보이면 그 재생은 집계에서 빼요. 재생이 한곳에 몰리거나 새로 만든 계정의 재생이 많은 곡도 살펴봐요. 월간 보상은 자동으로 주지 않고, 운영팀이 재생 기록을 확인한 뒤에 줘요.</p>
+<p>나중에라도 조작이 확인되면 그 재생을 빼고 순위를 다시 매기며, 보상을 취소하거나 차트 노출과 계정을 제한할 수 있어요.</p>
+<p>조작을 완전히 막을 수 있다고 약속하지는 않아요. 대신 기준을 공개하고, 발견하면 바로잡아요.</p>
+<p>권리 문제로 내려간 곡은 지난 순위 기록은 남기되 제목과 닉네임을 가려요.</p>
+
+<h2>6. 순위와 돈</h2>
+<p>순위는 돈으로 살 수 없어요. 스폰서나 광고는 스테이션 · 행사 이름에만 붙고, 순위 집계와 심사에는 관여하지 않아요.</p>
+
+<h2>7. 바뀐 기록</h2>
+<ul>
+<li>2026년 11월 8일: 이 페이지를 처음 공개했어요</li>
+</ul>
+<p>기준에 대한 질문이나 조작 제보는 <a href="mailto:contact@yarrmusic.com">contact@yarrmusic.com</a>로 보내 주세요.</p>
+<footer>
+  <p>YARR (야르) · 상호: 디와이큐 · 대표: 원대연 · 사업자등록번호: 734-15-02973 · 통신판매업 신고: 제2026-화성동탄-3868호 · 주소: 경기도 화성시 동탄구 동탄중심상가2길 26-21, 603-가39호 (반송동, 로드프라자)<br>문의: <a href="mailto:contact@yarrmusic.com">contact@yarrmusic.com</a></p>
+  <p><a href="privacy.html">개인정보 처리방침</a> · <a href="terms.html">이용약관</a> · <a href="delete-account.html">계정 및 데이터 삭제 요청</a></p>
+</footer>
+</div>
+</body>
+</html>
