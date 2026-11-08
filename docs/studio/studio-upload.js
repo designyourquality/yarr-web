@@ -215,7 +215,7 @@ async function showCert(id) {
 }
 const mineCtx = {};
 
-export async function mountMine(el, { sb, user, B, onTranslate }) {
+export async function mountMine(el, { sb, user, B, onTranslate, onGo }) {
   Object.assign(mineCtx, { sb, B });
   el.innerHTML = '<div class="st-card mine"><span class="spin"></span> 내 곡을 불러오는 중…</div>';
   const q = (cols) => sb.from('tracks').select(cols).eq('creator_id', user.id).order('created_at', { ascending: false }).limit(40);
@@ -225,7 +225,13 @@ export async function mountMine(el, { sb, user, B, onTranslate }) {
   const now = Date.now();
   const kind = (t) => t.status === 'PENDING' ? 'wait' : t.status === 'ACTIVE' ? (t.publish_at && new Date(t.publish_at) > now ? 'soon' : 'live') : t.status === 'REJECTED' ? 'bad' : 'off';
   const LABEL = { live: '공개 중', soon: '공개 예정', wait: '검수 중', bad: '반려', off: '내려감' };
-  const rows = data.map((t) => ({ ...t, k: kind(t) }));
+  // 086 (2026-11-09): 반려 곡 · 누구 책임인지 · 경고 · 돌려준 횟수 · 숨김 (086 전이면 비어 있어요 → 예전처럼)
+  const rej = {};
+  try {
+    const { data: rr, error: re } = await sb.rpc('my_reject_info');
+    if (!re) for (const x of rr || []) rej[x.id] = x;
+  } catch { /* 086 전 */ }
+  let rows = data.filter((t) => !rej[t.id]?.hidden).map((t) => ({ ...t, k: kind(t), rj: rej[t.id] || null }));
   // ⚡ 레시피 공개 (071 SQL · 내 곡마다 켜고 끄기 · 071 전이면 스위치를 안 보여요)
   const flags = {};
   try {
@@ -255,8 +261,18 @@ export async function mountMine(el, { sb, user, B, onTranslate }) {
   };
   const sub = (t) => t.k === 'wait' ? steps(t)
     : t.k === 'soon' ? `<p class="mi-msg">${new Date(t.publish_at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}에 공개돼요</p>`
-    : t.k === 'bad' ? `<p class="mi-msg bad">${esc(t.reject_reason || '반려됐어요')} · 고쳐서 다시 올릴 수 있어요</p>`
+    : t.k === 'bad' ? `<p class="mi-msg bad">${esc(t.reject_reason || '반려됐어요')}</p>${rejectNote(t)}
+      <div class="mi-emb"><button class="mi-trb" data-again="${t.id}">${t.rj?.studio ? '다시 만들기' : '고쳐서 다시 올리기'}</button><button class="mi-trb" data-hide="${t.id}">목록에서 숨기기</button></div>`
     : t.k === 'live' ? `<p class="mi-msg">차트 · 스테이션에 나가요</p>` : '';
+  // 앱 MyServerTrack.rejectNote 와 같아요
+  const rejectNote = (t) => {
+    const r = t.rj; let msg, cls = '';
+    if (t.reject_reason === '본인 요청 · 새 버전으로 교체') msg = '본인 요청으로 새 버전으로 바꿨어요';
+    else if (r?.fault === 'yarr') { msg = r.refunded ? 'AI가 만든 결과물 문제라 회원님 잘못이 아니에요 · 경고 없음 · 쓴 횟수 1번을 돌려드렸어요' : 'AI가 만든 결과물 문제라 회원님 잘못이 아니에요 · 경고 없음'; cls = ' ok'; }
+    else if (r?.fault === 'user' && r.strike) { msg = '권리 문제 반려 · 경고 1회 (90일 동안 · 3번이면 30일 동안 올리기 제한)'; cls = ' bad'; }
+    else msg = r?.studio ? '다시 만들어 볼 수 있어요' : '고쳐서 다시 올릴 수 있어요';
+    return `<p class="mi-msg${cls}"${cls === ' ok' ? ' style="color:#6EE7A0"' : ''}>${esc(msg)}</p>`;
+  };
   const card = (t) => {
     const canPlay = t.k === 'live' && String(t.audio_url || '').startsWith('storage:uploads/');
     const meta = ['🤖 AI', t.genre, t.is_instrumental ? '연주곡' : '보컬곡', t.bpm ? `${t.bpm} BPM` : '', fmtDur(t.duration_sec), stName(t)].filter(Boolean).map(esc).join(' · ');
@@ -311,6 +327,17 @@ export async function mountMine(el, { sb, user, B, onTranslate }) {
       try { await navigator.clipboard.writeText(code); B?.toast?.('위젯 코드를 복사했어요 · 블로그 · 노션 · 사이트의 HTML 넣기에 붙여 넣어 주세요'); }
       catch { window.prompt('아래 코드를 복사해 주세요', code); }
       return;
+    }
+    const ag = e.target.closest('[data-again]');
+    if (ag) { const t = rows.find((r) => r.id === ag.dataset.again); return onGo?.(t?.rj?.studio ? 'make' : 'upload'); }
+    const hd = e.target.closest('[data-hide]');
+    if (hd) {
+      const t = rows.find((r) => r.id === hd.dataset.hide);
+      if (!t || !window.confirm(`'${t.title}' 숨길까요?\n내 곡 목록에서만 안 보여요. 검수 기록은 남고, 경고가 있었다면 그대로 세요.`)) return;
+      hd.disabled = true;
+      const { data: ok, error: er } = await sb.rpc('hide_my_rejected', { p_track: t.id }).catch((x) => ({ error: x }));
+      if (er || ok !== true) { hd.disabled = false; return B?.toast?.('숨기지 못했어요 · 잠시 뒤 다시 해 주세요'); }
+      rows = rows.filter((r) => r.id !== t.id); draw(); return B?.toast?.('목록에서 숨겼어요');
     }
     const ce = e.target.closest('[data-cert]');
     if (ce) { ce.disabled = true; try { await showCert(ce.dataset.cert); } finally { ce.disabled = false; } return; }
