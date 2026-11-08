@@ -9,9 +9,9 @@ import {
   STATION_GROUPS, stGroupOf, voicePicks, THEMES, THEME, OPENINGS, LY_PENS, LY_HEATS, LY_TALKS, LY_VIEWS, lyricStyleRequest, lyricRequest, sectionRequest, sectionStyleRequest } from './studio-data.js?v=20261122';
 import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
 import { mountSequencer } from './seq-ui.js?v=20261115';
-import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261124';
+import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261125';
 
-const V = '20261124';
+const V = '20261125';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;

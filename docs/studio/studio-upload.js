@@ -231,6 +231,12 @@ export async function mountMine(el, { sb, user, B, onTranslate, onGo }) {
     const { data: rr, error: re } = await sb.rpc('my_reject_info');
     if (!re) for (const x of rr || []) rej[x.id] = x;
   } catch { /* 086 전 */ }
+  // 087 (2026-11-09): 곡마다 매장 몇 곳에서 몇 번 흘렀는지 (매장 이름 · 위치는 안 알려 줘요 · 087 전이면 비어 있어요)
+  const sp = {};
+  try {
+    const { data: pp, error: pe } = await sb.rpc('my_track_store_plays');
+    if (!pe) for (const x of pp || []) sp[x.track_id] = x;
+  } catch { /* 087 전 */ }
   let rows = data.filter((t) => !rej[t.id]?.hidden).map((t) => ({ ...t, k: kind(t), rj: rej[t.id] || null }));
   // ⚡ 레시피 공개 (071 SQL · 내 곡마다 켜고 끄기 · 071 전이면 스위치를 안 보여요)
   const flags = {};
@@ -273,6 +279,17 @@ export async function mountMine(el, { sb, user, B, onTranslate, onGo }) {
     else msg = r?.studio ? '다시 만들어 볼 수 있어요' : '고쳐서 다시 올릴 수 있어요';
     return `<p class="mi-msg${cls}"${cls === ' ok' ? ' style="color:#6EE7A0"' : ''}>${esc(msg)}</p>`;
   };
+  // 앱 TrackStorePlays.line · 공유 문구와 같아요
+  const storeLine = (t) => {
+    const x = sp[t.id]; if (t.k !== 'live' || !x || !(x.total_plays > 0)) return '';
+    const msg = x.week_plays > 0 ? `이번 주 매장 ${x.week_stores}곳에서 ${x.week_plays}번 흘렀어요 · 지금까지 ${x.total_stores}곳` : `지금까지 매장 ${x.total_stores}곳에서 ${x.total_plays}번 흘렀어요`;
+    return `<div class="mi-emb"><p class="mi-msg" style="color:#FFB020;font-weight:700;margin:0">🏪 ${esc(msg)}</p><button class="mi-trb" data-brag="${t.id}">자랑하기</button></div>`;
+  };
+  const bragText = (t) => {
+    const x = sp[t.id], week = x.week_plays > 0, url = `${location.origin}/listen.html`;
+    return week ? `제 AI 곡 '${t.title}'이 이번 주 매장 ${x.week_stores}곳에서 ${x.week_plays}번 흘렀어요! 🎧 들어 보세요 👉 ${url}`
+      : `제 AI 곡 '${t.title}'이 지금까지 매장 ${x.total_stores}곳에서 ${x.total_plays}번 흘렀어요! 🎧 들어 보세요 👉 ${url}`;
+  };
   const card = (t) => {
     const canPlay = t.k === 'live' && String(t.audio_url || '').startsWith('storage:uploads/');
     const meta = ['🤖 AI', t.genre, t.is_instrumental ? '연주곡' : '보컬곡', t.bpm ? `${t.bpm} BPM` : '', fmtDur(t.duration_sec), stName(t)].filter(Boolean).map(esc).join(' · ');
@@ -283,6 +300,7 @@ export async function mountMine(el, { sb, user, B, onTranslate, onGo }) {
         <div class="mi-meta">${meta}<span class="mi-date">${new Date(t.created_at).toLocaleDateString('ko-KR')}</span></div>
         <div class="mi-row">${wave(t.waveform)}${t.k === 'live' ? `<span class="mi-plays" title="유효 재생 수">${ICONS.headphones}${num(t.play_count_total)}</span>` : ''}</div>
         ${sub(t)}
+        ${storeLine(t)}
         ${recipe(t)}
         ${trans(t)}
         ${t.k === 'live' && String(t.ai_plan || '').startsWith('YARR 스튜디오') ? `<div class="mi-emb"><button class="mi-trb" data-cert="${t.id}">✔ 창작 음원 이용 확인서</button><em>영상 · SNS 배경음악으로 쓸 때 보여 줄 수 있는 기록 (Pro)</em></div>` : ''}
@@ -326,6 +344,14 @@ export async function mountMine(el, { sb, user, B, onTranslate, onGo }) {
       const code = `<iframe src="https://yarrmusic.com/embed.html?song_id=${em.dataset.emb}" width="100%" height="152" style="border:0;border-radius:14px;max-width:560px" allow="autoplay" loading="lazy" title="YARR · ${esc(row?.title || '플레이어')}"></iframe>`;
       try { await navigator.clipboard.writeText(code); B?.toast?.('위젯 코드를 복사했어요 · 블로그 · 노션 · 사이트의 HTML 넣기에 붙여 넣어 주세요'); }
       catch { window.prompt('아래 코드를 복사해 주세요', code); }
+      return;
+    }
+    const bg = e.target.closest('[data-brag]');
+    if (bg) {
+      const t = rows.find((r) => r.id === bg.dataset.brag); if (!t) return;
+      const text = bragText(t);
+      try { if (navigator.share) { await navigator.share({ text }); return; } } catch { return; }
+      try { await navigator.clipboard.writeText(text); B?.toast?.('자랑 문구를 복사했어요 · 카톡 · SNS에 붙여 넣어 보세요'); } catch { window.prompt('이 문구를 복사해 주세요', text); }
       return;
     }
     const ag = e.target.closest('[data-again]');
