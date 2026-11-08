@@ -1,4 +1,4 @@
-// 웹 스튜디오 데이터 (앱 studio_recipe.dart · studio_edit.dart · backend.dart 와 같은 값 · 2026-11-03)
+// 웹 스튜디오 데이터 (앱 studio_recipe.dart · studio_edit.dart · backend.dart 와 같은 값 · 2026-11-03 · 공간 24곳 · 목소리 36종 2026-11-08)
 export const STATIONS = [
   ['#NIGHT_DRIVE', '#야간드라이브', 104, '시티팝', '밤 · 드라이브'], ['#WOOD_CAFE', '#우드톤카페', 70, '앰비언트', '오후'],
   ['#RAINY_LOFI', '#비오는날', 72, '로파이', '비 오는 날'], ['#FOCUS_CODE', '#코딩집중', 80, '앰비언트', '낮 업무 시간'],
@@ -8,8 +8,23 @@ export const STATIONS = [
   ['#SPA_YOGA', '#힐링요가/스파', 68, '앰비언트', '아침 · 오후'], ['#ROOFTOP', '#루프탑/선셋', 102, '하우스', '해 질 녘'],
   ['#DAWN_MOOD', '#새벽감성', 76, '피아노', '새벽'], ['#HANGANG_PICNIC', '#한강피크닉', 106, '어쿠스틱', '주말 오후'],
   ['#SUMMER_BEACH', '#여름바다', 120, '레게 · 트로피컬', '여름 · 낮'], ['#POCHA_NIGHT', '#포차/퇴근길', 95, '트로트', '퇴근 후 · 밤'],
+  // 2026-11-08 매장 업종 8곳 (앱 catalog.dart · 084 SQL 과 같아요)
+  ['#SALON_NAIL', '#미용실/네일', 98, 'R&B · 팝', '오후 · 예약 시간'], ['#CLINIC_WAIT', '#병원대기실', 68, '피아노', '진료 시간'],
+  ['#BOOK_CAFE', '#북카페/서점', 78, '어쿠스틱', '오후'], ['#HOTEL_LOBBY', '#호텔로비', 88, '재즈 · 보사노바', '하루 종일'],
+  ['#BRUNCH_CAFE', '#브런치카페', 102, '어쿠스틱 팝', '오전 · 주말'], ['#FLOWER_SHOP', '#꽃집/플라워', 86, '어쿠스틱', '오후'],
+  ['#GOLF_RANGE', '#골프연습장', 112, '하우스 · 펑크', '저녁'], ['#CAMPING', '#캠핑/글램핑', 84, '포크 · 어쿠스틱', '밤 · 주말'],
 ].map(([code, tag, bpm, ko, slot]) => ({ code, tag, bpm, ko, slot }));
 export const ST = Object.fromEntries(STATIONS.map((s) => [s.code, s]));
+/** 공간 묶음 (앱 stationGroups 와 같아요 · 2026-11-08) */
+export const STATION_GROUPS = [
+  ['☕ 카페', ['#WOOD_CAFE', '#MORNING_BAKERY', '#BRUNCH_CAFE', '#BOOK_CAFE', '#STUDY_CAFE']],
+  ['🛍️ 숍 · 뷰티', ['#BOUTIQUE', '#SALON_NAIL', '#FLOWER_SHOP', '#HOTEL_LOBBY']],
+  ['🧘 집중 · 휴식', ['#FOCUS_CODE', '#CLINIC_WAIT', '#SPA_YOGA', '#DAWN_MOOD']],
+  ['🍷 밤 · 술', ['#PUB_LOUNGE', '#WINE_BAR', '#POCHA_NIGHT', '#NIGHT_DRIVE']],
+  ['🏃 운동', ['#GYM_CARDIO', '#GOLF_RANGE']],
+  ['🌤️ 날씨 · 야외', ['#RAINY_LOFI', '#ROOFTOP', '#HANGANG_PICNIC', '#SUMMER_BEACH', '#CAMPING']],
+];
+export const stGroupOf = (code) => Math.max(0, STATION_GROUPS.findIndex(([, c]) => c.includes(code)));
 
 export const GENRES = [
   ['auto', '스테이션 기본'], ['citypop', '시티팝'], ['lofi', '로파이'], ['acoustic', '어쿠스틱'], ['jazz', '재즈'], ['bossa', '보사노바'],
@@ -23,13 +38,13 @@ export const LEADS = [['auto', '자동'], ['piano', '피아노'], ['guitar', '�
 export const FLOWS = [['auto', '자동'], ['steady', '잔잔하게 유지'], ['build', '점점 고조'], ['groove', '리듬감 있게'], ['drop', '잔잔하다 터지게'], ['dreamy', '몽환적으로'], ['catchy', '귀에 꽂히는 후크'], ['emotional', '감정 폭발'], ['cinematic', '영화처럼 웅장하게'], ['minimal', '미니멀하게'], ['calmdown', '점점 차분하게'], ['loop', '끊김 없이 반복용']];
 export const WEATHERS = [['none', '상관없음'], ['sunny', '☀️ 맑음'], ['rain', '🌧 비'], ['snow', '❄️ 눈'], ['cloudy', '☁️ 흐림']];
 export const TIMES = [['none', '상관없음'], ['morning', '아침'], ['afternoon', '오후'], ['evening', '저녁'], ['night', '밤'], ['fridaynight', '🌙 금요일 밤']];
-export const DURATIONS = [120, 150, 180];
+export const DURATIONS = [90, 120, 150, 180, 210]; // 2026-11-06 90 · 210초 추가 (서버 STUDIO_DURATIONS 와 같아요)
 export const KNOBS = [['warmth', '따뜻함', '차가움', '따뜻함'], ['energy', '바쁨', '한가함', '바쁨'], ['texture', '빈티지', '깔끔함', '빈티지']];
 export const ENERGY_SHIFT = [-16, -8, 0, 8, 16];
 
 export const VOICE_CATS = [['f', '👩 여자'], ['m', '👨 남자'], ['g', '👥 그룹'], ['fx', '🎛️ 이펙트']];
 export const VOICES = [
-  ['f_clear', 'f', '맑고 청아한 소녀 미성', '밝고 맑은 고음 · 상큼한 팝에 잘 어울려요'],
+  ['f_clear', 'f', '맑고 청아한 미성', '밝고 맑은 고음 · 상큼한 팝에 잘 어울려요'],
   ['f_whisper', 'f', '새벽 감성 · 귓속말 호흡', '숨소리가 많은 속삭이는 목소리 · 새벽 감성'],
   ['f_mature', 'f', '성숙하고 깊은 중저음 (알토)', '낮고 깊은 알토 · 차분한 발라드'],
   ['f_jazz', 'f', '스모키 재즈 · 허스키 소울', '까슬한 허스키 소울 · 재즈바 분위기'],
@@ -54,6 +69,18 @@ export const VOICES = [
   ['fx_autotune', 'fx', '🤖 사이버펑크 오토튠 (기계음)', '음정이 딱딱 꺾이는 기계음 오토튠'],
   ['fx_echo', 'fx', '🌌 몽환적 우주 리버브 (드림팝)', '우주에 떠 있는 듯한 깊은 잔향'],
   ['fx_gugak', 'fx', '🪘 국악 소리꾼 (판소리 한 자락)', '시김새가 살아 있는 국악 퓨전 소리꾼'],
+  // 2026-11-06 새 목소리 + 예전 목소리 다시 꺼내기 (앱과 같아요 · 미리 듣기 샘플은 준비 중)
+  ['f_rock', 'f', '걸크러시 록 보컬', '거칠게 내지르는 걸크러시 록'],
+  ['f_citypop', 'f', '시티팝 · 레트로 여성 보컬', '가볍고 숨결 섞인 80년대 시티팝'],
+  ['f_ballad', 'f', '애틋한 발라드 여성 보컬', '잔잔한 절에서 후렴으로 차오르는 발라드'],
+  ['f_husky', 'f', '따뜻한 허스키 소울', '따뜻하게 갈라지는 허스키 알토'],
+  ['f_bright', 'f', '통통 튀는 상큼 발랄', '리듬 타는 밝고 발랄한 팝'],
+  ['m_hiphop', 'm', '힙합 래퍼 (랩 + 후렴)', '절은 랩, 후렴은 멜로디로 부르는 힙합'],
+  ['m_acoustic', 'm', '따뜻한 통기타 남자 보컬', '통기타에 어울리는 따뜻하고 담백한 목소리'],
+  ['m_jazz', 'm', '벨벳 재즈 크루너', '부드러운 바리톤 · 스윙 재즈 크루너'],
+  ['m_power', 'm', '힘 있는 바리톤', '가슴을 울리는 힘 있는 바리톤'],
+  ['m_falsetto', 'm', '감성 가성 · 실키 R&B', '가성을 오가는 세련된 R&B'],
+  ['indie_duo', 'g', '인디 혼성 투보컬', '남녀가 함께 부르는 따뜻한 인디 포크'],
 ].map(([id, cat, label, desc]) => ({ id, cat, label, desc }));
 export const LEGACY_VOICES = { f_husky: '여자 · 허스키/소울', f_rap: '여자 · 트렌디 랩/팝', f_bright: '여자 · 상큼/발랄', m_power: '남자 · 파워풀', m_falsetto: '남자 · 감성 가성', indie_duo: '인디 혼성 투보컬' };
 /** 목소리 다듬기 (2026-11-04): 칸마다 -1 · 0(자동) · 1 → 서버 VOICE_TUNE 과 같은 칸 */
@@ -66,6 +93,26 @@ export const VOICE_TUNE_ROWS = [
 ];
 export const voiceLabel = (id) => VOICES.find((v) => v.id === id)?.label || LEGACY_VOICES[id] || id;
 export const QUICK_VOICES = ['f_clear', 'f_whisper', 'm_soft', 'm_indie', 'duet', 'f_rnb'];
+/** 장르별로 먼저 보여 줄 목소리 (앱 studioGenreVoices 와 같아요 · 2026-11-08) */
+const GENRE_VOICES = {
+  trot: ['f_trot', 'm_trot'], hiphop: ['m_rap', 'f_rap', 'm_hiphop'], rnb: ['f_rnb', 'm_falsetto', 'm_rap'], jazz: ['f_jazz', 'm_jazz', 'f_husky'],
+  bossa: ['f_jazz', 'f_whisper', 'm_jazz'], blues: ['f_jazz', 'm_rock', 'f_husky'], rock: ['m_rock', 'f_rock', 'm_band'], kballad: ['f_mature', 'm_ballad', 'f_ballad'],
+  citypop: ['f_citypop', 'f_bright', 'm_soft'], disco: ['f_bright', 'f_citypop', 'f_diva'], funk: ['f_bright', 'm_rap', 'f_rnb'], kpop: ['group_girl', 'group_boy', 'f_rap'],
+  gugak: ['fx_gugak', 'f_trot'], acoustic: ['f_folk', 'm_acoustic', 'indie_duo'], indie: ['m_indie', 'indie_duo', 'f_folk'], reggae: ['m_soft', 'f_bright'],
+  lofi: ['f_whisper', 'm_indie'], ambient: ['f_whisper', 'f_mature', 'fx_echo'], chillout: ['f_whisper', 'm_indie', 'f_mature'], piano: ['f_mature', 'm_soft', 'f_ballad'],
+  cinematic: ['choir', 'f_diva', 'm_power'], neoclassic: ['choir', 'f_mature', 'm_deep'], house: ['f_bright', 'fx_echo', 'fx_autotune'],
+  synthwave: ['fx_echo', 'f_citypop', 'fx_autotune'], dnb: ['f_diva', 'fx_echo', 'f_bright'],
+};
+/** 첫 화면 목소리 추천 6개: 장르 추천 → 기본 목소리 (장르와 부딪히는 조용한 목소리는 빼요) · 고른 목소리가 없으면 마지막 자리에 */
+export function voicePicks(tone, genre, n = 6) {
+  const base = ['f_clear', 'f_whisper', 'm_soft', 'm_indie', 'duet', 'f_rnb', 'm_deep', 'f_mature'];
+  const has = (id) => VOICES.some((v) => v.id === id);
+  const clash = (id) => QUIET_VOICES.includes(id) && LOUD_GENRES.includes(genre);
+  const out = [];
+  for (const id of [...(GENRE_VOICES[genre] || []), ...base]) { if (out.length >= n) break; if (!out.includes(id) && has(id) && !clash(id)) out.push(id); }
+  if (tone && !out.includes(tone)) { if (out.length >= n) out.pop(); out.push(tone); }
+  return out;
+}
 export const QUIET_VOICES = ['f_whisper', 'f_folk', 'm_indie'];
 export const LOUD_GENRES = ['funk', 'rock', 'house', 'synthwave', 'kpop', 'disco', 'dnb', 'hiphop', 'trot', 'cinematic'];
 export const ADLIBS = [['hum', '🎵 도입부 허밍'], ['hype', '🙌 후렴 추임새 (예에~ 우후~)']];
@@ -88,10 +135,14 @@ export const LYRIC_HINT = {
   '#SPA_YOGA': ['깊게 들이쉬고 천천히 내쉬면', '지금 이대로 괜찮아'], '#ROOFTOP': ['노을이 번지는 옥상 끝에서', '이 순간을 오래 기억할게'],
   '#DAWN_MOOD': ['잠들지 못한 새벽 세 시에', '너의 이름을 조용히 불러 봐'], '#HANGANG_PICNIC': ['돗자리 위로 바람이 불어오면', '오늘은 너에게 말할 거야'],
   '#SUMMER_BEACH': ['창문을 열면 바다 냄새가 나', '이 여름이 끝나지 않게'], '#POCHA_NIGHT': ['퇴근길 포장마차 불빛 아래', '오늘도 수고했어 한잔 하자'],
+  '#SALON_NAIL': ['거울 속 새로운 내가 웃어', '오늘은 나를 위한 날'], '#CLINIC_WAIT': ['창가로 들어오는 오후 햇살', '괜찮아질 거야 천천히'],
+  '#BOOK_CAFE': ['책장을 넘기는 소리 사이로', '한 페이지씩 나에게로'], '#HOTEL_LOBBY': ['반짝이는 샹들리에 아래서', '오늘 밤은 조금 특별하게'],
+  '#BRUNCH_CAFE': ['늦잠 잔 주말 햇살 가득한 테이블', '오늘은 천천히 맛있게'], '#FLOWER_SHOP': ['꽃잎 사이로 봄이 먼저 와', '너에게 건네고 싶은 한 다발'],
+  '#GOLF_RANGE': ['힘껏 휘두른 그 순간', '멀리 더 멀리 날아가'], '#CAMPING': ['타닥타닥 모닥불 옆에서', '별이 쏟아지는 이 밤에'],
 };
 
 export const ERR = {
-  TOPIC_EMPTY: '어떤 노래인지 한 줄로 적어 주세요.', TOPIC_LONG: '주제는 80자 안으로 짧게 적어 주세요.',
+  TOPIC_EMPTY: '어떤 노래인지 한 줄로 적어 주세요.', TOPIC_LONG: '주제는 150자 안으로 적어 주세요.',
   TOPIC_COPYRIGHT: '기존 노래를 따라 하거나 가수 · 곡 이름이 들어간 주제는 쓸 수 없어요. 내 이야기로 적어 주세요.',
   TOPIC_UNSAFE: '이 주제로는 가사를 쓸 수 없어요. 누구나 들을 수 있는 이야기로 바꿔 주세요.',
   TOPIC_UNCLEAR: '주제를 조금 더 구체적으로 적어 주세요. 예: 퇴근길 버스에서 나를 위로하는 노래',
@@ -117,7 +168,24 @@ export const ERR = {
 export const errText = (code) => ERR[code] || String(code || '곡 만들기 요청이 실패했어요. 잠시 뒤 다시 시도해 주세요.');
 
 // ---- 레시피 ----
-export const newRecipe = (station = '#WOOD_CAFE') => ({ station, genre: 'auto', warmth: 2, energy: 2, texture: 2, weather: 'none', time: 'none', lead: 'auto', flow: 'auto', duration: 150 });
+export const newRecipe = (station = '#WOOD_CAFE') => ({ station, genre: 'auto', warmth: 2, energy: 2, texture: 2, weather: 'none', time: 'none', lead: 'auto', flow: 'auto', duration: 150, theme: 'none', opening: 'auto' });
+/** 노래 주제 · 감정 (보컬곡 1번 · 앱 studioThemes · 서버 STUDIO_THEMES 와 같아요): [키, 이름, 어울리는 공간(반주 기본)] */
+export const THEMES = [
+  ['flutter', '💘 설렘 · 고백', '#HANGANG_PICNIC'], ['crush', '🙈 짝사랑', '#DAWN_MOOD'], ['breakup', '💔 이별 · 그리움', '#DAWN_MOOD'],
+  ['comfort', '🫂 위로 · 토닥토닥', '#WOOD_CAFE'], ['cheer', '💪 응원 · 힘내', '#GYM_CARDIO'], ['party', '🎉 신나는 파티', '#ROOFTOP'],
+  ['travel', '✈️ 여행 · 떠나요', '#NIGHT_DRIVE'], ['friends', '🤝 우정 · 친구', '#HANGANG_PICNIC'], ['family', '🏠 가족 · 고마움', '#WOOD_CAFE'],
+  ['birthday', '🎂 생일 · 축하', '#MORNING_BAKERY'], ['newstart', '🌱 졸업 · 새출발', '#MORNING_BAKERY'], ['confident', '😎 당당함 · 자존감', '#BOUTIQUE'],
+  ['memory', '📼 추억 · 그때 그 시절', '#PUB_LOUNGE'], ['worklife', '🧑‍💼 직장인 · 퇴근길', '#POCHA_NIGHT'], ['summer', '🌊 여름 · 바다', '#SUMMER_BEACH'],
+  ['winter', '❄️ 겨울 · 크리스마스', '#DAWN_MOOD'], ['anniversary', '💍 기념일 · 고마워', '#WOOD_CAFE'],
+];
+export const THEME = Object.fromEntries(THEMES.map(([k, n, st]) => [k, { name: n, station: st }]));
+/** AI 작사 스타일 (앱 studioLyricPens · Heats · Talks · Views 와 같아요 · 2026-11-06) */
+export const LY_PENS = [['auto', '결 자동'], ['real', '💬 대화체'], ['poetic', '🌙 시적 · 은유'], ['abstract', '🌫 추상 · 몽환'], ['cinema', '🎬 영화 한 장면'], ['confess', '🫀 감정 직설'], ['inner', '🪞 내면 독백'], ['story', '📖 이야기'], ['witty', '😄 위트'], ['hook', '🔁 후크송']];
+export const LY_HEATS = [['auto', '감정 자동'], ['calm', '담담하게'], ['deep', '절절하게']];
+export const LY_TALKS = [['auto', '말투 자동'], ['casual', '반말 · 친구처럼'], ['polite', '존댓말 · 다정하게']];
+export const LY_VIEWS = [['auto', '시점 자동'], ['you', '나 → 너에게'], ['we', '우리 이야기'], ['self', '혼잣말'], ['story', '이야기꾼 (그 사람 이야기)']];
+/** 곡 시작 (보컬곡 · 서버 STUDIO_OPENINGS 와 같아요) */
+export const OPENINGS = [['auto', '자동 (버전마다 다르게)'], ['inst', '반주로 시작'], ['hum', '허밍으로 시작'], ['cold', '바로 노래부터'], ['hook', '후렴부터']];
 export const bpmOf = (r) => Math.max(56, Math.min(170, (ST[r.station]?.bpm || 96) + ENERGY_SHIFT[r.energy ?? 2]));
 export const genreName = (r) => r.genre === 'auto' ? (ST[r.station]?.ko || '') : GENRE[r.genre] || r.genre;
 export const defaultTitle = (station, d = new Date()) => `${(ST[station]?.tag || '#우드톤카페').replace('#', '').replace(/\//g, ' ')} ${d.getMonth() + 1}${String(d.getDate()).padStart(2, '0')}`;

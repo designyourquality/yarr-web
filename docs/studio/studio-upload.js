@@ -42,7 +42,7 @@ export function mountUpload(el, { sb, B, call, onDone }) {
     : eleven() ? ['', toolStoreOk() ? 'ElevenLabs Scale · Business 플랜이라 차트 · 스테이션 · 매장 BGM 모두 갈 수 있어요.' : 'ElevenLabs 곡은 약관상 Scale · Business 플랜만 매장에 나갈 수 있어서, 이 곡은 차트 · 스테이션에만 등록돼요.']
       : ['', '유료 플랜이라 차트 · 스테이션에 올라가고, 연주곡이거나 가사도 AI가 만든 곡이면 매장 BGM 에도 들어가요.'];
   const storeNote = () => !toolStoreOk() ? 'ElevenLabs Pro · Creator 플랜 곡은 매장 공공장소 재생이 허용되지 않아 매장 BGM 풀에서 빠져요. 차트 · 스테이션에는 나가요.'
-    : F.inst ? '연주곡은 매장 BGM 풀에도 들어가요.' : (F.lyAi && F.notKomca) ? '가사 있는 AI 곡으로 매장 BGM 풀에 들어가요. 가사 곡을 끈 매장에서는 빠져요.' : '두 가지를 모두 확인해야 매장 BGM 풀에 들어가요. 확인하지 않으면 차트 · 스테이션에만 나가요.';
+    : F.inst ? '연주곡은 매장 BGM 풀에도 들어가요.' : (F.lyAi && F.notKomca) ? '가사 있는 AI 곡으로 매장 BGM 풀에 들어가요. 가사 곡을 끈 매장에서는 빠져요.' : '가사도 AI가 만들었다고 확인해야 매장 BGM 풀에 들어가요. 확인하지 않으면 차트 · 스테이션에만 나가요.';
 
   function draw() {
     const step = !F.file ? 1 : !F.title.trim() ? 2 : 3;
@@ -77,11 +77,11 @@ export function mountUpload(el, { sb, B, call, onDone }) {
         <div class="st-q">장르</div><div class="chips">${GENRES.map((g) => `<button class="chip-b${g === F.genre ? ' on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`).join('')}</div>
         <div class="st-q">매장 BGM 풀 (선택)</div>
         <div class="chips"><button class="chip-b${F.inst ? ' on' : ''}" data-inst="1">연주곡</button><button class="chip-b${F.inst ? '' : ' on'}" data-inst="0">가사 있는 곡</button></div>
-        ${F.inst ? '' : `<label class="st-check"><input type="checkbox" id="uLyAi" ${F.lyAi ? 'checked' : ''}><span>가사도 AI가 만들었어요 (제가 직접 쓴 가사가 아니에요)</span></label>
-          <label class="st-check"><input type="checkbox" id="uKomca" ${F.notKomca ? 'checked' : ''}><span>저는 음저협 등 음악 신탁단체 회원이 아니에요</span></label>`}
+        ${F.inst ? '' : `<label class="st-check"><input type="checkbox" id="uLyAi" ${F.lyAi ? 'checked' : ''}><span>가사도 AI가 만들었어요 (제가 직접 쓴 가사가 아니에요)</span></label>`}
         <p class="st-note">${esc(storeNote())}</p>
         <p class="st-note">사실과 다르게 확인하면 정산이 보류되고 곡이 내려갈 수 있어요.</p>
         <div class="st-q">03 · 확인</div>
+        <label class="st-check"><input type="checkbox" id="uKomca" ${F.notKomca ? 'checked' : ''}><span><b>[필수] 이 곡은 음악 저작권 단체(음저협 등)에 등록하지 않았고, 저는 그 단체 회원이 아니에요</b><br><span class="st-note" style="margin:0">YARR 는 저작권 단체와 사용 계약이 없어서 등록된 곡은 차트 · 스테이션 · 매장에서 틀 수 없어요. 나중에 등록하려면 먼저 알려 주세요. 곡을 비공개로 돌려요.</span></span></label>
         <label class="st-check"><input type="checkbox" id="uRights" ${F.rights ? 'checked' : ''}><span><b>이 곡의 상업 이용 권리가 있고, 타인의 권리를 침해하지 않음을 확인합니다. 위반 시 정산이 보류돼요.</b></span></label>
         <button class="btn st-go" id="uGo" ${F.busy ? 'disabled' : ''}>${F.busy ? '<span class="spin"></span> ' + esc(F.step || '올리는 중…') : '검수 시작 · 올리기'}</button>
         <p class="st-note ${F.msg.startsWith('✓') ? '' : 'st-err'}" id="uMsg">${esc(F.msg)}</p>
@@ -132,6 +132,7 @@ export function mountUpload(el, { sb, B, call, onDone }) {
     if (F.source.trim() && !/^https?:\/\//i.test(F.source.trim())) return fail('원본 생성 링크는 https:// 로 시작하는 주소여야 해요.');
     if (F.dur != null && F.dur < 60) return fail(`${Math.round(F.dur)}초짜리 곡이에요. 60초 이상 들어야 재생이 집계돼서 60초보다 짧은 곡은 올릴 수 없어요.`);
     if (!F.file) return fail('음원 파일을 골라 주세요.');
+    if (!F.notKomca) return fail('[필수] 저작권 단체 미등록 확인에 체크해야 올릴 수 있어요.');
     if (!F.rights) return fail('권리 확인에 체크해야 업로드할 수 있어요.');
     if (F.tool.includes('Eleven') && F.plan === 'Starter') return fail('ElevenLabs Starter 플랜은 스트리밍 배포가 허용되지 않아요. 배포 허용 플랜이 필요해요.');
     F.busy = true; F.msg = ''; F.step = '음원 파일 올리는 중…'; draw();
@@ -149,7 +150,7 @@ export function mountUpload(el, { sb, B, call, onDone }) {
         title: F.title.trim(), ai_engine: tool.includes('suno') ? 'SUNO_PRO' : tool.includes('eleven') ? 'ELEVENLABS' : tool.includes('stable') ? 'STABLE_AUDIO_3' : 'HYBRID_HUMAN',
         ai_plan: F.plan, prompt_recipe: F.prompt.trim() || '(프롬프트 미입력)', genre: F.genre, bpm: 110, is_instrumental: F.inst, situation_tags: [F.station], is_human_hybrid: false,
         ...(F.lyrics.trim() ? { lyrics: F.lyrics.trim() } : {}), ...(F.source.trim() ? { source_url: F.source.trim() } : {}),
-        ...(!F.inst && F.lyAi ? { lyrics_ai_generated: true } : {}), ...(!F.inst && F.notKomca ? { creator_not_komca: true } : {}),
+        ...(!F.inst && F.lyAi ? { lyrics_ai_generated: true } : {}), ...(F.notKomca ? { creator_not_komca: true } : {}),
         original_url: tk.ref,
       };
       const ins = await sb.from('tracks').insert(row);
@@ -179,7 +180,43 @@ export const ICONS = {
   headphones: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>',
 };
 const STEPS = ['업로드', '자동 검수', '운영팀 확인', '공개'];
+// ✔ 창작 음원 이용 확인서 (앱 use_certificate_screen.dart 와 같은 내용 · 2026-11-08 · Pro · YARR 스튜디오 곡만)
+const CERT_ERR = { CERT_STUDIO_ONLY: '이용 확인서는 YARR 스튜디오에서 만든 곡만 받을 수 있어요.', PRO_ONLY: '이용 확인서는 크리에이터 Pro 기능이에요.', NOT_READY: '공개 중인 곡만 확인서를 받을 수 있어요.', NOT_FOUND: '곡을 찾지 못했어요.', LOGIN_REQUIRED: '로그인이 풀렸어요. 다시 로그인해 주세요.' };
+async function showCert(id) {
+  const sbx = mineCtx.sb, B = mineCtx.B;
+  const { data, error } = await sbx.functions.invoke('house-music/make-download', { body: { track_id: id, cert: true } }).catch((x) => ({ error: x }));
+  let code = data?.error || null;
+  if (error) { try { const j = await error.context?.json?.(); code = j?.error || j?.code || code; } catch { /* 본문 없음 */ } }
+  const c = data?.cert;
+  if (!c) return B?.toast?.(CERT_ERR[code] || '확인서를 만들지 못했어요');
+  const day = (v) => v ? new Date(v).toLocaleDateString('ko-KR') : '-';
+  const line = `음악: "${c.title}" · YARR 스튜디오에서 AI로 만든 곡 (확인서 ${c.no} · yarrmusic.com)`;
+  const row = (k, v) => `<div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid #e6dfd6"><b style="width:92px;flex:none;color:#6b5f52;font-size:12.5px">${esc(k)}</b><span style="color:#1e1a16;font-size:13px;line-height:1.5">${esc(v)}</span></div>`;
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto';
+  wrap.innerHTML = `<div style="background:#fbf7f1;border-radius:16px;max-width:520px;width:100%;padding:22px 20px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <div style="text-align:center;font-size:19px;font-weight:900;color:#1e1a16">창작 음원 이용 확인서</div>
+    <div style="text-align:center;font-size:12px;color:#8a7d70;margin:4px 0 12px">${esc(c.no)}</div>
+    ${row('곡 제목', c.title)}${row('만든 곳', `YARR 스튜디오 (${String(c.engine || '').replace('YARR 스튜디오 · ', '')})`)}${row('만든 날 · 공개', `${day(c.made_at)} · ${day(c.published_at)}`)}
+    ${row('AI 생성', '예 · 음원은 AI로 만들었고 파일 정보에 AI 표시가 들어 있어요')}${row('가사', c.lyrics === 'human' ? '만든 사람이 직접 씀' : c.lyrics === 'ai' ? 'AI가 씀' : '연주곡')}
+    ${c.human_touch ? row('사람 참여', '작사 · 구간 다듬기 등 사람이 손본 기록이 있어요') : ''}
+    ${row('신탁단체', c.self_declared_not_registered ? '만든 사람이 올릴 때 "음악 저작권 단체에 등록하지 않았고 회원이 아니다"라고 직접 확인했어요' : '올릴 때 확인 기록이 없어요')}
+    ${row('쓸 수 있는 곳', '만든 사람 본인의 영상 · SNS 게시물 · 영화제 출품작 배경음악 (음원 자체 판매 · 음원 사이트 유통 · 광고 사용은 안 돼요)')}${row('발급일', day(c.issued_at))}
+    <p style="font-size:11.5px;color:#8a7d70;line-height:1.5;margin:12px 0">이 확인서는 YARR가 가진 기록을 사실대로 적은 것이에요. 저작권을 보장하거나 다른 곡과 비슷하지 않다는 것을 보증하지 않아요. 발급: ${esc(day(c.issued_at))} (${esc(c.no)})</p>
+    <div style="font-size:13px;font-weight:800;color:#1e1a16;margin-bottom:6px">영상 설명란에 붙여 넣기</div>
+    <div style="background:#efe7dc;border-radius:10px;padding:10px;font-size:12.5px;color:#1e1a16">${esc(line)}</div>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn" data-cc="1" style="flex:1">한 줄 복사</button><button class="btn sub" data-cx="1" style="flex:1">닫기</button></div>
+    <p style="font-size:11.5px;color:#8a7d70;margin:10px 0 0">화면을 캡처해 두거나, 문의가 오면 확인서 번호를 알려 주세요.</p></div>`;
+  wrap.onclick = async (e) => {
+    if (e.target === wrap || e.target.closest('[data-cx]')) return wrap.remove();
+    if (e.target.closest('[data-cc]')) { try { await navigator.clipboard.writeText(line); B?.toast?.('복사했어요'); } catch { window.prompt('아래 줄을 복사해 주세요', line); } }
+  };
+  document.body.appendChild(wrap);
+}
+const mineCtx = {};
+
 export async function mountMine(el, { sb, user, B, onTranslate }) {
+  Object.assign(mineCtx, { sb, B });
   el.innerHTML = '<div class="st-card mine"><span class="spin"></span> 내 곡을 불러오는 중…</div>';
   const q = (cols) => sb.from('tracks').select(cols).eq('creator_id', user.id).order('created_at', { ascending: false }).limit(40);
   let { data, error } = await q('id,title,status,created_at,publish_at,reject_reason,genre,is_instrumental,ai_plan,duration_sec,bpm,play_count_total,situation_tags,waveform,audio_url');
@@ -222,7 +259,7 @@ export async function mountMine(el, { sb, user, B, onTranslate }) {
     : t.k === 'live' ? `<p class="mi-msg">차트 · 스테이션에 나가요</p>` : '';
   const card = (t) => {
     const canPlay = t.k === 'live' && String(t.audio_url || '').startsWith('storage:uploads/');
-    const meta = [t.genre, t.is_instrumental ? '연주곡' : '보컬곡', t.bpm ? `${t.bpm} BPM` : '', fmtDur(t.duration_sec), stName(t)].filter(Boolean).map(esc).join(' · ');
+    const meta = ['🤖 AI', t.genre, t.is_instrumental ? '연주곡' : '보컬곡', t.bpm ? `${t.bpm} BPM` : '', fmtDur(t.duration_sec), stName(t)].filter(Boolean).map(esc).join(' · ');
     return `<article class="mi ${t.k}${playing === t.id ? ' playing' : ''}" data-id="${t.id}">
       <div class="mi-cover" style="${cover(t)}">${canPlay ? `<button class="mi-play" data-play="${t.id}" aria-label="${esc(t.title)} 듣기">${playing === t.id && audio && !audio.paused ? ICONS.pause : ICONS.play}</button>` : ''}</div>
       <div class="mi-body">
@@ -232,6 +269,7 @@ export async function mountMine(el, { sb, user, B, onTranslate }) {
         ${sub(t)}
         ${recipe(t)}
         ${trans(t)}
+        ${t.k === 'live' && String(t.ai_plan || '').startsWith('YARR 스튜디오') ? `<div class="mi-emb"><button class="mi-trb" data-cert="${t.id}">✔ 창작 음원 이용 확인서</button><em>영상 · SNS 배경음악으로 쓸 때 보여 줄 수 있는 기록 (Pro)</em></div>` : ''}
         ${t.k === 'live' ? `<div class="mi-emb"><button class="mi-trb" data-emb="${t.id}">&lt;/&gt; 위젯 코드 복사</button><em>블로그 · 노션 · 사이트에 넣는 미니 플레이어 (15초 미리듣기 · 전체 듣기 · ⚡ 변주하기)</em></div>` : ''}
       </div>
     </article>`;
@@ -274,6 +312,8 @@ export async function mountMine(el, { sb, user, B, onTranslate }) {
       catch { window.prompt('아래 코드를 복사해 주세요', code); }
       return;
     }
+    const ce = e.target.closest('[data-cert]');
+    if (ce) { ce.disabled = true; try { await showCert(ce.dataset.cert); } finally { ce.disabled = false; } return; }
     const tr = e.target.closest('[data-tr]');
     if (tr) { tr.disabled = true; try { await onTranslate(tr.dataset.tr, tr.dataset.tl); } finally { tr.disabled = false; } return; }
     const sw = e.target.closest('[data-recipe]');
