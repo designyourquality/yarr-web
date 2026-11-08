@@ -78,6 +78,7 @@ section.view.on{display:block}
 .note{font-size:12.5px;color:var(--soft);margin:14px 0 0}
 h2.sec{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:0;font-size:24px;font-weight:800;letter-spacing:-.01em}
 h2.sec small{font-size:12.5px;color:var(--soft);font-weight:400}
+h2.sec a.rule{font-size:11.5px;font-weight:700;color:var(--soft);border:1px solid var(--line);border-radius:999px;padding:2px 9px;text-decoration:none}h2.sec a.rule:hover{color:var(--text,#fff)}
 /* 히어로 */
 .hero{position:relative;border-radius:28px;overflow:hidden;padding:clamp(22px,4vw,40px)}
 .hero .glow1,.hero .glow2{position:absolute;border-radius:50%;filter:blur(60px);pointer-events:none}
@@ -467,7 +468,7 @@ html,body{background:var(--bg)}
   </div>
 
   <div class="listhead">
-    <h2 class="sec" id="listTitle">TOP <span id="topN">30</span> <small id="listSub">지난 24시간 재생 기준</small></h2>
+    <h2 class="sec" id="listTitle">TOP <span id="topN">30</span> <small id="listSub">지난 24시간 재생 기준</small> <a class="rule" href="chart.html" title="차트를 어떻게 세는지 공개해요">집계 기준</a></h2>
     <div class="filters" id="filters">
       <button data-f="all" class="on">전체</button>
       <button data-f="vocal">🎙️ 보컬곡</button>
@@ -803,7 +804,8 @@ html,body{background:var(--bg)}
     fx_radio: '빈티지 라디오', fx_autotune: '오토튠', fx_echo: '드림팝 리버브', fx_gugak: '국악 소리꾼' };
   function cardHtml(t) {
     const c = t.card; if (!c) return '';
-    const touch = (c.touch || []).filter((k) => TOUCH[k]).map((k) => `<span class="ht ${k}" title="${TOUCH[k][2]}">${TOUCH[k][0]} ${TOUCH[k][1]}</span>`).join('');
+    // 🤖 AI 는 모든 곡에 늘 붙여요 (2026-11-08 · AI 기본법 표시) · 사람 손길 배지는 그 옆에
+    const touch = '<span class="ht ai" title="AI로 만든 곡이에요">🤖 AI</span>' + (c.touch || []).filter((k) => k !== 'ai' && TOUCH[k]).map((k) => `<span class="ht ${k}" title="${TOUCH[k][2]}">${TOUCH[k][0]} ${TOUCH[k][1]}</span>`).join('');
     const tags = [t.bpm ? `${t.bpm} BPM` : '', c.key || '', t.genre || '', c.voice && VOICE_SHORT[c.voice] ? VOICE_SHORT[c.voice] : ''].filter(Boolean);
     const s = c.station && ST[c.station];
     const st = s ? `${s.emoji} ${s.name}${c.srank ? ` ${c.srank}위` : ''}` : '';
