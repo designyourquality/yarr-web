@@ -468,7 +468,7 @@ html,body{background:var(--bg)}
   </div>
 
   <div class="listhead">
-    <h2 class="sec" id="listTitle">TOP <span id="topN">30</span> <small id="listSub">지난 24시간 재생 기준</small> <a class="rule" href="chart.html" title="차트를 어떻게 세는지 공개해요">집계 기준</a></h2>
+    <h2 class="sec" id="listTitle">TOP <span id="topN">100</span> <small id="listSub">지난 24시간 재생 기준</small> <a class="rule" href="chart.html" title="차트를 어떻게 세는지 공개해요">집계 기준</a></h2>
     <div class="filters" id="filters">
       <button data-f="all" class="on">전체</button>
       <button data-f="vocal">🎙️ 보컬곡</button>
@@ -477,6 +477,7 @@ html,body{background:var(--bg)}
     </div>
   </div>
   <div class="list glass" id="chartList"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+  <div id="moreWrap" style="display:none;text-align:center;margin-top:14px"><button class="pill-btn" id="chartMore" style="padding:10px 22px">더 보기</button></div>
 
   <div class="listhead" style="margin-top:48px">
     <h2 class="sec" style="font-size:21px">상황별 스테이션 <small>틀어 두기 좋은 곡을 이어서</small></h2>
@@ -883,16 +884,32 @@ html,body{background:var(--bg)}
   }
 
   // ---------- 차트 ----------
-  let chart = [], shown = [], filter = 'all', counts = {}, shared = null;
+  let chart = [], shown = [], filter = 'all', counts = {}, shared = null, chartDone = false;
   function renderChart() {
     shown = chart.filter((t) => filter === 'all' || (filter === 'vocal' && !t.instrumental) || (filter === 'inst' && t.instrumental) || (filter === 'store' && t.store));
     const el = $('chartList');
     el.innerHTML = shown.length ? shown.map((t, i) => rowHtml(t, i, !shared)).join('') : '<div class="empty">조건에 맞는 곡이 없어요</div>';
     bindRows(el, () => shown);
-    $('topN').textContent = chart.length;
+    // TOP 100 은 30곡씩 나눠 불러요 (2026-11-08 · 첫 화면을 빠르게) · 제목은 늘 TOP 100
+    if (!shared) $('topN').textContent = '100';
+    $('moreWrap').style.display = !shared && !chartDone ? '' : 'none';
+    $('chartMore').textContent = `${chart.length + 1}~${Math.min(100, chart.length + 30)}위 더 보기`;
     document.querySelectorAll('#filters button').forEach((b) => { const n = b.dataset.f === 'all' ? chart.length : null; b.classList.toggle('on', b.dataset.f === filter); if (n != null) b.textContent = `전체 (${n})`; });
     markPlaying();
   }
+  // 다음 30곡 (31~60 · 61~90 · 91~100)
+  $('chartMore').onclick = async () => {
+    const b = $('chartMore'); if (b.disabled) return; b.disabled = true; b.textContent = '불러오는 중…';
+    try {
+      const want = Math.min(30, 100 - chart.length);
+      const j = await api({ action: 'chart', limit: want, offset: chart.length });
+      const seen = new Set(chart.map((t) => t.id));
+      const more = (j.tracks || []).filter((t) => !seen.has(t.id));
+      chart = chart.concat(more);
+      chartDone = more.length < want || chart.length >= 100;
+    } catch (e) { toast('더 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.'); }
+    b.disabled = false; renderChart();
+  };
   $('filters').onclick = (e) => { const b = e.target.closest('[data-f]'); if (b) { filter = b.dataset.f; renderChart(); } };
   function spotlight(t, label) {
     if (!t) { $('spotWrap').innerHTML = ''; return; }
@@ -919,7 +936,7 @@ html,body{background:var(--bg)}
         spotlight(shared, '공유된 곡');
       } else {
         const j = await api({ action: 'chart', limit: 30 });
-        chart = j.tracks; spotlight(chart[0], 'NOW #1');
+        chart = j.tracks; chartDone = chart.length < 30; spotlight(chart[0], 'NOW #1');
       }
       renderChart();
     } catch (e) {
