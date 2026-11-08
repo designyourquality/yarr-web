@@ -695,6 +695,10 @@ html,body{background:var(--bg)}
     ['#POCHA_NIGHT', '포차 · 퇴근길', '트로트', '🏮'], ['#NIGHT_DRIVE', '야간 드라이브', '시티팝', '🌃'], ['#RAINY_LOFI', '비 오는 날', '로파이', '🌧️'],
     ['#FOCUS_CODE', '코딩 집중', '앰비언트', '💻'], ['#DAWN_MOOD', '새벽 감성', '피아노', '🌙'], ['#HANGANG_PICNIC', '한강 피크닉', '어쿠스틱', '🧺'],
     ['#SUMMER_BEACH', '여름 바다', '트로피컬', '🏖️'],
+    // 2026-11-08 추가 (084 SQL · 매장 업종 8곳)
+    ['#BRUNCH_CAFE', '브런치 카페', '어쿠스틱 팝', '🥞'], ['#BOOK_CAFE', '북카페 · 서점', '어쿠스틱', '📚'], ['#SALON_NAIL', '미용실 · 네일', 'R&B · 팝', '💅'],
+    ['#FLOWER_SHOP', '꽃집 · 플라워', '어쿠스틱', '💐'], ['#HOTEL_LOBBY', '호텔 로비', '재즈 · 보사노바', '🛎️'], ['#CLINIC_WAIT', '병원 대기실', '피아노', '🩺'],
+    ['#GOLF_RANGE', '골프 연습장', '하우스 · 펑크', '⛳'], ['#CAMPING', '캠핑 · 글램핑', '포크', '🏕️'],
   ];
   const ST = Object.fromEntries(STATIONS.map((s) => [s[0], { code: s[0], name: s[1], genre: s[2], emoji: s[3] }]));
   const $ = (id) => document.getElementById(id);
@@ -712,9 +716,11 @@ html,body{background:var(--bg)}
   // 사진 커버 (yarrmusic.com/covers · 앱 CoverPool 과 같은 계산이라 같은 곡엔 같은 그림 · 2026-11-02)
   const COVER_POOLS = { night_drive: 10, wood_cafe: 10, rainy_lofi: 10, focus_code: 10, gym_cardio: 10, study_cafe: 10, pub_lounge: 10, morning_bakery: 10, wine_bar: 10, boutique: 10, spa_yoga: 10, rooftop: 10, dawn_mood: 10, hangang_picnic: 10, summer_beach: 10, pocha_night: 10, mix: 40 };
   const hash31 = (s) => { let h = 17; s = String(s); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0x7fffffff; return h; };
-  const poolOfCode = (c) => { const k = String(c || '').replace('#', '').toLowerCase(); return COVER_POOLS[k] ? k : 'mix'; };
+  // 새 공간 8곳 (2026-11-08): 전용 그림 전까지 가까운 풀을 빌려 써요 (앱 CoverPool.alias 와 같아요)
+  const COVER_ALIAS = { salon_nail: ['boutique', 6], clinic_wait: ['spa_yoga', 6], book_cafe: ['study_cafe', 6], hotel_lobby: ['wine_bar', 6], brunch_cafe: ['morning_bakery', 6], flower_shop: ['hangang_picnic', 6], golf_range: ['gym_cardio', 6], camping: ['dawn_mood', 6] };
+  const poolOfCode = (c) => { const k = String(c || '').replace('#', '').toLowerCase(); return COVER_POOLS[k] ? k : COVER_ALIAS[k]?.[0] || 'mix'; };
   const poolOf = (t) => {
-    for (const c of t.tags || []) { const k = String(c).replace('#', '').toLowerCase(); if (COVER_POOLS[k]) return k; }
+    for (const c of t.tags || []) { const k = String(c).replace('#', '').toLowerCase(); if (COVER_POOLS[k]) return k; if (COVER_ALIAS[k]) return COVER_ALIAS[k][0]; }
     const g = String(t.genre || '');
     if (g.includes('로파이')) return 'rainy_lofi';
     if (g.includes('시티팝')) return 'night_drive';
@@ -730,7 +736,7 @@ html,body{background:var(--bg)}
   const coverCss = (t, small = true) => { const u = coverUrl(t, small); return u ? `background:url('${u}') center/cover no-repeat,${coverBg(t)}` : `background:${coverBg(t)}`; };
   const coverEmo = (t) => coverUrl(t) ? '' : emojiOf(t);
   // 스테이션 대표 그림: 그 풀의 1번 (넓은 장면 · 앱과 같게)
-  const stPhoto = (c, small = true) => `/covers/${poolOfCode(c)}/${small ? 's/' : ''}01.webp`;
+  const stPhoto = (c, small = true) => { const a = COVER_ALIAS[String(c || '').replace('#', '').toLowerCase()]; return `/covers/${poolOfCode(c)}/${small ? 's/' : ''}${a ? String(a[1]).padStart(2, '0') : '01'}.webp`; };
   // 만든 곳 이름: 내부 엔진 · 라이선스 메모 대신 브랜드 이름 (서버 engineLabel 과 같은 규칙)
   const brand = (r) => {
     const plan = String(r.ai_plan || '');
