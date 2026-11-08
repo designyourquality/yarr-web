@@ -11,7 +11,7 @@ import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?
 import { mountSequencer } from './seq-ui.js?v=20261115';
 import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261119';
 
-const V = '20261122';
+const V = '20261123';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -639,6 +639,7 @@ function renderResult() {
   const len = sel?.duration || st.duration || S.recipe.duration;
   const nonFailed = takes.filter((t) => t.status !== 'FAILED').length;
   const canMore = !waiting() && ready.length && nonFailed < (q?.maxTakes ?? 2);
+  const usedUp = !waiting() && ready.length && !sel && nonFailed >= (q?.maxTakes ?? 2); // 테이크를 다 썼고 아직 고르지 않았어요 (2026-11-08)
   const base = takes[0];
   const label = (t) => t.status === 'READY' && t.repaint ? `테이크 ${t.take} · ${fmt(t.repaint.start)}~${fmt(t.repaint.end)} 구간을 다시 만든 버전` : t.status === 'READY' ? (t.edited ? `테이크 ${t.take} · 고친 버전` : t.take === 1 ? '테이크 1 (리듬 편곡 · 그루브 중심)' : `테이크 ${t.take} (선율 편곡 · 멜로디 중심)`) : t.status === 'FAILED' ? `테이크 ${t.take} · 만들지 못했어요` : `테이크 ${t.take} · 만드는 중…`;
   const keep = S.range[1] - S.range[0];
@@ -657,7 +658,12 @@ function renderResult() {
       ${canMore ? `<button class="btn st-go" data-r="edit" style="margin-top:14px">✏️ 고쳐서 다시 만들기 · 말로 해도 돼요</button>
         <button class="btn sub" data-r="more" style="width:100%;justify-content:center;margin-top:8px">선율 편곡 버전도 만들어 보기 · 같은 레시피 · 추가 횟수 없음</button>
         <p class="st-note">둘 중 하나만 만들 수 있어요 (이 곡의 두 번째 버전)</p>` : ''}
-      ${!sel && ready.length ? '<button class="seq-key" data-r="leave" style="margin-top:10px">이번 곡은 두고 새 레시피로 만들기</button>' : ''}
+      ${usedUp ? `<div style="margin-top:12px;padding:14px;border-radius:14px;background:rgba(255,123,58,.12);border:1px solid rgba(255,123,58,.4)">
+        <b style="font-size:14px">이 곡은 테이크 ${q?.maxTakes ?? 2}개를 다 썼어요</b>
+        <p class="st-note" style="margin:6px 0 10px">${q && q.left > 0 ? `둘 다 마음에 안 들면 새로 만들어 보세요. 새 곡은 오늘 남은 횟수 1번을 써요 (지금 ${q.left}번 남음)` : '오늘 횟수를 다 썼어요. 횟수가 다시 채워지면 같은 가사로 새로 만들 수 있어요'}</p>
+        <button class="btn st-go" data-r="againsame" style="width:100%;justify-content:center">같은 가사로 새로 만들기</button>
+        <button class="btn sub" data-r="againchange" style="width:100%;justify-content:center;margin-top:8px">장르 · 목소리 바꿔서 새로 만들기</button></div>`
+      : !sel && ready.length ? '<button class="seq-key" data-r="leave" style="margin-top:10px">이번 곡은 두고 새 레시피로 만들기</button>' : ''}
       ${vocal && base?.lyrics ? `<div class="st-q">이 곡의 가사</div><div class="lyr">${esc(base.lyrics)}</div>` : ''}
     </div>
     <div class="st-card ${sel ? '' : 'hidden'}">
@@ -696,6 +702,7 @@ function renderResult() {
     if (r === 'more') return more(null);
     if (r === 'edit') return editSheet();
     if (r === 'leave') { ls.set('studio_batch', null); return restart(); }
+    if (r === 'againsame' || r === 'againchange') return againWith(r === 'againchange', takes);
     if (r === 'pick') return pick();
   };
   el.oninput = (e) => {
@@ -925,6 +932,19 @@ async function pick() {
     S.done = { title: j.title, vocal: S.status.vocal };
     B.toast(S.status.vocal ? `'${j.title}' 올렸어요 · 보컬곡은 운영팀이 들어 보고 승인하면 바로 공개돼요` : `'${j.title}' 올렸어요 · 자동 검수가 끝나면 바로 차트에 올라가요`);
   } catch (x) { err(x.message); } finally { S.busy = false; renderResult(); }
+}
+/** 같은 가사로 새로 만들기: 마지막으로 나온 테이크의 가사 · 목소리를 만들기 화면에 채워요 (오늘 횟수 1번 · 앱과 같아요) */
+function againWith(change, takes) {
+  const ready = (takes || []).filter((t) => t.status === 'READY'), last = ready[ready.length - 1];
+  ls.set('studio_batch', null); if (S.status?.vocal) S.vocal = true;
+  if (last) {
+    const sp = splitLyrics(last.lyrics || '');
+    if (sp.verse.trim() || sp.chorus.trim()) { S.ly = { v: sp.verse, c: sp.chorus, b: sp.bridge }; S.bridgeOn = !!sp.bridge.trim(); }
+    if (last.voice && VOICES.some((v) => v[0] === last.voice)) { S.tone = last.voice; S.voiceCat = VOICES.find((v) => v[0] === last.voice)[1]; }
+  }
+  restart();
+  B.toast(change ? '가사는 그대로 넣어 뒀어요. 장르나 목소리를 바꾸고 만들어 보세요' : '가사 · 목소리를 그대로 넣어 뒀어요. 아래에서 만들기를 누르면 새로 만들어요');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 function restart() {
   stopPoll(); stopTake();
