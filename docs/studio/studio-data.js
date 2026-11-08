@@ -322,3 +322,42 @@ export function applyRequest(text, d0, vocal) {
   }
   return d;
 }
+
+// ---- 말로 고치기 · 가사 요청 (앱 studio_edit.dart lyricStyleRequest · lyricRequest · sectionRequest 와 같아요 · 2026-11-08) ----
+export function lyricStyleRequest(text) {
+  const t = String(text).replace(/\s+/g, ' ').trim();
+  const pen = /시적|은유|비유|시처럼/.test(t) ? 'poetic' : /추상|몽환적인 가사|모호/.test(t) ? 'abstract' : /영화 (한 )?장면|장면처럼|영상처럼/.test(t) ? 'cinema'
+    : /직설|솔직하게|고백하듯|절규/.test(t) ? 'confess' : /독백|혼잣말|나한테 하는/.test(t) ? 'inner' : /웃기게|재밌게|재미있게|유머|위트/.test(t) ? 'witty'
+    : /이야기처럼|스토리|줄거리/.test(t) ? 'story' : /대화하듯|말하듯|일상적/.test(t) ? 'real' : null;
+  const heat = /담담|덤덤|잔잔한 가사/.test(t) ? 'calm' : /절절|애절|감정 폭발|터지게/.test(t) ? 'deep' : null;
+  return { pen, heat };
+}
+/** 'rewrite' · 'bridge' · null */
+export function lyricRequest(text) {
+  const t = String(text).replace(/\s+/g, ' ').trim();
+  if (lyricStyleRequest(t).pen && /다시|새로|바꿔|고쳐|써/.test(t)) return 'rewrite';
+  if (/브릿지|브리지/.test(t) && /넣|추가|붙|만들|써/.test(t) && !/브릿지\s*(은|는|를|을)?\s*(빼|없애)/.test(t)) return 'bridge';
+  if (/가사|노랫말|작사/.test(t) && /바꿔|바꾸|다시|새로|고쳐|수정|다른|갈아|교체|변경/.test(t)) return 'rewrite';
+  return null;
+}
+/** '후렴 · 1절 · 브릿지' → 'chorus' · 'verse' · 'bridge' · null */
+export function sectionRequest(text) {
+  const t = String(text).replace(/\s+/g, ' ');
+  if (/후렴|코러스|하이라이트|chorus/i.test(t)) return 'chorus';
+  if (/브릿지|브리지|bridge/i.test(t) && !/브릿지\s*(를|을)?\s*(넣|추가|붙)/.test(t)) return 'bridge';
+  if (/(1|2|첫|두)\s*(번째)?\s*절|벌스|verse|도입부\s*가사/i.test(t) || /(^|\s)절\s*(부분|을|를|만|도|가사)/.test(t)) return 'verse';
+  return null;
+}
+/** 구간 다시 만들기 분위기 (서버 REPAINT_STYLES 키) */
+export function sectionStyleRequest(text) {
+  const t = String(text).replace(/\s+/g, ' ');
+  if (/클라이맥스|터지|폭발|드롭/.test(t)) return 'drop';
+  if (/신나|세게|강하게|힘차|빠르게|에너지|업\s*되/.test(t)) return 'stronger';
+  if (/잔잔|부드럽|조용|차분/.test(t)) return 'softer';
+  if (/감성|감정|슬프|애절|절절/.test(t)) return 'emotional';
+  if (/발음|또렷|뭉개/.test(t)) return 'clearer';
+  if (/코러스\s*쌓|화음|합창/.test(t)) return 'choir';
+  if (/랩/.test(t) && !/랩\s*(빼|없애)/.test(t)) return 'rap';
+  if (/악기\s*(줄|빼)|어쿠스틱하게|담백하게/.test(t)) return 'stripped';
+  return null;
+}

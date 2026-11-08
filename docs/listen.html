@@ -432,7 +432,7 @@ html,body{background:var(--bg)}
     </a>
     <nav class="tabs" aria-label="보기">
       <button data-tab="chart" class="on">차트</button>
-      <button data-tab="stations">스테이션 <span class="n">16</span></button>
+      <button data-tab="stations">스테이션 <span class="n">24</span></button>
       <button data-tab="store"><span class="dotlive"></span><span class="lt">YARR </span>매장</button>
       <button data-tab="studio"><span class="spk">✨</span>스튜디오</button>
     </nav>
@@ -481,7 +481,7 @@ html,body{background:var(--bg)}
 
   <div class="listhead" style="margin-top:48px">
     <h2 class="sec" style="font-size:21px">상황별 스테이션 <small>틀어 두기 좋은 곡을 이어서</small></h2>
-    <button class="pill-btn o" data-tab="stations">16개 스테이션 전체 보기 →</button>
+    <button class="pill-btn o" data-tab="stations">24개 스테이션 전체 보기 →</button>
   </div>
   <div class="stations" id="chartStations"></div>
 </section>
@@ -508,7 +508,7 @@ html,body{background:var(--bg)}
   <div class="listhead"><h2 class="sec" style="font-size:21px">지금 나오는 곡 <small>섞을 때마다 순서가 바뀌어요</small></h2>
     <div class="filters" id="sFilters"><button data-sf="shuffle">🔀 섞기</button><button data-sf="all" class="on">전체</button><button data-sf="vocal">🎙️ 보컬 포함</button><button data-sf="inst">🎹 연주곡만</button><button data-sf="store" class="sf">🏪 매장 가능</button></div></div>
   <div class="list glass" id="stationList"><div class="empty">스테이션을 골라 주세요</div></div>
-  <div class="listhead" style="margin-top:44px"><h2 class="sec" style="font-size:21px">전체 16개 스테이션 <small>카드를 누르면 바로 바뀌어요</small></h2></div>
+  <div class="listhead" style="margin-top:44px"><h2 class="sec" style="font-size:21px">전체 24개 스테이션 <small>카드를 누르면 바로 바뀌어요</small></h2></div>
   <div class="stations" id="allStations"></div>
   <div class="cta glass">
     <div><h3>앱에서는 더 많이 할 수 있어요</h3><p>좋아요 · 매장 BGM 영업시간 예약 · 안내방송 · AI 작사 도우미로 내 곡 만들기</p></div>
@@ -972,7 +972,7 @@ html,body{background:var(--bg)}
 
   // ---------- 스테이션 ----------
   let curStation = '#WOOD_CAFE', stationTracks = [], stationShown = [], sFilter = 'all', stationLoaded = false, stationReq = 0;
-  // 맨 위 스테이션 바로 바꾸기 칩 (16개 · 곡이 없는 곳은 흐리게)
+  // 맨 위 스테이션 바로 바꾸기 칩 (24개 · 곡이 없는 곳은 흐리게)
   function renderChips() {
     $('stChips').innerHTML = STATIONS.map(([c, n, , e]) => `<button role="tab" data-st="${c}" class="${c === curStation ? 'on' : ''}${counts[c] === 0 ? ' soon' : ''}" aria-selected="${c === curStation}">${e} ${esc(n)}</button>`).join('');
     const on = $('stChips').querySelector('.on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' }); setTimeout(arrows, 50);
@@ -1297,7 +1297,7 @@ html,body{background:var(--bg)}
   async function studioBoot() {
     if (studioMod) { studioMod.show?.(); return runFork(); }
     try {
-      studioMod = await import('./studio/studio.js?v=20261119');
+      studioMod = await import('./studio/studio.js?v=20261122');
       await studioMod.mount($('studioRoot'), {
         loadSb, SB_URL, SB_KEY, STATIONS, ST, toast, esc, stPhoto, base, coverCss,
         pauseMain: () => { A.forEach((a) => a.pause()); },

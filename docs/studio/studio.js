@@ -6,12 +6,12 @@ import {
   STATIONS, ST, GENRES, GENRE, LEADS, FLOWS, WEATHERS, TIMES, DURATIONS, KNOBS, VOICE_CATS, VOICES, QUICK_VOICES, QUIET_VOICES, LOUD_GENRES,
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
   lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS,
-  STATION_GROUPS, stGroupOf, voicePicks, THEMES, THEME, OPENINGS, LY_PENS, LY_HEATS, LY_TALKS, LY_VIEWS } from './studio-data.js?v=20261119';
+  STATION_GROUPS, stGroupOf, voicePicks, THEMES, THEME, OPENINGS, LY_PENS, LY_HEATS, LY_TALKS, LY_VIEWS, lyricStyleRequest, lyricRequest, sectionRequest, sectionStyleRequest } from './studio-data.js?v=20261122';
 import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
 import { mountSequencer } from './seq-ui.js?v=20261115';
 import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261119';
 
-const V = '20261119';
+const V = '20261122';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -294,23 +294,14 @@ function vocalSimple() {
     <div class="st-q">2 · 어떤 이야기를 노래로 만들까요?<span class="r"><button class="seq-key" id="mAi">${S.aiDraft ? '✨ 다시 쓰기' : '✨ AI 작사'}</button></span></div>
     <textarea class="st-ta" id="mStory" maxlength="150" style="min-height:64px" placeholder="예: 새벽 세 시, 잠들지 못한 마음을 다독이는 노래">${esc(S.story)}</textarea>
     <div class="st-cnt"><span id="mStoryN">${S.story.length}</span>/150</div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <span class="chip-b" style="cursor:default">가사 언어</span>${chips([['ko', '한국어'], ['en', 'English'], ['ja', '日本語']], S.aiLang, 'data-lang')}
-      <span class="chip-b" style="cursor:default">곡 구조</span>${chips([['short', '짧게 · 절 2줄'], ['basic', '기본 · 절 4줄'], ['long', '길게 · 1절 + 2절']], S.aiForm, 'data-lform')}
-      <label class="btn sub" style="padding:8px 12px;font-size:12.5px;margin-left:auto">📷 사진 첨부<input type="file" accept="image/*" id="mPhoto" hidden></label>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+      <label class="btn sub" style="padding:8px 12px;font-size:12.5px">📷 사진 첨부<input type="file" accept="image/*" id="mPhoto" hidden></label>
     </div>
-    <details class="st-lystyle" style="margin-top:10px"${S.aiPen !== 'auto' || S.aiHeat !== 'auto' || S.aiTalk !== 'auto' || S.aiView !== 'auto' || S.aiHook || S.aiEng !== 'none' ? ' open' : ''}><summary class="st-note" style="cursor:pointer;margin:0">✍️ 가사 스타일 · 결 · 말투 · 시점 · 영어 섞기</summary>
-      <div class="chips" style="margin-top:8px">${chips(LY_PENS, S.aiPen, 'data-lpen')}</div>
-      <div class="chips" style="margin-top:6px">${chips(LY_HEATS, S.aiHeat, 'data-lheat')}</div>
-      <div class="chips" style="margin-top:6px">${chips(LY_TALKS, S.aiTalk, 'data-ltalk')}</div>
-      <div class="chips" style="margin-top:6px">${chips(LY_VIEWS, S.aiView, 'data-lview')}</div>
-      <div class="chips" style="margin-top:6px"><button class="chip-b${S.aiHook ? ' on' : ''}" data-lhook="1">🔁 후렴 반복 강조</button>${S.aiLang !== 'en' ? `<button class="chip-b${S.aiEng === 'one' ? ' on' : ''}" data-leng="one">🔤 영어 한마디</button><button class="chip-b${S.aiEng === 'mix' ? ' on' : ''}" data-leng="mix">🔤 영어 중간중간 섞기</button>` : ''}</div>
-    </details>
     ${S.photo ? `<div style="display:flex;gap:10px;align-items:center;margin-top:10px"><img src="${S.photo.url}" style="width:56px;height:56px;object-fit:cover;border-radius:10px"><span class="st-note" style="margin:0;flex:1">이 사진의 분위기로 가사를 써요 · 사진은 저장하지 않아요</span><button class="seq-x" id="mPhotoX" title="사진 빼기">✕</button></div>` : ''}
     ${hasLines() ? `<div class="st-q">${aiExact() ? `✨ AI가 쓴 가사 · 제목 '${esc(S.title)}'` : '내 가사'}<span class="r"><button class="seq-key" id="mEditLy">고치기</button></span></div>
       <div class="lyr">${esc(['[절]', S.ly.v, '', '[후렴]', S.ly.c, ...(S.bridgeOn && S.ly.b ? ['', '[브릿지]', S.ly.b] : [])].join('\n'))}</div>` : `<p class="st-note">이야기 한 줄만 적어도 AI가 가사와 제목을 써요. 직접 쓰려면 아래 프로 컨트롤의 '내 가사 쓰기'를 열어요.</p>`}
     <div class="st-q">목소리</div>
-    <div class="chips">${quick.map((id) => `<button class="chip-b${id === S.tone ? ' on' : ''}" data-tone="${id}">${esc(voiceLabel(id))}</button>`).join('')}</div>
+    <div class="chips">${quick.map((id) => `<button class="chip-b${id === S.tone ? ' on' : ''}" data-tone="${id}">${esc(voiceLabel(id))}</button>`).join('')}<button class="chip-b" id="mAllVoices">+ 목소리 ${VOICES.length}종 전체 ▾</button></div>
     ${QUIET_VOICES.includes(S.tone) && LOUD_GENRES.includes(S.recipe.genre) ? '<p class="st-warn" style="margin-top:10px">⚠ 이 장르는 반주가 세서 조용한 목소리가 묻히거나 다른 목소리가 섞일 수 있어요. 어쿠스틱 · 인디 · 포크 · 보사노바 · 재즈에서 가장 잘 살아요.</p>' : ''}`;
 }
 
@@ -433,10 +424,14 @@ function bindMake() {
     if (d.ntone) { S.narr.tone = d.ntone; return renderMake(); }
     if (d.nvoice) { S.narr.voice = d.nvoice; return renderMake(); }
     if (t.id === 'mPro') { S.pro = !S.pro; return renderMake(); }
+    if (t.id === 'mAllVoices') { // 앱처럼: 프로 컨트롤을 열고 지금 목소리의 탭으로 (2026-11-08)
+      S.pro = true; S.voiceCat = VOICES.find((v) => v.id === S.tone)?.cat || 'f'; renderMake();
+      return root.querySelector('[data-vcat]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
     if (t.id === 'mEditLy') { S.pro = true; renderMake(); root.querySelector('[data-ly="v"]')?.focus(); return; }
     if (t.id === 'mBridge') { S.bridgeOn = !S.bridgeOn; return renderMake(); }
     if (t.id === 'mPhotoX') { S.photo = null; return renderMake(); }
-    if (t.id === 'mAi') return aiWrite(false);
+    if (t.id === 'mAi') return aiSheet(); // 앱처럼 창을 띄워 언어 · 구조 · 스타일을 고르고 써요 (2026-11-08)
     if (t.id === 'mUnfork') { S.parent = null; return renderMake(); }
     if (t.id === 'mAiBridge') return aiBridge();
     if (t.id === 'mGo') return go();
@@ -488,6 +483,48 @@ async function photoOf(file) {
 }
 
 // ---------- AI 작사 ----------
+// ---------- ✨ AI 작사 창 (앱 _aiWrite 시트와 같아요 · 2026-11-08) ----------
+function aiSheet() {
+  document.getElementById('aiSheet')?.remove();
+  const w = document.createElement('div'); w.id = 'aiSheet';
+  w.style.cssText = 'position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;padding:16px;overflow:auto';
+  let topic = S.story.trim();
+  const draw = () => {
+    w.innerHTML = `<div class="st-card" style="max-width:640px;width:100%;margin:auto;max-height:92vh;overflow:auto">
+      <div style="font-size:17px;font-weight:800">✨ AI 작사</div>
+      <p class="st-note" style="margin:4px 0 10px">어떤 이야기를 노래로 만들까요? 한 줄로 적으면 AI가 위에서 고른 장르 · 목소리 · 날씨 · 시간 · 곡 흐름에 맞춰 가사를 써요. 누를 때마다 다른 시점 · 다른 이야기로 써요.</p>
+      <div class="chips">${chips([['ko', '한국어'], ['en', 'English'], ['ja', '日本語']], S.aiLang, 'data-lang')}</div>
+      <div class="chips" style="margin-top:6px">${chips([['short', '짧게 · 절 2줄'], ['basic', '기본 · 절 4줄'], ['long', '길게 · 1절 + 2절']], S.aiForm, 'data-lform')}</div>
+      <div class="chips" style="margin-top:6px">${chips(LY_PENS, S.aiPen, 'data-lpen')}</div>
+      <div class="chips" style="margin-top:6px">${chips(LY_HEATS, S.aiHeat, 'data-lheat')}</div>
+      <div class="chips" style="margin-top:6px">${chips(LY_TALKS, S.aiTalk, 'data-ltalk')}</div>
+      <div class="chips" style="margin-top:6px">${chips(LY_VIEWS, S.aiView, 'data-lview')}</div>
+      <div class="chips" style="margin-top:6px"><button class="chip-b${S.aiHook ? ' on' : ''}" data-lhook="1">🔁 후렴 반복 강조</button>${S.aiLang !== 'en' ? `<button class="chip-b${S.aiEng === 'one' ? ' on' : ''}" data-leng="one">🔤 영어 한마디</button><button class="chip-b${S.aiEng === 'mix' ? ' on' : ''}" data-leng="mix">🔤 영어 중간중간 섞기</button>` : ''}</div>
+      <textarea class="st-ta" id="aiTopic" maxlength="150" style="min-height:64px;margin-top:10px;width:100%;box-sizing:border-box" placeholder="예: 퇴근길 버스에서 나를 위로하는 노래">${esc(topic)}</textarea>
+      <div class="st-cnt"><span id="aiTopicN">${topic.length}</span>/150</div>
+      <p class="st-note" style="margin:0 0 12px">가수 · 곡 이름이나 기존 노래 가사는 넣을 수 없어요. AI가 쓴 가사를 그대로 쓰면 매장에서도 틀어질 수 있고, 한 글자라도 고치면 직접 쓴 가사가 돼요.</p>
+      <button class="btn st-go" id="aiGo">✨ 가사 쓰기</button>
+      <button class="seq-key" id="aiClose" style="margin-top:8px;width:100%">닫기</button>
+    </div>`;
+    const ta = w.querySelector('#aiTopic'); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  };
+  w.oninput = (e) => { if (e.target.id === 'aiTopic') { topic = e.target.value; const n = w.querySelector('#aiTopicN'); if (n) n.textContent = topic.length; } };
+  w.onclick = (e) => {
+    if (e.target === w || e.target.closest('#aiClose')) return w.remove();
+    const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
+    if (b.id === 'aiGo') {
+      topic = (w.querySelector('#aiTopic')?.value || '').trim();
+      if (topic.length < 2 && !S.photo) return B.toast('어떤 이야기를 노래로 만들지 한 줄 적거나 사진을 붙여 주세요');
+      w.remove(); S.story = topic; renderMake(); return aiWrite(false); // 고친 문장은 위 칸에도 그대로 (앱과 같아요)
+    }
+    if (d.lang) S.aiLang = d.lang; else if (d.lform) S.aiForm = d.lform; else if (d.lpen) S.aiPen = d.lpen; else if (d.lheat) S.aiHeat = d.lheat;
+    else if (d.ltalk) S.aiTalk = d.ltalk; else if (d.lview) S.aiView = d.lview; else if (d.lhook) S.aiHook = !S.aiHook; else if (d.leng) S.aiEng = S.aiEng === d.leng ? 'none' : d.leng; else return;
+    topic = w.querySelector('#aiTopic')?.value ?? topic; draw();
+  };
+  w.onkeydown = (e) => { if (e.key === 'Escape') w.remove(); if (e.key === 'Enter' && e.target.id === 'aiTopic' && !e.shiftKey) { e.preventDefault(); w.querySelector('#aiGo')?.click(); } };
+  document.body.appendChild(w); draw();
+}
+
 async function aiWrite(quiet) {
   const topic = S.story.trim();
   if (topic.length < 2 && !S.photo) return err('어떤 이야기를 노래로 만들지 한 줄 적거나 사진을 붙여 주세요');
@@ -651,6 +688,7 @@ function renderResult() {
     if (b.dataset.rped) { S.rpSec.edit = !S.rpSec.edit; return renderResult(); }
     if (b.dataset.rpst) { S.rpSec.style = S.rpSec.style === b.dataset.rpst ? null : b.dataset.rpst; return renderResult(); }
     if (b.dataset.rplisten) return rpListen(takes.find((x) => x.id === S.rp));
+    if (b.dataset.rpai) return rpAi(takes.find((x) => x.id === S.rp));
     if (b.dataset.stems) return stems(b.dataset.stems);
     if (b.dataset.ab) return abPlay(takes.find((t) => t.id === b.dataset.ab), takes);
     if (b.dataset.abswap && ab) { ab.swapped = true; return ab.go(1 - ab.phase, takeAudio?.currentTime ?? ab.a); }
@@ -671,7 +709,7 @@ function renderResult() {
       root.querySelector('[data-r="pick"]').disabled = S.busy || k < 60 || !S.notRegistered;
     }
     if (t.dataset.rpr !== undefined) { S.rpRange[+t.dataset.rpr] = +t.value; t.nextElementSibling.textContent = fmt(+t.value); const k = S.rpRange[1] - S.rpRange[0], go = root.querySelector('[data-r="rpgo"]'); if (go) { go.textContent = `이 구간 다시 만들기 (${Math.round(k)}초) · 테이크 1개`; go.disabled = S.busy || !rpOk(S.status?.takes?.find((x) => x.id === S.rp)); } }
-    if (t.id === 'rpLines') { S.rpSec.text = t.value; rpRefresh(); return; }
+    if (t.id === 'rpLines') { S.rpSec.text = t.value; S.rpSec.aiText = false; rpRefresh(); return; }
     if (t.id === 'rTitle') S.title = t.value;
     if (t.id === 'rDonate') S.donate = t.checked;
     if (t.id === 'rPublic') S.recipePublic = t.checked;
@@ -743,6 +781,15 @@ function parseBlocks(display) {
 }
 const secName = (s) => { const n = s.n || 1; return ({ intro: '전주', verse: `${n}절`, chorus: `후렴 ${n}`, bridge: '브릿지', narr: '나레이션', outro: '마무리', part: `파트 ${n}` })[s.key] || String(s.key); };
 const rpCur = () => { const x = S.rpSec; return x && x.sel != null && x.sel < x.list.length ? x.list[x.sel] : null; };
+/** 결과 화면에서 구간 고치기를 열어요 (고쳐서 다시 만들기 창에서 넘어올 때 · 구간 · 분위기 · 새 가사를 미리 골라 둬요) */
+function openRepaint(t, preset = {}) {
+  if (!t?.id) return;
+  const d = t.duration || S.status?.duration || 120;
+  S.rp = t.id; S.rpRange = [Math.min(30, d - 10), Math.min(50, d)];
+  S.rpSec = { list: [], loading: true, exact: false, precise: false, finding: false, sel: null, edit: false, consent: false, style: preset.style || null, text: '', polls: 0, preset };
+  loadSections(t.id); renderResult();
+  setTimeout(() => root.querySelector('.rp-box')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200);
+}
 function rpPickSection(i, t, st) {
   const s = S.rpSec.list[i]; if (!s) return; const len = t?.duration || st.duration || 120;
   let a = Math.max(0, Math.min(len, +s.start || 0)), b = Math.max(0, Math.min(len, +s.end || len));
@@ -780,9 +827,28 @@ async function loadSections(id, precise = false) {
     const x = S.rpSec; x.list = (d.sections || []).filter((v) => v && typeof v === 'object'); x.exact = !!d.exact; x.precise = !!d.precise; x.loading = false;
     const running = d.status === 'RUNNING'; x.finding = running;
     if (x.sel != null && x.sel < x.list.length) { const keep = x.text; rpPickSection(x.sel, S.status.takes.find((v) => v.id === id), S.status); x.text = keep; }
+    if (x.preset?.key && !x.presetDone) { // 처음 한 번: 넘겨받은 구간을 고르고, 새로 쓴 가사가 있으면 그 줄을 채워요
+      x.presetDone = true; const i = x.list.findIndex((v) => v.key === x.preset.key || v.block === x.preset.key);
+      if (i >= 0) {
+        rpPickSection(i, S.status.takes.find((v) => v.id === id), S.status); const sct = x.list[i];
+        if (x.preset.lines && sct.block != null) { const all = lines(x.preset.lines), from = sct.from ?? 0, to = sct.to ?? all.length; if (to <= all.length) { x.text = all.slice(from, to).join('\n'); x.edit = true; x.aiText = true; } }
+      }
+    }
     if (running && x.polls < 24) { x.polls++; setTimeout(() => { if (S.rp === id) loadSections(id); }, 6000); } else if (running) x.finding = false;
   } catch (e) { if (S.rpSec) { S.rpSec.loading = false; S.rpSec.finding = false; } err(e.message); }
   if (S.rp === id) renderResult();
+}
+/** ✨ AI로 이 부분 다시 쓰기 (서버 lyrics rewrite · 줄 수 그대로 · 앱과 같아요) */
+async function rpAi(t) {
+  const x = S.rpSec, s = rpCur(); if (!x || !s || s.block == null || x.aiBusy || !t) return;
+  const bl = parseBlocks(t.lyrics); x.aiBusy = true; renderResult();
+  try {
+    const rc = t.recipe || S.recipe;
+    const j = await call('lyrics', { mode: 'rewrite', verse: bl.verse.join('\n'), chorus: bl.chorus.join('\n'), ...(bl.bridge.length ? { bridge: bl.bridge.join('\n') } : {}), block: s.block, from: s.from, to: s.to,
+      station: rc.station || S.recipe.station, genre: rc.genre || 'auto', lang: lyricLang([...bl.verse, ...bl.chorus].join('\n')), recipe: rc, vocal: t.voice || S.tone }, 60000);
+    x.text = (j.lines || []).join('\n'); x.aiText = true; x.edit = true;
+  } catch (e) { err(e.message); }
+  x.aiBusy = false; renderResult();
 }
 function rpListen(t) {
   if (!t?.url) return; const [a, b] = S.rpRange; stopTake(); playTake(t);
@@ -801,9 +867,10 @@ function rpBox(t, st) {
     ${vocal ? `<div style="margin-top:10px"><button class="chip-b${x.edit && canLy ? ' on' : ''}" data-rped="1" ${canLy ? '' : 'disabled'}>✏️ 이 부분 가사 바꿔서 부르기</button>
       <span class="st-note" style="margin-left:6px">${canLy ? '바꾼 가사로 이 구간만 다시 불러요' : '위에서 1절 · 후렴 · 브릿지 중 하나를 골라 주세요'}</span></div>` : ''}
     ${x.edit && canLy ? `<textarea class="st-ta" id="rpLines" style="min-height:90px;margin-top:8px" placeholder="${esc(secName(cur))} 가사 (한 줄에 한 소절)">${esc(x.text)}</textarea>
+      <div style="text-align:right"><button class="seq-key" data-rpai="1" ${x.aiBusy ? 'disabled' : ''}>${x.aiBusy ? '<span class="spin"></span> 쓰는 중…' : '✨ AI로 이 부분 다시 쓰기 (줄 수 그대로)'}</button></div>
       <p class="st-note st-err" id="rpErr">${esc(rpLyricsErr(t) || '')}</p>
       ${repeated ? '<p class="st-warn">후렴은 곡에서 여러 번 나와요. 가사 표시는 모든 후렴이 바뀌지만 소리는 고른 구간만 새로 불러요.</p>' : ''}
-      <label class="st-check"><input type="checkbox" id="rpConsent" ${x.consent ? 'checked' : ''}><span><b>[필수] 남의 가사를 베끼지 않고 직접 쓴 창작 가사예요</b></span></label>` : ''}
+      <label class="st-check"><input type="checkbox" id="rpConsent" ${x.consent ? 'checked' : ''}><span><b>${x.aiText ? '[필수] AI가 쓴 가사를 확인했고, 남의 노래 가사를 넣지 않았어요' : '[필수] 남의 가사를 베끼지 않고 직접 쓴 창작 가사예요'}</b></span></label>` : ''}
     <div class="st-q" style="margin-top:10px">분위기 바꾸기 <span class="r">고르지 않으면 같은 분위기로 다시</span></div>
     <div class="chips">${RP_STYLES.filter(([k]) => vocal || !['clearer', 'choir', 'rap'].includes(k)).map(([k, n]) => `<button class="chip-b${x.style === k ? ' on' : ''}" data-rpst="${k}">${esc(n)}</button>`).join('')}</div>
     <button class="btn" data-r="rpgo" style="margin-top:10px" ${S.busy || !rpOk(t) ? 'disabled' : ''}>이 구간 다시 만들기 (${span}초) · 테이크 1개</button>
@@ -875,17 +942,43 @@ function editSheet() {
   const ly = { v: sp.verse || S.ly.v, c: sp.chorus || S.ly.c, b: sp.bridge || '' };
   const ly0 = normLyrics(ly.v, ly.c, ly.b);
   const narr = { pos: 'none', tone: 'deep', voice: 'auto', text: '' };
-  let consent = false;
-  const quick = ['더 신나게', '더 잔잔하게', '더 따뜻하게', '더 빈티지하게', '더 깔끔하게', '점점 고조되게', '더 길게', '더 짧게', ...(vocal ? ['남자 목소리로', '여자 목소리로', '걸그룹으로', '합창으로', '허밍 넣어 줘', '추임새 넣어 줘'] : [])];
+  let consent = false, aiLy = false, busy = false, note = '', sec = null, secStyle = null;
+  // 앱 _EditSheet 와 같은 버튼 (2026-11-08 · 가사 다시 쓰기 · 브릿지 · '후렴만' 포함)
+  const quick = ['더 신나게', '더 잔잔하게', '더 따뜻하게', '더 빈티지하게', '더 깔끔하게', '점점 고조되게', '더 길게', '더 짧게', ...(vocal ? ['남자 목소리로', '여자 목소리로', '걸그룹으로', '합창으로', '허밍 넣어 줘', '추임새 넣어 줘', '랩 넣어 줘', '랩 빼 줘', '후렴부터 시작', '고음으로', '더 감정 있게', '더 슬프게', '가사 다시 써 줘', '더 시적으로 가사 다시', '추상적으로 가사 다시', '담담하게 가사 다시', '브릿지 넣어 줘', '후렴만 더 신나게', '후렴 가사만 바꿔 줘'] : [])];
+  const secName = (k) => ({ verse: '절', bridge: '브릿지' })[k] || '후렴';
+  const keyOf = { verse: 'v', chorus: 'c', bridge: 'b' };
+  const lang = () => lyricLang(ly.v + '\n' + ly.c);
+  async function lyricAsk(kind, text) {
+    busy = true; note = kind === 'bridge' ? '브릿지를 쓰는 중이에요…' : kind === 'part' ? `${secName(sec)} 가사만 새로 쓰는 중이에요…` : '가사를 새로 쓰는 중이에요…'; draw();
+    const r = cur.r;
+    try {
+      if (kind === 'bridge') {
+        const j = await call('lyrics', { mode: 'bridge', verse: ly.v, chorus: ly.c, station: r.station, genre: r.genre, lang: lang(), recipe: r, vocal: cur.tone }, 60000);
+        ly.b = (j.bridge || []).join('\n'); note = '브릿지 2줄을 넣었어요. 아래에서 고쳐도 돼요.';
+      } else if (kind === 'part') {
+        const j = await call('lyrics', { mode: 'rewrite', verse: ly.v, chorus: ly.c, ...(ly.b.trim() ? { bridge: ly.b } : {}), block: sec, wish: text, station: r.station, genre: r.genre, lang: lang(), recipe: r, vocal: cur.tone }, 60000);
+        ly[keyOf[sec]] = (j.lines || []).join('\n'); aiLy = true; note = `${secName(sec)} 가사만 새로 썼어요 (줄 수 그대로). 아래에서 고쳐도 돼요.`;
+      } else {
+        const req = text.replace(/\s+/g, ' ').trim(), title = String(S.title || st.title || '').trim();
+        const n = lines(ly.v).length, st2 = lyricStyleRequest(text);
+        const j = await call('lyrics', { topic: (title ? `${title} · ${req}` : req).slice(0, 80), station: r.station, genre: r.genre, bridge: !!ly.b.trim(), lang: lang(), form: n >= 6 ? 'long' : n <= 2 ? 'short' : 'basic', recipe: r, vocal: cur.tone,
+          style: { ...(st2.pen ? { pen: st2.pen } : {}), ...(st2.heat ? { heat: st2.heat } : {}) } }, 60000);
+        ly.v = (j.verse || []).join('\n'); ly.c = (j.chorus || []).join('\n'); ly.b = (j.bridge || []).join('\n'); aiLy = true; note = '가사를 새로 썼어요. 아래에서 고쳐도 돼요.';
+      }
+    } catch (x) { note = x.message; }
+    busy = false; draw(); const dt = box.querySelector('details'); if (dt) dt.open = true;
+  }
   const box = document.createElement('div'); box.className = 'seq-modal';
   const draw = () => {
     const ch = diffDraft(base, cur, vocal), lyChanged = vocal && normLyrics(ly.v, ly.c, ly.b) !== ly0;
     const problem = vocal ? (lyricsProblem(ly.v, ly.c, ly.b) || narrProblem(narr)) : null;
-    const ok = (ch.length || lyChanged) && !problem && (!vocal || consent);
+    const ok = !busy && (ch.length || lyChanged) && !problem && (!vocal || consent);
     box.innerHTML = `<div class="seq-sheet" style="max-width:620px">
       <b class="sh-t">어떻게 고칠까요?</b>
       <p class="st-note">말하듯 적어 주세요. 요청은 야르의 버튼 값으로만 바뀌어요 (가수 이름 · 기존 곡 흉내는 반영되지 않아요).</p>
       <div style="display:flex;gap:8px"><input class="st-in" id="eReq" maxlength="120" placeholder="${vocal ? '예: 더 신나게, 피아노 넣고, 남자 목소리로' : '예: 조금 더 잔잔하게, 기타로, 빈티지하게'}"><button class="btn" id="eApply" style="padding:10px 14px">적용</button></div>
+      ${note ? `<p class="st-note" style="color:#FB923C;margin:6px 0 0">${busy ? '<span class="spin"></span> ' : ''}${esc(note)}</p>` : ''}
+      ${sec ? `<div style="margin-top:8px;padding:12px;border-radius:12px;background:rgba(255,123,58,.13);border:1px solid rgba(255,123,58,.4)"><p class="st-note" style="margin:0 0 8px;color:#eee">'${secName(sec)}'만 바꾸고 싶다면 ✂ 구간 고치기가 좋아요. 이 창은 곡 전체를 새로 만들고, 구간 고치기는 그 부분만 다시 불러요 (앞뒤는 그대로).</p><button class="seq-key" id="eSec" ${busy ? 'disabled' : ''}>✂ ${secName(sec)}만 고치기 · 테이크 1개</button></div>` : ''}
       <div class="chips" style="margin-top:10px">${quick.map((w) => `<button class="chip-b" data-q="${esc(w)}">${esc(w)}</button>`).join('')}</div>
       <div class="lcd" style="margin-top:14px"><div class="lcd-1">CHANGES</div><div class="lcd-2" style="white-space:normal">${esc([...ch, ...(lyChanged ? ['가사 수정'] : [])].join('  ·  ') || '아직 바뀐 게 없어요')}</div></div>
       ${ch.length ? '<button class="seq-key" id="eReset" style="margin-top:6px">처음 레시피로 되돌리기</button>' : ''}
@@ -897,7 +990,7 @@ function editSheet() {
         ${narr.pos !== 'none' ? `<div class="chips" style="margin-top:6px">${chips(NARR_TONE, narr.tone, 'data-nt')}</div><div class="chips" style="margin-top:6px">${chips(NARR_VOICE, narr.voice, 'data-nv')}</div><textarea class="st-ta" data-el="n" maxlength="80" style="min-height:56px;margin-top:8px">${esc(narr.text)}</textarea>` : ''}
       </details>
       ${problem ? `<p class="st-err st-note">${esc(errText(problem))}</p>` : ''}
-      <label class="st-check"><input type="checkbox" id="eConsent" ${consent ? 'checked' : ''}><span><b>[필수] 남의 가사를 베끼지 않고 직접 쓴 창작 가사예요</b></span></label>` : ''}
+      <label class="st-check"><input type="checkbox" id="eConsent" ${consent ? 'checked' : ''}><span><b>${aiLy ? '[필수] AI가 쓴 가사를 확인했고, 남의 노래 가사를 넣지 않았어요' : '[필수] 남의 가사를 베끼지 않고 직접 쓴 창작 가사예요'}</b></span></label>` : ''}
       <div class="sh-btns"><button class="btn sub" data-x>취소</button><button class="btn" id="eGo" ${ok ? '' : 'disabled'}>이렇게 고쳐서 만들기 · 추가 횟수 없음</button></div>
     </div>`;
   };
@@ -906,9 +999,20 @@ function editSheet() {
     if (!b) return;
     if (b.dataset.q || b.id === 'eApply') {
       const text = b.dataset.q || box.querySelector('#eReq').value;
+      const la = vocal ? lyricRequest(text) : null;
+      sec = vocal ? sectionRequest(text) : null; secStyle = sec ? sectionStyleRequest(text) : null;
       const next = applyRequest(text, cur, vocal);
-      if (!diffDraft(cur, next, vocal).length) B.toast('알아들은 게 없어요. 예: 더 신나게, 피아노 넣고, 남자 목소리로');
-      cur = next; return draw();
+      const changed = diffDraft(cur, next, vocal).length;
+      cur = next;
+      // '후렴 가사 바꿔 줘' → 후렴 줄만 · 그 밖의 가사 요청은 전체를 새로 (앱과 같아요)
+      if (la && !busy) { lyricAsk(la === 'rewrite' && sec && lines(ly[keyOf[sec]]).length ? 'part' : la, text); return; }
+      if (!changed && !sec) B.toast('알아들은 게 없어요. 예: 더 신나게, 랩 넣어 줘, 후렴부터 시작, 가사 다시 써 줘');
+      return draw();
+    }
+    if (b.id === 'eSec') { // 구간 고치기로: 그 구간 · 분위기 · 새로 쓴 가사를 미리 골라 둔 채로 (2026-11-08)
+      const t = st.takes.find((x) => x.status === 'READY') || t1;
+      const blockText = ly[keyOf[sec]]; const orig = { v: sp.verse || '', c: sp.chorus || '', b: sp.bridge || '' }[keyOf[sec]];
+      box.remove(); return openRepaint(t, { key: sec, style: secStyle, lines: lines(blockText).join('\n') !== lines(orig).join('\n') ? blockText : null });
     }
     if (b.id === 'eReset') { cur = { r: { ...base.r }, tone: base.tone, adlib: [...base.adlib] }; return draw(); }
     if (b.dataset.np) { narr.pos = b.dataset.np; return draw(); }

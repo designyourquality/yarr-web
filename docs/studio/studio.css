@@ -61,7 +61,7 @@
 .take .sq-bar i{display:block;height:100%;background:linear-gradient(90deg,#FF8C00,#FFB347);width:0}
 .spin{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,140,0,.25);border-top-color:#FF8C00;animation:stspin .9s linear infinite;display:inline-block;vertical-align:middle}
 @keyframes stspin{to{transform:rotate(360deg)}}
-.lyr{white-space:pre-wrap;font-size:14px;line-height:1.75;background:#0E0F13;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;max-height:340px;overflow:auto}
+.lyr{white-space:pre-wrap;font-size:14px;line-height:1.75;background:#0E0F13;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;max-height:none;overflow:visible} /* 2026-11-08: 앱처럼 가사 전체를 펼쳐 보여요 */
 .drop{display:grid;place-items:center;text-align:center;gap:6px;padding:26px;border:1.5px dashed rgba(255,140,0,.45);border-radius:16px;background:rgba(255,140,0,.04);cursor:pointer}
 .drop.over{background:rgba(255,140,0,.12)}
 .drop-q{margin:0 0 8px}
