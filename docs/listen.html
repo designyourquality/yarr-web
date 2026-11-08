@@ -898,18 +898,22 @@ html,body{background:var(--bg)}
     markPlaying();
   }
   // 다음 30곡 (31~60 · 61~90 · 91~100)
-  $('chartMore').onclick = async () => {
-    const b = $('chartMore'); if (b.disabled) return; b.disabled = true; b.textContent = '불러오는 중…';
+  // 다음 30곡을 불러와 붙여요 · 버튼으로도, 전체 재생이 30곡 끝에 닿았을 때도 (2026-11-08)
+  async function loadMoreChart() {
+    const b = $('chartMore'); if (b.disabled || chartDone || shared) return 0; b.disabled = true; b.textContent = '불러오는 중…';
+    let added = 0;
     try {
       const want = Math.min(30, 100 - chart.length);
       const j = await api({ action: 'chart', limit: want, offset: chart.length });
       const seen = new Set(chart.map((t) => t.id));
       const more = (j.tracks || []).filter((t) => !seen.has(t.id));
-      chart = chart.concat(more);
+      chart = chart.concat(more); added = more.length;
       chartDone = more.length < want || chart.length >= 100;
     } catch (e) { toast('더 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.'); }
     b.disabled = false; renderChart();
-  };
+    return added;
+  }
+  $('chartMore').onclick = () => loadMoreChart();
   $('filters').onclick = (e) => { const b = e.target.closest('[data-f]'); if (b) { filter = b.dataset.f; renderChart(); } };
   function spotlight(t, label) {
     if (!t) { $('spotWrap').innerHTML = ''; return; }
@@ -1078,6 +1082,14 @@ html,body{background:var(--bg)}
   let extending = false;
   async function listenNext() {
     if (idx < list.length - 1) return listenPlay(list, idx + 1);
+    // 차트 전체 재생이 불러온 곡 끝(30위 · 60위 · 90위)에 닿으면 다음 30곡을 불러와 이어서 (100위까지 · 2026-11-08)
+    if (listSrc === 'chart' && !shared && !chartDone) {
+      const cur = list[idx]?.id;
+      if (await loadMoreChart()) {
+        const at = shown.findIndex((t) => t.id === cur);
+        if (at >= 0 && at < shown.length - 1) return listenPlay(shown, at + 1, 'chart');
+      }
+    }
     if (extending || !list.length) return;
     extending = true;
     try {
