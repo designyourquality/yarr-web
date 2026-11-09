@@ -11,7 +11,7 @@ import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?
 import { mountSequencer } from './seq-ui.js?v=20261115';
 import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261125';
 
-const V = '20261125';
+const V = '20261127';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -257,7 +257,7 @@ function renderMake() {
   const selG = stGroupOf(r.station), g = S.stGroup ?? selG;
   body().innerHTML = `${S.parent ? (S.parent.lang
     ? `<div class="st-fork">🌐 <b>'${esc(S.parent.title)}'</b>의 ${LANG_FLAG[S.parent.lang]} ${LANG_NAME[S.parent.lang]} 버전 · 원곡 레시피 · 목소리 그대로, 가사는 줄마다 음절을 맞춰 개사했어요 (고쳐도 돼요) · 올리면 차트에서 원곡 아래 <b>같은 분위기의 다국어 버전</b>으로 묶여요<button class="seq-key" id="mUnfork">✕ 해제</button></div>`
-    : `<div class="st-fork">🔗 <b>'${esc(S.parent.title)}'</b> 세팅을 빌려왔어요 · 가사는 직접 써요 · 올리면 <b>원곡: ${esc(S.parent.title)}</b> 표시가 붙어요<button class="seq-key" id="mUnfork">✕ 해제</button></div>`) : ''}<div class="st-grid">
+    : `<div class="st-fork">🔗 <b>'${esc(S.parent.title)}'</b> 세팅을 빌려왔어요 · 가사는 직접 써요 · 올리면 <b>원곡: ${esc(S.parent.title)}</b> 표시가 붙어요<button class="seq-key" id="mUnfork">✕ 해제</button></div>`) : ''}${!S.parent && (S.ly.v.trim() || S.ly.c.trim() || S.story.trim()) ? `<div class="st-fork">✍️ ${S.carried ? '이전 곡 가사를 이어서 쓰고 있어요' : '지난번 주제 · 가사가 채워져 있어요'}<button class="seq-key" id="mFresh">↺ 새로 시작</button></div>` : ''}<div class="st-grid">
     <div>
       <div class="st-card">
         <div class="st-tabs" style="margin-bottom:6px"><button data-vocal="0" class="${vocal ? '' : 'on'}">🎹 연주곡 · 매장 · 차트</button><button data-vocal="1" class="${vocal ? 'on' : ''}">🎤 보컬곡 · 내 가사로</button></div>
@@ -433,6 +433,7 @@ function bindMake() {
     if (t.id === 'mPhotoX') { S.photo = null; return renderMake(); }
     if (t.id === 'mAi') return aiSheet(); // 앱처럼 창을 띄워 언어 · 구조 · 스타일을 고르고 써요 (2026-11-08)
     if (t.id === 'mUnfork') { S.parent = null; return renderMake(); }
+    if (t.id === 'mFresh') { freshStart(); return renderMake(); }
     if (t.id === 'mAiBridge') return aiBridge();
     if (t.id === 'mGo') return go();
   };
@@ -654,15 +655,15 @@ function renderResult() {
         ${t.status === 'READY' ? `<button class="btn ${t.id === S.sel ? '' : 'sub'}" data-sel="${t.id}" style="padding:9px 14px;font-size:13px">${t.id === S.sel ? '이걸로 결정' : '이 버전 선택'}</button>` : ''}
       </div>${t.status === 'READY' && (canMore || vocal) ? `<div class="take-tools">${t.repaint && takes.some((x) => x.id === t.repaint.from && x.url) ? `<button class="seq-key${ab?.id === t.id ? ' on' : ''}" data-ab="${t.id}">${ab?.id === t.id ? '■ 비교 멈추기' : '🎧 바뀐 구간 비교 듣기'}</button>` : ''}${canMore ? `<button class="seq-key" data-rp="${t.id}">✂ 구간 다시 만들기</button>` : ''}${vocal ? (S.stemLinks?.[t.id] ? `<a class="seq-key" href="${esc(S.stemLinks[t.id].vocals)}" target="_blank" rel="noopener">🎤 보컬 받기</a><a class="seq-key" href="${esc(S.stemLinks[t.id].backing)}" target="_blank" rel="noopener">🎹 반주 받기</a><span class="ai-mark" title="AI 기본법에 따라 AI로 만든 음원임을 파일에 표시해요">🤖 AI로 만든 음원 · 파일 정보에 'Generated with YARR AI (yarrmusic.com)'가 들어가요</span>` : `<button class="seq-key" data-stems="${t.id}" ${S.stemsBusy?.[t.id] ? 'disabled' : ''}>${S.stemsBusy?.[t.id] ? '나누는 중… (1~3분)' : t.stems === 'READY' ? '🎤🎹 나눈 파일 받기' : t.stems === 'FAILED' ? '🎚 다시 나누기 (지난번 실패)' : t.stems === 'RUNNING' ? '🎚 나누는 중 · 눌러서 확인' : '🎚 보컬 · 반주 따로'}</button>`) : ''}</div>` : ''}${
         ab?.id === t.id ? `<div class="ab-box"><span>지금 듣는 것 <b>${ab.phase === 0 ? '① 원래 버전' : '② 다시 만든 버전'}</b> · ${fmt(ab.a)}~${fmt(ab.b)} (바뀐 곳 ${fmt(t.repaint.start)}~${fmt(t.repaint.end)})</span><button class="seq-key" data-abswap="1">↔ 바꿔 듣기</button></div>` : ''}${
-        S.rp === t.id ? rpBox(t, st) : ''}`).join('')}</div>
+        S.rp === t.id && canMore ? rpBox(t, st) : ''}`).join('')}</div>
       ${canMore ? `<button class="btn st-go" data-r="edit" style="margin-top:14px">✏️ 고쳐서 다시 만들기 · 말로 해도 돼요</button>
         <button class="btn sub" data-r="more" style="width:100%;justify-content:center;margin-top:8px">선율 편곡 버전도 만들어 보기 · 같은 레시피 · 추가 횟수 없음</button>
         <p class="st-note">둘 중 하나만 만들 수 있어요 (이 곡의 두 번째 버전)</p>` : ''}
       ${usedUp ? `<div style="margin-top:12px;padding:14px;border-radius:14px;background:rgba(255,123,58,.12);border:1px solid rgba(255,123,58,.4)">
-        <b style="font-size:14px">이 곡은 테이크 ${q?.maxTakes ?? 2}개를 다 썼어요</b>
-        <p class="st-note" style="margin:6px 0 10px">${q && q.left > 0 ? `둘 다 마음에 안 들면 새로 만들어 보세요. 새 곡은 오늘 남은 횟수 1번을 써요 (지금 ${q.left}번 남음)` : '오늘 횟수를 다 썼어요. 횟수가 다시 채워지면 같은 가사로 새로 만들 수 있어요'}</p>
-        <button class="btn st-go" data-r="againsame" style="width:100%;justify-content:center">같은 가사로 새로 만들기</button>
-        <button class="btn sub" data-r="againchange" style="width:100%;justify-content:center;margin-top:8px">장르 · 목소리 바꿔서 새로 만들기</button></div>`
+        <b style="font-size:14px">테이크 ${q?.maxTakes ?? 2}개를 다 썼어요 · 위에서 하나를 골라 주세요</b>
+        <p class="st-note" style="margin:6px 0 10px">${q && q.left > 0 ? `이 곡은 더 고칠 수 없어요. 둘 다 마음에 안 들 때만 새 곡으로 다시 만들 수 있어요 (남은 횟수 1번 사용 · 지금 ${q.left}번 남음)` : '오늘 횟수를 다 썼어요. 횟수가 다시 채워지면 같은 가사로 새로 만들 수 있어요'}</p>
+        <button class="btn sub" data-r="againsame" style="width:100%;justify-content:center"${q && q.left > 0 ? '' : ' disabled'}>같은 가사로 새로 만들기</button>
+        <button class="btn sub" data-r="againchange" style="width:100%;justify-content:center;margin-top:8px"${q && q.left > 0 ? '' : ' disabled'}>장르 · 목소리 바꿔서 새로 만들기</button></div>`
       : !sel && ready.length ? '<button class="seq-key" data-r="leave" style="margin-top:10px">이번 곡은 두고 새 레시피로 만들기</button>' : ''}
       ${vocal && base?.lyrics ? `<div class="st-q">이 곡의 가사</div><div class="lyr">${esc(base.lyrics)}</div>` : ''}
     </div>
@@ -701,7 +702,7 @@ function renderResult() {
     if (r === 'rpgo') return repaint();
     if (r === 'more') return more(null);
     if (r === 'edit') return editSheet();
-    if (r === 'leave') { ls.set('studio_batch', null); return restart(); }
+    if (r === 'leave') { ls.set('studio_batch', null); freshStart(); return restart(); } // '새 레시피로' = 이전 가사 없이 새로
     if (r === 'againsame' || r === 'againchange') return againWith(r === 'againchange', takes);
     if (r === 'pick') return pick();
   };
@@ -940,11 +941,17 @@ function againWith(change, takes) {
   if (last) {
     const sp = splitLyrics(last.lyrics || '');
     if (sp.verse.trim() || sp.chorus.trim()) { S.ly = { v: sp.verse, c: sp.chorus, b: sp.bridge }; S.bridgeOn = !!sp.bridge.trim(); }
-    if (last.voice && VOICES.some((v) => v[0] === last.voice)) { S.tone = last.voice; S.voiceCat = VOICES.find((v) => v[0] === last.voice)[1]; }
+    if (last.voice && VOICES.some((v) => v.id === last.voice)) { S.tone = last.voice; S.voiceCat = VOICES.find((v) => v.id === last.voice).cat; }
   }
+  S.carried = true;
   restart();
   B.toast(change ? '가사는 그대로 넣어 뒀어요. 장르나 목소리를 바꾸고 만들어 보세요' : '가사 · 목소리를 그대로 넣어 뒀어요. 아래에서 만들기를 누르면 새로 만들어요');
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+/** 새로 시작: 주제 · 가사 · 제목을 비워요 (레시피 · 목소리 · 공간은 그대로 · 앱 make_screen _freshStart 와 같아요 · 2026-11-09) */
+function freshStart() {
+  S.ly = { v: '', c: '', b: '' }; S.bridgeOn = false; S.aiDraft = null; S.story = ''; S.carried = false; S.consent = false;
+  S.title = defaultTitle(S.recipe.station);
 }
 function restart() {
   stopPoll(); stopTake();
