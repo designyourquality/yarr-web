@@ -11,7 +11,7 @@ import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?
 import { mountSequencer } from './seq-ui.js?v=20261115';
 import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261129';
 
-const V = '20261129';
+const V = '20261130';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -968,6 +968,25 @@ function restart() {
   loadQuota(); renderMake();
 }
 
+// 고치기 창 오른쪽: 지금 레시피를 한눈에 · 바뀐 줄은 '전 → 후' 주황으로 (2026-11-10)
+function recipePanel(a, b, n) {
+  const L = Object.fromEntries(LEADS), F = Object.fromEntries(FLOWS);
+  const meter = (v, was) => `<span class="ed-m">${[0, 1, 2, 3, 4].map((k) => `<i class="${k <= v ? 'on' : ''}${was != null && k <= was && k > v ? ' was' : ''}"></i>`).join('')}</span>`;
+  const rows = [
+    ['장르', GENRE[a.r.genre] || a.r.genre, GENRE[b.r.genre] || b.r.genre],
+    ['바쁨', `${bpmOf(a.r)} BPM`, `${bpmOf(b.r)} BPM`, a.r.energy, b.r.energy],
+    ['따뜻함', '', '', a.r.warmth, b.r.warmth],
+    ['빈티지', '', '', a.r.texture, b.r.texture],
+    ['악기', L[a.r.lead] || a.r.lead, L[b.r.lead] || b.r.lead],
+    ['흐름', F[a.r.flow] || a.r.flow, F[b.r.flow] || b.r.flow],
+    ['길이', `${a.r.duration}초`, `${b.r.duration}초`],
+  ];
+  return `<div class="ed-rc"><div class="ed-rh"><span>RECIPE</span><span>${n ? `바뀐 곳 ${n}` : '그대로'}</span></div>${rows.map(([k, x, y, va, vb]) => {
+    const diff = x !== y || va !== vb;
+    return `<div class="ed-r${diff ? ' d' : ''}"><span class="ed-k">${diff ? '●' : ''}${k}</span><span class="ed-v">${va != null ? meter(vb, diff ? va : null) : ''}${diff && x !== y ? `<s>${esc(x)}</s> → ` : ''}${esc(y)}</span></div>`;
+  }).join('')}${n ? '<button class="ed-reset" id="eReset">처음 레시피로 되돌리기</button>' : '<p class="ed-tip">왼쪽 버튼을 누르거나 말로 적으면 여기 값이 바뀌어요</p>'}</div>`;
+}
+
 // ---------- 고쳐서 다시 만들기 (말로 · 버튼 값으로만 바뀌어요) ----------
 function editSheet() {
   const st = S.status, t1 = st.takes[0] || {}, vocal = !!st.vocal;
@@ -979,7 +998,17 @@ function editSheet() {
   const narr = { pos: 'none', tone: 'deep', voice: 'auto', text: '' };
   let consent = false, aiLy = false, busy = false, note = '', sec = null, secStyle = null;
   // 앱 _EditSheet 와 같은 버튼 (2026-11-08 · 가사 다시 쓰기 · 브릿지 · '후렴만' 포함)
-  const quick = ['더 신나게', '더 잔잔하게', '더 따뜻하게', '더 빈티지하게', '더 깔끔하게', '점점 고조되게', '더 길게', '더 짧게', ...(vocal ? ['남자 목소리로', '여자 목소리로', '걸그룹으로', '합창으로', '허밍 넣어 줘', '추임새 넣어 줘', '랩 넣어 줘', '랩 빼 줘', '후렴부터 시작', '고음으로', '더 감정 있게', '더 슬프게', '가사 다시 써 줘', '더 시적으로 가사 다시', '추상적으로 가사 다시', '담담하게 가사 다시', '브릿지 넣어 줘', '후렴만 더 신나게', '후렴 가사만 바꿔 줘'] : [])];
+  // 2026-11-10 고치기 창 보강: 버튼을 묶음으로 (분위기 · 흐름 · 악기 · 장르 · 목소리 · 가사) · 모두 applyRequest 가 알아듣는 말
+  const QG = [
+    ['분위기', ['더 신나게', '더 잔잔하게', '더 따뜻하게', '더 차갑게', '더 빈티지하게', '더 깔끔하게']],
+    ['흐름 · 길이', ['점점 고조되게', '리듬감 있게', '배경음악처럼 일정하게', '더 길게', '더 짧게']],
+    ['악기', [['피아노로', 'piano'], ['기타로', 'guitar'], ['신스로', 'synth'], ['스트링으로', 'strings'], ['색소폰으로', 'sax'], ['전통악기로', 'korean']]],
+    ['장르', [['로파이로', 'lofi'], ['재즈로', 'jazz'], ['시티팝으로', 'citypop'], ['어쿠스틱으로', 'acoustic'], ['앰비언트로', 'ambient'], ['하우스로', 'house'], ['보사노바로', 'bossa'], ['발라드로', 'kballad']]],
+    ...(vocal ? [
+      ['목소리', ['남자 목소리로', '여자 목소리로', '걸그룹으로', '합창으로', '고음으로', '더 감정 있게', '허밍 넣어 줘', '추임새 넣어 줘', '랩 넣어 줘', '랩 빼 줘']],
+      ['가사 · 구성', ['가사 다시 써 줘', '더 시적으로 가사 다시', '추상적으로 가사 다시', '담담하게 가사 다시', '브릿지 넣어 줘', '후렴부터 시작', '후렴만 더 신나게', '후렴 가사만 바꿔 줘']],
+    ] : []),
+  ];
   const secName = (k) => ({ verse: '절', bridge: '브릿지' })[k] || '후렴';
   const keyOf = { verse: 'v', chorus: 'c', bridge: 'b' };
   const lang = () => lyricLang(ly.v + '\n' + ly.c);
@@ -1008,15 +1037,20 @@ function editSheet() {
     const ch = diffDraft(base, cur, vocal), lyChanged = vocal && normLyrics(ly.v, ly.c, ly.b) !== ly0;
     const problem = vocal ? (lyricsProblem(ly.v, ly.c, ly.b) || narrProblem(narr)) : null;
     const ok = !busy && (ch.length || lyChanged) && !problem && (!vocal || consent);
-    box.innerHTML = `<div class="seq-sheet" style="max-width:620px">
-      <b class="sh-t">어떻게 고칠까요?</b>
+    box.innerHTML = `<div class="seq-sheet ed-sheet">
+      <div class="ed-head"><b class="sh-t">어떻게 고칠까요?</b><span class="ed-src">${esc(String(S.title || st.title || '').trim() || '이 곡')} · ${vocal ? '보컬곡' : '연주곡'}</span></div>
       <p class="st-note">말하듯 적어 주세요. 요청은 야르의 버튼 값으로만 바뀌어요 (가수 이름 · 기존 곡 흉내는 반영되지 않아요).</p>
       <div style="display:flex;gap:8px"><input class="st-in" id="eReq" maxlength="120" placeholder="${vocal ? '예: 더 신나게, 피아노 넣고, 남자 목소리로' : '예: 조금 더 잔잔하게, 기타로, 빈티지하게'}"><button class="btn" id="eApply" style="padding:10px 14px">적용</button></div>
       ${note ? `<p class="st-note" style="color:#FB923C;margin:6px 0 0">${busy ? '<span class="spin"></span> ' : ''}${esc(note)}</p>` : ''}
       ${sec ? `<div style="margin-top:8px;padding:12px;border-radius:12px;background:rgba(255,123,58,.13);border:1px solid rgba(255,123,58,.4)"><p class="st-note" style="margin:0 0 8px;color:#eee">'${secName(sec)}'만 바꾸고 싶다면 ✂ 구간 고치기가 좋아요. 이 창은 곡 전체를 새로 만들고, 구간 고치기는 그 부분만 다시 불러요 (앞뒤는 그대로).</p><button class="seq-key" id="eSec" ${busy ? 'disabled' : ''}>✂ ${secName(sec)}만 고치기 · 테이크 1개</button></div>` : ''}
-      <div class="chips" style="margin-top:10px">${quick.map((w) => `<button class="chip-b" data-q="${esc(w)}">${esc(w)}</button>`).join('')}</div>
-      <div class="lcd" style="margin-top:14px"><div class="lcd-1">CHANGES</div><div class="lcd-2" style="white-space:normal">${esc([...ch, ...(lyChanged ? ['가사 수정'] : [])].join('  ·  ') || '아직 바뀐 게 없어요')}</div></div>
-      ${ch.length ? '<button class="seq-key" id="eReset" style="margin-top:6px">처음 레시피로 되돌리기</button>' : ''}
+      <div class="ed-grid">
+        <div class="ed-groups">${QG.map(([g, ws]) => `<div class="ed-g"><span class="ed-gl">${g}</span><div class="chips">${ws.map((w) => {
+          const [label, key] = Array.isArray(w) ? w : [w, null];
+          const on = key && (g === '악기' ? cur.r.lead === key : cur.r.genre === key);
+          return `<button class="chip-b grp${on ? ' on' : ''}" data-q="${esc(label)}">${esc(label)}</button>`;
+        }).join('')}</div></div>`).join('')}</div>
+        ${recipePanel(base, cur, ch.length + (lyChanged ? 1 : 0))}
+      </div>
       ${vocal ? `<details style="margin-top:12px" ${lyChanged ? 'open' : ''}><summary class="st-q" style="cursor:pointer">가사 · 나레이션도 고치기</summary>
         <div class="st-q">절 (Verse)</div><textarea class="st-ta" data-el="v" maxlength="400">${esc(ly.v)}</textarea>
         <div class="st-q">후렴 (Chorus)</div><textarea class="st-ta" data-el="c" maxlength="400">${esc(ly.c)}</textarea>
@@ -1026,7 +1060,7 @@ function editSheet() {
       </details>
       ${problem ? `<p class="st-err st-note">${esc(errText(problem))}</p>` : ''}
       <label class="st-check"><input type="checkbox" id="eConsent" ${consent ? 'checked' : ''}><span><b>${aiLy ? '[필수] AI가 쓴 가사를 확인했고, 남의 노래 가사를 넣지 않았어요' : '[필수] 남의 가사를 베끼지 않고 직접 쓴 창작 가사예요'}</b></span></label>` : ''}
-      <div class="sh-btns"><button class="btn sub" data-x>취소</button><button class="btn" id="eGo" ${ok ? '' : 'disabled'}>이렇게 고쳐서 만들기 · 추가 횟수 없음</button></div>
+      <div class="sh-btns"><button class="btn sub" data-x>취소</button><button class="btn" id="eGo" ${ok ? '' : 'disabled'}>${ch.length || lyChanged ? `${ch.length + (lyChanged ? 1 : 0)}곳 고쳐서 만들기 · 추가 횟수 없음` : '위에서 고칠 곳을 골라 주세요'}</button></div>
     </div>`;
   };
   box.addEventListener('click', (e) => {
