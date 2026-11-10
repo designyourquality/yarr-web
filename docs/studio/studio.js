@@ -11,7 +11,7 @@ import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?
 import { mountSequencer } from './seq-ui.js?v=20261115';
 import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261125';
 
-const V = '20261127';
+const V = '20261128';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -620,7 +620,9 @@ function renderResult() {
     body().innerHTML = `<div class="st-grid${vocal ? '' : ' one'}"><div class="st-card">
       <div class="lcd"><div class="lcd-1">MAKING…  ${st.bpm || bpmOf(S.recipe)} BPM</div><div class="lcd-2">${esc(st.prompt || '')}</div></div>
       <h3 style="margin-top:18px"><span class="spin"></span> AI가 곡을 만들고 있어요 (약 ${Math.round(p * 100)}%)</h3>
-      <div class="take" style="display:block;margin-top:10px;padding:10px"><div class="sq-bar" style="margin:0"><i style="width:${Math.round(p * 100)}%"></i></div></div>
+      <div class="oa-deck"><div class="oa-top"><span class="oa-lamp"></span><b>ON AIR · MAKING</b><span class="oa-tc">${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')} / ~${String(Math.floor(expect / 60)).padStart(2, '0')}:${String(expect % 60).padStart(2, '0')}</span></div>
+        <div class="oa-vu${st.ahead > 0 ? ' idle' : ''}"><span>L</span><i><u></u></i></div><div class="oa-vu r${st.ahead > 0 ? ' idle' : ''}"><span>R</span><i><u></u></i></div>
+        <div class="oa-prog">${Array.from({ length: 24 }, (_, i) => `<b${i < Math.round(p * 24) ? ' class="on"' : ''}></b>`).join('')}</div></div>
       ${st.ahead > 0 ? `<div class="lcd" style="margin-top:10px"><div class="lcd-1">앞에 ${Number(st.ahead) | 0}곡 대기 중</div><div class="lcd-2">차례가 오면 바로 시작해요</div></div>` : ''}
       <p class="st-note">${st.ahead > 0 ? '순서를 기다리는 중…' : stage}</p>
       <p class="st-note">보통 2~5분, 붐비는 시간에는 20분까지 걸려요. 화면을 닫아도 계속 만들어지고, 다시 열면 이어서 볼 수 있어요.${sec > 60 ? ` · ${Math.floor(sec / 60)}분째 기다리는 중` : ''}</p>

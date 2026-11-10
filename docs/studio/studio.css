@@ -311,3 +311,20 @@ button.mi-tile:hover{border-color:rgba(255,140,0,.35)}
 /* 공간 묶음 칩 (2026-11-08): 공간 칩보다 작고 납작하게 → 두 단계라는 게 보이게 */
 .chip-b.grp{font-size:12.5px;padding:6px 11px;border-radius:9px;font-weight:600}
 .chip-b.grp.on{font-weight:800}
+
+/* 2026-11-10 · 숏폼 홍보 콘솔 디자인: 만드는 중 화면 ON AIR 램프 · L/R LED 레벨미터 · 칸 진행 막대 (앱 on_air.dart 와 같아요) */
+.oa-deck{margin-top:12px;padding:12px 14px 14px;border-radius:12px;background:linear-gradient(180deg,#0A0B0E,#121419);border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 2px 6px rgba(0,0,0,.9)}
+.oa-top{display:flex;align-items:center;gap:8px;font:800 11.5px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.04em;color:#FFB340;margin-bottom:10px}
+.oa-tc{margin-left:auto;color:#D8DCE4;font-weight:700}
+.oa-lamp{width:9px;height:9px;border-radius:50%;background:#FF9500;box-shadow:0 0 8px #FF9500,0 0 16px rgba(255,149,0,.8);animation:oaLamp 1.7s ease-in-out infinite}
+@keyframes oaLamp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.88)}}
+.oa-vu{display:flex;align-items:center;gap:8px;margin-top:6px;font:700 11px/1 ui-monospace,monospace;color:#8E95A2}
+.oa-vu i{position:relative;flex:1;height:8px;border-radius:2px;background:repeating-linear-gradient(90deg,#1E2129 0 calc(6.25% - 2px),transparent calc(6.25% - 2px) 6.25%);overflow:hidden}
+.oa-vu u{position:absolute;inset:0;background:repeating-linear-gradient(90deg,#FF9500 0 calc(6.25% - 2px),transparent calc(6.25% - 2px) 6.25%);filter:drop-shadow(0 0 3px rgba(255,149,0,.6));clip-path:inset(0 30% 0 0);animation:oaVu 1.3s ease-in-out infinite alternate}
+.oa-vu.r u{animation-duration:1.05s;animation-delay:-.4s}
+.oa-vu.idle u{animation:none;clip-path:inset(0 93.75% 0 0);opacity:.5}
+@keyframes oaVu{0%{clip-path:inset(0 56% 0 0)}25%{clip-path:inset(0 19% 0 0)}50%{clip-path:inset(0 38% 0 0)}75%{clip-path:inset(0 6% 0 0)}100%{clip-path:inset(0 44% 0 0)}}
+.oa-prog{display:flex;gap:2px;margin-top:10px}
+.oa-prog b{flex:1;height:6px;border-radius:1.5px;background:#1E2129}
+.oa-prog b.on{background:#FF9500;box-shadow:0 0 4px rgba(255,149,0,.5)}
+@media (prefers-reduced-motion:reduce){.oa-lamp,.oa-vu u{animation:none}}
