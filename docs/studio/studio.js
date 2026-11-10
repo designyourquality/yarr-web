@@ -6,12 +6,12 @@ import {
   STATIONS, ST, GENRES, GENRE, LEADS, FLOWS, WEATHERS, TIMES, DURATIONS, KNOBS, VOICE_CATS, VOICES, QUICK_VOICES, QUIET_VOICES, LOUD_GENRES,
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
   lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS,
-  STATION_GROUPS, stGroupOf, voicePicks, THEMES, THEME, OPENINGS, LY_PENS, LY_HEATS, LY_TALKS, LY_VIEWS, lyricStyleRequest, lyricRequest, sectionRequest, sectionStyleRequest } from './studio-data.js?v=20261130';
+  STATION_GROUPS, stGroupOf, voicePicks, THEMES, THEME, OPENINGS, LY_PENS, LY_HEATS, LY_TALKS, LY_VIEWS, lyricStyleRequest, lyricRequest, sectionRequest, sectionStyleRequest, dailyPick } from './studio-data.js?v=20261131';
 import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
 import { mountSequencer } from './seq-ui.js?v=20261115';
 import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261129';
 
-const V = '20261130';
+const V = '20261131';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -247,6 +247,20 @@ function err(t) { S.err = t || ''; const e = root.querySelector('#stErr'); if (e
 
 // ---------- 만들기 화면 ----------
 const aiExact = () => S.aiDraft != null && normLyrics(S.ly.v, S.ly.c, S.bridgeOn ? S.ly.b : '') === S.aiDraft && S.narr.pos === 'none';
+/** 🎲 오늘의 레시피 카드 (2026-11-10): 매일 하나 · 누르면 만들기 화면에 채워요 (만들기는 사용자가 눌러요) */
+function dailyCard() {
+  const x = dailyPick(), on = S.dailyOn === x.key && S.recipe.station === x.station && S.recipe.genre === x.genre;
+  const bits = [GENRE[x.genre], ST[x.station]?.tag, x.vocal ? '보컬곡' : '연주곡', ...(x.spark ? ['✨ 실험적으로'] : [])].filter(Boolean);
+  // 오늘 몇 명이 만들었는지 (088 SQL · 숫자만) · 한 번만 불러와요
+  if (sb && S.dailyN?.key !== x.key && !S.dailyAsk) {
+    S.dailyAsk = true;
+    sb.rpc('daily_recipe_count', { p_key: x.key }).then((r) => { S.dailyAsk = false; if (typeof r.data === 'number') { S.dailyN = { key: x.key, n: r.data }; renderMake(); } }, () => { S.dailyAsk = false; });
+  }
+  const n = S.dailyN?.key === x.key ? S.dailyN.n : null;
+  const who = n == null ? '' : n > 0 ? `<span class="dl-n">🔥 오늘 ${n}명이 이 레시피로 만들었어요</span>` : '<span class="dl-n">오늘 첫 번째로 만들어 보세요</span>';
+  return `<div class="st-daily${on ? ' on' : ''}"><div class="dl-l"><span class="dl-tag">🎲 오늘의 레시피 · ${x.date}</span><b>${x.emoji} ${esc(x.title)}</b><small>${bits.map(esc).join(' · ')}</small>${who}</div>
+    <button class="btn${on ? ' sub' : ''}" data-daily="1">${on ? '✓ 채웠어요' : '이 레시피로 만들기'}</button></div>`;
+}
 const hasLines = () => lines(S.ly.v).length + lines(S.ly.c).length + (S.bridgeOn ? lines(S.ly.b).length : 0) > 0;
 
 function renderMake() {
@@ -259,6 +273,7 @@ function renderMake() {
     ? `<div class="st-fork">🌐 <b>'${esc(S.parent.title)}'</b>의 ${LANG_FLAG[S.parent.lang]} ${LANG_NAME[S.parent.lang]} 버전 · 원곡 레시피 · 목소리 그대로, 가사는 줄마다 음절을 맞춰 개사했어요 (고쳐도 돼요) · 올리면 차트에서 원곡 아래 <b>같은 분위기의 다국어 버전</b>으로 묶여요<button class="seq-key" id="mUnfork">✕ 해제</button></div>`
     : `<div class="st-fork">🔗 <b>'${esc(S.parent.title)}'</b> 세팅을 빌려왔어요 · 가사는 직접 써요 · 올리면 <b>원곡: ${esc(S.parent.title)}</b> 표시가 붙어요<button class="seq-key" id="mUnfork">✕ 해제</button></div>`) : ''}${!S.parent && (S.ly.v.trim() || S.ly.c.trim() || S.story.trim()) ? `<div class="st-fork">✍️ ${S.carried ? '이전 곡 가사를 이어서 쓰고 있어요' : '지난번 주제 · 가사가 채워져 있어요'}<button class="seq-key" id="mFresh">↺ 새로 시작</button></div>` : ''}<div class="st-grid">
     <div>
+      ${dailyCard()}
       <div class="st-card">
         <div class="st-tabs" style="margin-bottom:6px"><button data-vocal="0" class="${vocal ? '' : 'on'}">🎹 연주곡 · 매장 · 차트</button><button data-vocal="1" class="${vocal ? 'on' : ''}">🎤 보컬곡 · 내 가사로</button></div>
         <div class="st-q">1 · ${vocal ? (S.byTheme ? '어떤 이야기 · 감정의 노래인가요?' : '어떤 분위기의 곡인가요?') : '어디서 틀 곡인가요?'}</div>
@@ -414,6 +429,14 @@ function bindMake() {
     if (d.tone) { S.tone = d.tone; S.voiceCat = VOICES.find((v) => v.id === d.tone)?.cat || S.voiceCat; return renderMake(); }
     if (d.lead) { r.lead = d.lead; return renderMake(); }
     if (d.flow) { r.flow = d.flow; return renderMake(); }
+    if (d.daily) { // 🎲 오늘의 레시피 채우기 (2026-11-10)
+      const x = dailyPick();
+      S.recipe = { ...newRecipe(x.station), genre: x.genre, flow: x.flow, weather: x.weather, time: x.time, theme: x.vocal ? x.theme : 'none', spark: x.spark, daily: x.key };
+      S.vocal = x.vocal; if (x.vocal) S.byTheme = x.theme !== 'none';
+      S.title = x.title; S.dailyOn = x.key; err('');
+      renderMake(); B.toast(x.vocal ? '오늘의 레시피를 채웠어요. 이야기 한 줄을 적거나 AI 작사를 누르고 만들어 보세요' : '오늘의 레시피를 채웠어요. 아래에서 만들기를 누르면 돼요');
+      return;
+    }
     if (d.spark) { r.spark = !r.spark; return renderMake(); }
     if (d.weather) { r.weather = d.weather; return renderMake(); }
     if (d.time) { r.time = d.time; return renderMake(); }

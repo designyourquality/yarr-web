@@ -354,3 +354,12 @@ button.mi-tile:hover{border-color:rgba(255,140,0,.35)}
 
 .ed-vw{margin-top:10px;padding:12px 14px;border-radius:12px;background:rgba(255,123,58,.12);border:1px solid rgba(255,123,58,.45)}.ed-vw p{margin:0 0 10px;font-size:13px;color:#eee;line-height:1.55}.ed-vw .btn{width:100%;justify-content:center}
 .chip-b.ed-vq{color:#FFD29A;border-color:rgba(255,140,0,.45)}
+/* 🎲 오늘의 레시피 (2026-11-10) */
+.st-daily{display:flex;align-items:center;gap:12px;margin-bottom:12px;padding:14px 16px;border-radius:16px;background:linear-gradient(120deg,rgba(255,140,0,.16),rgba(255,140,0,.04));border:1px solid rgba(255,140,0,.45)}
+.st-daily.on{border-color:rgba(255,140,0,.85);box-shadow:0 0 18px -6px rgba(255,140,0,.8)}
+.st-daily .dl-l{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.st-daily .dl-tag{font:800 10.5px ui-monospace,Menlo,monospace;letter-spacing:.06em;color:#FFB340}
+.st-daily b{font-size:16px}.st-daily small{font-size:12px;color:var(--soft)}
+.st-daily .btn{white-space:nowrap;padding:10px 14px;font-size:13px}
+@media(max-width:520px){.st-daily{flex-direction:column;align-items:stretch}}
+.st-daily .dl-n{font-size:11.5px;font-weight:700;color:#FFB340;margin-top:2px}

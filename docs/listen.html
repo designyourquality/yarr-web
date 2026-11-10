@@ -545,6 +545,7 @@ html,body{background:var(--bg)}
   <!-- 매장 BGM 안심 안내 (2026-11-05): 약관 · 확인서와 같은 범위로만 (법적 보증은 아님) -->
   <div class="safe-note" role="note"><span class="sn-ic">🛡️</span><div><b>매장에서 트는 곡은 저작권 신탁단체(KOMCA 등)에 등록되지 않은 AI 창작곡만 골라요</b>
     <p>YARR 매장 모드는 검수에서 신탁단체 비등록 · AI 생성으로 확인된 곡만 틀어서, 신탁단체가 매장에서 걷는 공연권료 대상 곡이 아니에요. 다른 음원(라디오 · 일반 스트리밍 등)을 함께 틀면 그 곡은 따로 확인해 주세요. 안내와 이용 확인서는 YARR 검수 결과를 알려 드리는 것이며 법률 자문이나 법적 보증은 아니에요 (<a href="terms.html">이용약관</a>).</p></div></div>
+  <p class="note" style="margin:-4px 0 14px">🔈 매장 스피커에 PC · 휴대폰을 연결했다면 알림 소리를 꺼 두세요 (윈도우 '알림 끄기 · 방해 금지', 휴대폰 '방해 금지 모드'). 메신저 알림음이 음악 사이로 매장에 나가지 않아요.</p>
   <div id="storeLoading" class="login glass"><p class="soft" style="margin:0">매장 정보를 확인하는 중…</p></div>
 
   <div id="storeLogin" class="login glass hidden">
@@ -1346,7 +1347,7 @@ html,body{background:var(--bg)}
   async function studioBoot() {
     if (studioMod) { studioMod.show?.(); return runFork(); }
     try {
-      studioMod = await import('./studio/studio.js?v=20261130');
+      studioMod = await import('./studio/studio.js?v=20261131');
       await studioMod.mount($('studioRoot'), {
         loadSb, SB_URL, SB_KEY, STATIONS, ST, toast, esc, stPhoto, base, coverCss,
         pauseMain: () => { A.forEach((a) => a.pause()); },

@@ -383,3 +383,45 @@ export function sectionStyleRequest(text) {
   if (/악기\s*(줄|빼)|어쿠스틱하게|담백하게/.test(t)) return 'stripped';
   return null;
 }
+
+/** 🎲 오늘의 레시피 (2026-11-10 · 앱 daily_recipe.dart 와 같은 목록 · 같은 날엔 모두 같은 레시피) · [키, 이모지, 제목, 공간, 장르, 흐름, 날씨, 시간, 보컬(1), 주제, 실험(1)] */
+export const DAILY = [
+  ['first_snow', '❄️', '첫눈 오는 밤의 고백', '#DAWN_MOOD', 'kballad', 'emotional', 'snow', 'night', 1, 'flutter', 0],
+  ['rain_lofi', '🌧', '비 오는 오후의 로파이', '#RAINY_LOFI', 'lofi', 'steady', 'rain', 'afternoon', 0, 'none', 0],
+  ['fri_citypop', '🌃', '금요일 밤 시티팝 드라이브', '#NIGHT_DRIVE', 'citypop', 'groove', 'none', 'fridaynight', 1, 'party', 0],
+  ['dawn_piano', '🌙', '새벽 3시의 피아노', '#DAWN_MOOD', 'piano', 'minimal', 'none', 'night', 0, 'none', 0],
+  ['gugak_house', '🥁', '국악 × 하우스 실험', '#GYM_CARDIO', 'gugak', 'drop', 'none', 'none', 0, 'none', 1],
+  ['after_work', '🚌', '퇴근길 위로의 노래', '#POCHA_NIGHT', 'indie', 'emotional', 'none', 'evening', 1, 'worklife', 0],
+  ['brunch_bossa', '🥐', '햇살 브런치 보사노바', '#BRUNCH_CAFE', 'bossa', 'steady', 'sunny', 'morning', 0, 'none', 0],
+  ['crush_rnb', '💌', '말 못 한 짝사랑 R&B', '#SALON_NAIL', 'rnb', 'dreamy', 'none', 'night', 1, 'crush', 0],
+  ['campfire', '🔥', '캠핑 불멍 포크', '#CAMPING', 'acoustic', 'calmdown', 'none', 'night', 0, 'none', 0],
+  ['xmas_jazz', '🎄', '눈 내리는 크리스마스 재즈', '#WINE_BAR', 'jazz', 'emotional', 'snow', 'evening', 1, 'winter', 0],
+  ['gym_dnb', '💪', '심장이 뛰는 드럼앤베이스', '#GYM_CARDIO', 'dnb', 'build', 'none', 'none', 0, 'none', 0],
+  ['old_friends', '🍻', '포차에서 옛 친구에게', '#POCHA_NIGHT', 'trot', 'catchy', 'none', 'night', 1, 'friends', 0],
+  ['flower_waltz', '🌷', '꽃집의 실험적인 왈츠', '#FLOWER_SHOP', 'neoclassic', 'dreamy', 'sunny', 'afternoon', 0, 'none', 1],
+  ['bday_kpop', '🎂', '생일 축하 K-POP', '#HANGANG_PICNIC', 'kpop', 'catchy', 'sunny', 'afternoon', 1, 'birthday', 0],
+  ['library_amb', '📚', '책장 사이 앰비언트', '#BOOK_CAFE', 'ambient', 'steady', 'none', 'afternoon', 0, 'none', 0],
+  ['trip_reggae', '✈️', '여행 떠나는 날의 레게', '#SUMMER_BEACH', 'reggae', 'groove', 'sunny', 'morning', 1, 'travel', 0],
+  ['sunset_house', '🌇', '루프탑 노을 하우스', '#ROOFTOP', 'house', 'groove', 'none', 'evening', 0, 'none', 0],
+  ['rain_ballad', '💧', '비 오는 날 이별 발라드', '#DAWN_MOOD', 'kballad', 'emotional', 'rain', 'night', 1, 'breakup', 0],
+  ['lobby_blues', '🛎', '호텔 로비의 블루스 실험', '#HOTEL_LOBBY', 'blues', 'groove', 'none', 'evening', 0, 'none', 1],
+  ['new_start', '🌱', '새 출발 응원가', '#MORNING_BAKERY', 'indie', 'build', 'sunny', 'morning', 1, 'newstart', 0],
+  ['night_code', '💻', '야간 코딩 신스웨이브', '#FOCUS_CODE', 'synthwave', 'loop', 'none', 'night', 0, 'none', 0],
+  ['thanks_family', '🏠', '가족에게 못 한 고마움', '#WOOD_CAFE', 'acoustic', 'emotional', 'none', 'afternoon', 1, 'family', 0],
+  ['disco_party', '🪩', '금요일 디스코 파티', '#BOUTIQUE', 'disco', 'groove', 'none', 'fridaynight', 1, 'party', 0],
+  ['cloudy_chill', '☁️', '흐린 날의 칠아웃', '#SPA_YOGA', 'chillout', 'dreamy', 'cloudy', 'afternoon', 0, 'none', 0],
+  ['film_memory', '🎞', '영화 같은 그날의 추억', '#DAWN_MOOD', 'cinematic', 'cinematic', 'none', 'evening', 1, 'memory', 0],
+  ['funk_spark', '🎷', '라운지 펑크 그루브 실험', '#PUB_LOUNGE', 'funk', 'groove', 'none', 'night', 0, 'none', 1],
+  ['confident_hiphop', '😎', '내 길을 가는 힙합', '#NIGHT_DRIVE', 'hiphop', 'catchy', 'none', 'night', 1, 'confident', 0],
+  ['clinic_piano', '🍃', '편안한 대기실 피아노', '#CLINIC_WAIT', 'piano', 'steady', 'none', 'morning', 0, 'none', 0],
+  ['anniv_ballad', '💍', '기념일에 부르는 노래', '#WINE_BAR', 'kballad', 'emotional', 'none', 'evening', 1, 'anniversary', 0],
+  ['golf_house', '⛳', '맑은 날 골프장 하우스', '#GOLF_RANGE', 'house', 'groove', 'sunny', 'afternoon', 0, 'none', 0],
+  ['dream_indie', '🌌', '몽환적인 인디 실험', '#RAINY_LOFI', 'indie', 'dreamy', 'none', 'night', 0, 'none', 1],
+];
+/** 한국 날짜로 오늘의 레시피 (2026-01-01 부터 하루씩 돌아가요) */
+export function dailyPick(now = new Date()) {
+  const k = new Date(now.getTime() + 9 * 3600e3); // 한국 시간
+  const day = Math.floor((Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate()) - Date.UTC(2026, 0, 1)) / 86400e3);
+  const [key, emoji, title, station, genre, flow, weather, time, vocal, theme, spark] = DAILY[((day % DAILY.length) + DAILY.length) % DAILY.length];
+  return { key, emoji, title, station, genre, flow, weather, time, vocal: vocal === 1, theme, spark: spark === 1, date: `${k.getUTCMonth() + 1}.${k.getUTCDate()}` };
+}
