@@ -49,7 +49,7 @@ export function mountUpload(el, { sb, B, call, onDone }) {
     const [pc, pt] = planNote();
     el.innerHTML = `<div class="st-q drop-q">01 · 음원</div>
     <label class="drop big${F.file ? ' has' : ''}" id="uDrop"><input type="file" accept=".mp3,.wav,.m4a,.aac,.flac,.ogg,audio/*" id="uFile" hidden>
-      <span class="drop-ic">${F.file ? '🎵' : '⬆'}</span>
+      <span class="drop-lp${F.file ? ' spin' : ''}" aria-hidden="true"><i>${F.file ? '♪' : '↑'}</i></span>
       ${F.file ? `<b>${esc(F.file.name)}</b><small>${(F.file.size / 1048576).toFixed(1)}MB · ${esc(F.file.name.split('.').pop().toUpperCase())}${F.dur ? ' · ' + fmt(F.dur) : ''}${F.dur && F.dur < 60 ? ' · ⚠ 60초 미만 (재생 집계 안 됨)' : ''} · 눌러서 바꾸기</small>` : '<b>음원 파일을 여기로 끌어다 놓으세요</b><small>또는 눌러서 고르기 · MP3 · WAV · M4A · FLAC · 50MB 이하 · 60초 이상</small>'}
       ${F.file ? `<button type="button" class="btn sub drop-prev" id="uPrev">${audio && !audio.paused ? '■ 멈춤' : '▶ 미리 듣기'}</button>` : ''}
     </label>

@@ -9,9 +9,9 @@ import {
   STATION_GROUPS, stGroupOf, voicePicks, THEMES, THEME, OPENINGS, LY_PENS, LY_HEATS, LY_TALKS, LY_VIEWS, lyricStyleRequest, lyricRequest, sectionRequest, sectionStyleRequest } from './studio-data.js?v=20261122';
 import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
 import { mountSequencer } from './seq-ui.js?v=20261115';
-import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261125';
+import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261129';
 
-const V = '20261128';
+const V = '20261129';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -630,6 +630,12 @@ function renderResult() {
     </div>${vocal && lyr ? `<div class="st-card"><h3>이 곡의 가사</h3><div class="lyr">${esc(lyr)}</div></div>` : ''}</div>`;
     body().onclick = (e) => { if (e.target.closest('[data-r="chart"]')) document.querySelector('.tabs [data-tab="chart"]')?.click(); };
     clearTimeout(renderResult.t); renderResult.t = setTimeout(() => { if (S.view === 'make' && waiting() && S.batch) renderResult(); }, 3000);
+    // 타임코드는 1초마다 (화면 전체는 3초마다 새로 그려요)
+    clearInterval(renderResult.tc); renderResult.tc = setInterval(() => {
+      const el = root.querySelector('.oa-tc'); if (!el || !waiting()) return clearInterval(renderResult.tc);
+      const s2 = (Date.now() - S.startedAt) / 1000, mm = (x) => String(Math.floor(x / 60)).padStart(2, '0') + ':' + String(Math.floor(x % 60)).padStart(2, '0');
+      el.textContent = `${mm(s2)} / ~${mm(expect)}`;
+    }, 1000);
     return;
   }
   if (takes.length && takes.every((t) => t.status === 'FAILED')) {

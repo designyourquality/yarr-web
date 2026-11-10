@@ -328,3 +328,11 @@ button.mi-tile:hover{border-color:rgba(255,140,0,.35)}
 .oa-prog b{flex:1;height:6px;border-radius:1.5px;background:#1E2129}
 .oa-prog b.on{background:#FF9500;box-shadow:0 0 4px rgba(255,149,0,.5)}
 @media (prefers-reduced-motion:reduce){.oa-lamp,.oa-vu u{animation:none}}
+
+/* 2026-11-10 · 곡 올리기 칸: 앱처럼 LP 모양 (파일을 고르면 돌아요) */
+.drop-lp{width:84px;height:84px;border-radius:50%;display:grid;place-items:center;background:repeating-radial-gradient(circle at center,#101115 0 1.6px,#1D2026 2.2px,#0B0C0E 3.6px);box-shadow:0 6px 18px rgba(0,0,0,.8),0 0 0 3px rgba(255,140,0,.18),0 0 22px rgba(255,140,0,.18)}
+.drop-lp i{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:900;font-size:16px;color:#121317;background:radial-gradient(circle at 30% 30%,#FFC266,#FF9500 65%,#BA5400)}
+.drop-lp.spin{animation:lpSpin 4.5s linear infinite}
+.drop.big:hover .drop-lp{box-shadow:0 6px 18px rgba(0,0,0,.8),0 0 0 3px rgba(255,160,60,.35),0 0 30px rgba(255,140,0,.3)}
+@keyframes lpSpin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.drop-lp.spin{animation:none}}
