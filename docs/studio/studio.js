@@ -6,7 +6,7 @@ import {
   STATIONS, ST, GENRES, GENRE, LEADS, FLOWS, WEATHERS, TIMES, DURATIONS, KNOBS, VOICE_CATS, VOICES, QUICK_VOICES, QUIET_VOICES, LOUD_GENRES,
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
   lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS,
-  STATION_GROUPS, stGroupOf, voicePicks, THEMES, THEME, OPENINGS, LY_PENS, LY_HEATS, LY_TALKS, LY_VIEWS, lyricStyleRequest, lyricRequest, sectionRequest, sectionStyleRequest } from './studio-data.js?v=20261122';
+  STATION_GROUPS, stGroupOf, voicePicks, THEMES, THEME, OPENINGS, LY_PENS, LY_HEATS, LY_TALKS, LY_VIEWS, lyricStyleRequest, lyricRequest, sectionRequest, sectionStyleRequest } from './studio-data.js?v=20261130';
 import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
 import { mountSequencer } from './seq-ui.js?v=20261115';
 import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261129';
@@ -323,6 +323,7 @@ function proPanel() {
       ${['duet', 'indie_duo'].includes(S.tone) ? '<p class="st-note">절은 남자, 후렴 앞부분은 여자가 부르고 끝은 둘이 함께 부르도록 야르가 파트를 나눠요.</p>' : S.tone === 'choir' ? '<p class="st-note">첫 소절부터 여럿이 함께 부르는 합창으로 만들어요.</p>' : ['group_girl', 'group_boy'].includes(S.tone) ? '<p class="st-note">절은 멤버들이 주고받고, 후렴은 다 함께 부르도록 야르가 파트를 나눠요.</p>' : ''}`
     : `<div class="st-q">주인공 악기</div><div class="chips">${chips(LEADS, r.lead, 'data-lead')}</div>`}
     <div class="st-q">곡 흐름</div><div class="chips">${chips(FLOWS, r.flow, 'data-flow')}</div>
+    <div class="chips" style="margin-top:10px;align-items:center"><button class="chip-b${r.spark ? ' on' : ''}" data-spark="1">✨ 실험적으로</button><span class="st-note" style="margin:0 0 0 6px">다른 장르를 하나 섞고 뜻밖의 악기를 넣어요. 더 독특하지만 낯설 수 있어요.</span></div>
     <div class="st-q">03 · 분위기 노브 <span class="r">차가움 ↔ 따뜻함 · 한가함 ↔ 바쁨(BPM) · 깔끔함 ↔ 빈티지</span></div>
     ${KNOBS.map(([k, label, lo, hi]) => `<div class="st-range"><span style="width:58px;font-size:12.5px;font-weight:700">${label}</span><span class="st-note" style="margin:0;width:44px">${lo}</span><input type="range" min="0" max="4" step="1" value="${r[k]}" data-knob="${k}"><span class="st-note" style="margin:0;width:44px;text-align:right">${hi}</span></div>`).join('')}
     <p class="st-note">템포 <b id="mBpm">${bpmOf(r)} BPM</b> · 바쁨 노브로 바뀌어요</p>
@@ -413,6 +414,7 @@ function bindMake() {
     if (d.tone) { S.tone = d.tone; S.voiceCat = VOICES.find((v) => v.id === d.tone)?.cat || S.voiceCat; return renderMake(); }
     if (d.lead) { r.lead = d.lead; return renderMake(); }
     if (d.flow) { r.flow = d.flow; return renderMake(); }
+    if (d.spark) { r.spark = !r.spark; return renderMake(); }
     if (d.weather) { r.weather = d.weather; return renderMake(); }
     if (d.time) { r.time = d.time; return renderMake(); }
     if (d.dur) { r.duration = +d.dur; return renderMake(); }
@@ -994,7 +996,7 @@ function restart() {
 }
 
 // 고치기 창 오른쪽: 지금 레시피를 한눈에 · 바뀐 줄은 '전 → 후' 주황으로 (2026-11-10)
-function recipePanel(a, b, n) {
+function recipePanel(a, b, n, vocal = false) {
   const L = Object.fromEntries(LEADS), F = Object.fromEntries(FLOWS);
   const meter = (v, was) => `<span class="ed-m">${[0, 1, 2, 3, 4].map((k) => `<i class="${k <= v ? 'on' : ''}${was != null && k <= was && k > v ? ' was' : ''}"></i>`).join('')}</span>`;
   const rows = [
@@ -1005,6 +1007,12 @@ function recipePanel(a, b, n) {
     ['악기', L[a.r.lead] || a.r.lead, L[b.r.lead] || b.r.lead],
     ['흐름', F[a.r.flow] || a.r.flow, F[b.r.flow] || b.r.flow],
     ['길이', `${a.r.duration}초`, `${b.r.duration}초`],
+    ...(a.r.spark || b.r.spark ? [['실험', a.r.spark ? '켜짐' : '꺼짐', b.r.spark ? '켜짐' : '꺼짐']] : []),
+    ...(vocal ? (() => {
+      const AD = Object.fromEntries(ADLIBS), tuneTxt = (x) => VOICE_TUNE_ROWS.filter(([k]) => (x.tune || {})[k]).map(([k, nm, lo, hi]) => { const sd = x.tune[k] < 0 ? lo : hi; return sd.startsWith(nm) ? sd : `${nm} ${sd}`; }).join(' · ') || '자동';
+      const adl = (x) => x.adlib.map((k) => String(AD[k] || k).replace(/\s*\(.*\)$/, '')).join(' · ') || '없음';
+      return [['목소리', voiceLabel(a.tone), voiceLabel(b.tone)], ['다듬기', tuneTxt(a), tuneTxt(b)], ['추가', adl(a), adl(b)]];
+    })() : []),
   ];
   return `<div class="ed-rc"><div class="ed-rh"><span>RECIPE</span><span>${n ? `바뀐 곳 ${n}` : '그대로'}</span></div>${rows.map(([k, x, y, va, vb]) => {
     const diff = x !== y || va !== vb;
@@ -1015,8 +1023,8 @@ function recipePanel(a, b, n) {
 // ---------- 고쳐서 다시 만들기 (말로 · 버튼 값으로만 바뀌어요) ----------
 function editSheet() {
   const st = S.status, t1 = st.takes[0] || {}, vocal = !!st.vocal;
-  const base = { r: { ...newRecipe(), ...(t1.recipe || S.recipe) }, tone: t1.voice || S.tone, adlib: String(t1.adlib || '').split(',').filter(Boolean) };
-  let cur = { r: { ...base.r }, tone: base.tone, adlib: [...base.adlib] };
+  const base = { r: { ...newRecipe(), ...(t1.recipe || S.recipe) }, tone: t1.voice || S.tone, adlib: String(t1.adlib || '').split(',').filter(Boolean), tune: { ...(t1.voiceTune || t1.voice_tune || S.tune || {}) } };
+  let cur = { r: { ...base.r }, tone: base.tone, adlib: [...base.adlib], tune: { ...base.tune } };
   const sp = splitLyrics(t1.lyrics || '');
   const ly = { v: sp.verse || S.ly.v, c: sp.chorus || S.ly.c, b: sp.bridge || '' };
   const ly0 = normLyrics(ly.v, ly.c, ly.b);
@@ -1029,7 +1037,7 @@ function editSheet() {
     ['분위기', ['더 신나게', '더 잔잔하게', '더 따뜻하게', '더 차갑게', '더 빈티지하게', '더 깔끔하게']],
     ['흐름 · 길이', ['점점 고조되게', '리듬감 있게', '배경음악처럼 일정하게', '더 길게', '더 짧게']],
     ['악기', [['피아노로', 'piano'], ['기타로', 'guitar'], ['신스로', 'synth'], ['스트링으로', 'strings'], ['색소폰으로', 'sax'], ['전통악기로', 'korean']]],
-    ['장르', [['로파이로', 'lofi'], ['재즈로', 'jazz'], ['시티팝으로', 'citypop'], ['어쿠스틱으로', 'acoustic'], ['앰비언트로', 'ambient'], ['하우스로', 'house'], ['보사노바로', 'bossa'], ['발라드로', 'kballad']]],
+    ['장르', [['로파이로', 'lofi'], ['재즈로', 'jazz'], ['시티팝으로', 'citypop'], ['어쿠스틱으로', 'acoustic'], ['앰비언트로', 'ambient'], ['하우스로', 'house'], ['보사노바로', 'bossa'], ['발라드로', 'kballad'], ['✨ 실험적으로', '__spark']]],
     ...(vocal ? [
       ['목소리', ['남자 목소리로', '여자 목소리로', '걸그룹으로', '합창으로', '고음으로', '더 감정 있게', '허밍 넣어 줘', '추임새 넣어 줘', '랩 넣어 줘', '랩 빼 줘']],
       ['가사 · 구성', ['가사 다시 써 줘', '더 시적으로 가사 다시', '추상적으로 가사 다시', '담담하게 가사 다시', '브릿지 넣어 줘', '후렴부터 시작', '후렴만 더 신나게', '후렴 가사만 바꿔 줘']],
@@ -1073,11 +1081,14 @@ function editSheet() {
       <div class="ed-grid">
         <div class="ed-groups">${QG.map(([g, ws]) => `<div class="ed-g"><span class="ed-gl">${g}</span><div class="chips">${ws.map((w) => {
           const [label, key] = Array.isArray(w) ? w : [w, null];
+          if (key === '__spark') return `<button class="chip-b grp${cur.r.spark ? ' on' : ''}" data-q="${cur.r.spark ? '평범하게' : esc(label)}">${esc(label)}</button>`;
           if (key === '__vocal') return `<button class="chip-b grp ed-vq" data-vq="1">${esc(label)}</button>`;
-          const on = key && (g === '악기' ? cur.r.lead === key : cur.r.genre === key);
+          const V = { '남자 목소리로': () => cur.tone.startsWith('m_'), '여자 목소리로': () => cur.tone.startsWith('f_'), '걸그룹으로': () => cur.tone === 'group_girl', '합창으로': () => cur.tone === 'choir',
+            '고음으로': () => cur.tune.range === 1, '더 감정 있게': () => cur.tune.emotion === 1, '허밍 넣어 줘': () => cur.adlib.includes('hum'), '추임새 넣어 줘': () => cur.adlib.includes('hype'), '랩 넣어 줘': () => cur.tune.rap === 1, '랩 빼 줘': () => cur.tune.rap === -1 };
+          const on = g === '목소리' ? !!(V[label] && V[label]()) : key && (g === '악기' ? cur.r.lead === key : cur.r.genre === key);
           return `<button class="chip-b grp${on ? ' on' : ''}" data-q="${esc(label)}">${esc(label)}</button>`;
         }).join('')}</div></div>`).join('')}</div>
-        ${recipePanel(base, cur, ch.length + (lyChanged ? 1 : 0))}
+        ${recipePanel(base, cur, ch.length + (lyChanged ? 1 : 0), vocal)}
       </div>
       ${vocal ? `<details style="margin-top:12px" ${lyChanged ? 'open' : ''}><summary class="st-q" style="cursor:pointer">가사 · 나레이션도 고치기</summary>
         <div class="st-q">절 (Verse)</div><textarea class="st-ta" data-el="v" maxlength="400">${esc(ly.v)}</textarea>
@@ -1117,13 +1128,13 @@ function editSheet() {
       const blockText = ly[keyOf[sec]]; const orig = { v: sp.verse || '', c: sp.chorus || '', b: sp.bridge || '' }[keyOf[sec]];
       box.remove(); return openRepaint(t, { key: sec, style: secStyle, lines: lines(blockText).join('\n') !== lines(orig).join('\n') ? blockText : null });
     }
-    if (b.id === 'eReset') { cur = { r: { ...base.r }, tone: base.tone, adlib: [...base.adlib] }; return draw(); }
+    if (b.id === 'eReset') { cur = { r: { ...base.r }, tone: base.tone, adlib: [...base.adlib], tune: { ...base.tune } }; return draw(); }
     if (b.dataset.np) { narr.pos = b.dataset.np; return draw(); }
     if (b.dataset.nt) { narr.tone = b.dataset.nt; return draw(); }
     if (b.dataset.nv) { narr.voice = b.dataset.nv; return draw(); }
     if (b.id === 'eGo') {
       const edit = { recipe: cur.r };
-      if (vocal) Object.assign(edit, { vocal: cur.tone, adlib: cur.adlib, consent, lyrics: { verse: ly.v, chorus: ly.c, ...(ly.b.trim() ? { bridge: ly.b } : {}) }, ...(narr.pos !== 'none' ? { narration: narr } : {}) });
+      if (vocal) Object.assign(edit, { vocal: cur.tone, adlib: cur.adlib, voiceTune: cur.tune, consent, lyrics: { verse: ly.v, chorus: ly.c, ...(ly.b.trim() ? { bridge: ly.b } : {}) }, ...(narr.pos !== 'none' ? { narration: narr } : {}) });
       box.remove(); return more(edit);
     }
   });

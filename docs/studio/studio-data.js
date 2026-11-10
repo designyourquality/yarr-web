@@ -168,7 +168,7 @@ export const ERR = {
 export const errText = (code) => ERR[code] || String(code || '곡 만들기 요청이 실패했어요. 잠시 뒤 다시 시도해 주세요.');
 
 // ---- 레시피 ----
-export const newRecipe = (station = '#WOOD_CAFE') => ({ station, genre: 'auto', warmth: 2, energy: 2, texture: 2, weather: 'none', time: 'none', lead: 'auto', flow: 'auto', duration: 150, theme: 'none', opening: 'auto' });
+export const newRecipe = (station = '#WOOD_CAFE') => ({ station, genre: 'auto', warmth: 2, energy: 2, texture: 2, weather: 'none', time: 'none', lead: 'auto', flow: 'auto', duration: 150, theme: 'none', opening: 'auto', spark: false });
 /** 노래 주제 · 감정 (보컬곡 1번 · 앱 studioThemes · 서버 STUDIO_THEMES 와 같아요): [키, 이름, 어울리는 공간(반주 기본)] */
 export const THEMES = [
   ['flutter', '💘 설렘 · 고백', '#HANGANG_PICNIC'], ['crush', '🙈 짝사랑', '#DAWN_MOOD'], ['breakup', '💔 이별 · 그리움', '#DAWN_MOOD'],
@@ -265,16 +265,18 @@ export function diffDraft(a, b, vocal) {
   if (a.r.lead !== b.r.lead) out.push(`악기 ${Object.fromEntries(LEADS)[b.r.lead] || b.r.lead}`);
   if (a.r.flow !== b.r.flow) out.push(`흐름 ${Object.fromEntries(FLOWS)[b.r.flow] || b.r.flow}`);
   if (a.r.duration !== b.r.duration) out.push(`길이 ${b.r.duration}초`);
+  if (!!a.r.spark !== !!b.r.spark) out.push(b.r.spark ? '✨ 실험적으로' : '실험 끄기');
   if (vocal && a.tone !== b.tone) out.push(voiceLabel(b.tone));
   if (vocal) {
     const A = Object.fromEntries(ADLIBS);
     for (const k of b.adlib) if (!a.adlib.includes(k)) out.push(`+ ${A[k] || k}`);
     for (const k of a.adlib) if (!b.adlib.includes(k)) out.push(`− ${A[k] || k}`);
+    for (const [k, name, lo, hi] of VOICE_TUNE_ROWS) { const x = (a.tune || {})[k] || 0, y = (b.tune || {})[k] || 0; if (x !== y) { const sd = y < 0 ? lo : hi; out.push(y === 0 ? `${name} 자동` : sd.startsWith(name) ? sd : `${name} ${sd}`); } }
   }
   return out;
 }
 export function applyRequest(text, d0, vocal) {
-  const d = { r: { ...d0.r }, tone: d0.tone, adlib: [...d0.adlib] };
+  const d = { r: { ...d0.r }, tone: d0.tone, adlib: [...d0.adlib], tune: { ...(d0.tune || {}) } };
   const t = String(text).replace(/\s+/g, ' ').trim().toLowerCase();
   if (!t) return d;
   const step = has(t, ['훨씬', '많이', '아주', '완전', '확']) ? 2 : 1;
@@ -288,6 +290,9 @@ export function applyRequest(text, d0, vocal) {
   if (has(t, ['깔끔', '선명', '모던', '세련', '요즘'])) d.r.texture = clamp(d.r.texture - step);
   const leads = { piano: ['피아노', '건반'], guitar: ['기타'], sax: ['색소폰', '섹소폰', '트럼펫', '브라스', '관악'], synth: ['신디', '신스', '전자음'], strings: ['현악', '바이올린', '첼로', '스트링', '오케스트라'], korean: ['가야금', '해금', '대금', '전통악기', '국악기'] };
   for (const [k, ws] of Object.entries(leads)) for (const w of ws) { if (!t.includes(w)) continue; if (off(w)) { if (d.r.lead === k) d.r.lead = 'auto'; } else d.r.lead = k; }
+  // ✨ 실험적으로 (2026-11-10 · 앱과 같아요)
+  if (has(t, ['실험적', '독특하게', '색다르게', '새롭게', '특이하게', '창의적', '퓨전'])) d.r.spark = true;
+  if (has(t, ['평범하게', '무난하게', '실험 빼', '실험 끄'])) d.r.spark = false;
   if (has(t, ['고조', '터지', '점점', '클라이맥스', '웅장하게'])) d.r.flow = 'build';
   if (has(t, ['리듬감', '그루브', '들썩', '춤추', '댄스'])) d.r.flow = 'groove';
   if (has(t, ['일정하게', '계속 잔잔', '배경음악', '배경 음악'])) d.r.flow = 'steady';
@@ -319,7 +324,24 @@ export function applyRequest(text, d0, vocal) {
     if ((d.tone === 'f_clear' && d0.tone.startsWith('f_')) || (d.tone === 'm_soft' && d0.tone.startsWith('m_'))) d.tone = d0.tone;
     const tog = (k, w) => { if (!t.includes(w)) return; d.adlib = d.adlib.filter((x) => x !== k); if (!off(w)) d.adlib.push(k); };
     tog('hum', '허밍'); tog('hype', '추임새');
+    // 목소리 다듬기 (2026-11-10 · 앱 studio_edit.dart 와 같아요): 랩 · 음역 · 질감 · 떨림 · 감정
+    const tune = (k, v) => { if (v) d.tune[k] = v; else delete d.tune[k]; };
+    if (/랩/.test(t) && !t.includes('래퍼')) {
+      if (off('랩') || has(t, ['노래만', '랩 없이'])) tune('rap', -1);
+      else if (has(t, ['넣', '추가', '많이', '더', '해 줘', '해줘', '하게', '부분'])) tune('rap', 1);
+    } else if (has(t, ['노래만'])) tune('rap', -1);
+    if (has(t, ['고음', '높게', '높은 음', '음 높', '키 올려', '키를 올려'])) tune('range', 1);
+    if (has(t, ['저음으로', '낮게', '키 낮', '키를 낮', '음 낮'])) tune('range', -1);
+    if (has(t, ['허스키', '거칠게', '긁는', '쉰 목소리'])) tune('texture', 1);
+    if (has(t, ['맑게', '청아', '깨끗한 목소리', '맑은 목소리'])) tune('texture', -1);
+    if (has(t, ['바이브레이션', '비브라토', '떨림', '꺾기 많이'])) tune('vibrato', off('떨림') || has(t, ['떨림 없이', '곧게']) ? -1 : 1);
+    if (has(t, ['곧게 불', '곧은 목소리'])) tune('vibrato', -1);
+    if (has(t, ['감정 더', '감정을 더', '감정 있게', '감정 넣', '감정 폭발', '감정적으로 불', '절절', '애절하게', '터지게 불'])) tune('emotion', 1);
+    if (has(t, ['담담', '덤덤', '무덤덤', '감정 빼', '감정 없이'])) tune('emotion', -1);
   }
+  // 슬프게 · 밝게 (앱과 같아요)
+  if (has(t, ['슬프', '우울', '쓸쓸', '애잔', '서글'])) { d.r.energy = clamp(d.r.energy - 1); d.r.flow = 'emotional'; }
+  if (has(t, ['밝게', '밝은', '행복', '기분 좋', '산뜻', '상큼하게'])) { d.r.energy = clamp(d.r.energy + 1); d.r.warmth = clamp(d.r.warmth + 1); }
   return d;
 }
 
