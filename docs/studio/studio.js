@@ -669,9 +669,10 @@ function renderResult() {
         <p class="st-note">둘 중 하나만 만들 수 있어요 (이 곡의 두 번째 버전)</p>` : ''}
       ${usedUp ? `<div style="margin-top:12px;padding:14px;border-radius:14px;background:rgba(255,123,58,.12);border:1px solid rgba(255,123,58,.4)">
         <b style="font-size:14px">테이크 ${q?.maxTakes ?? 2}개를 다 썼어요 · 위에서 하나를 골라 주세요</b>
-        <p class="st-note" style="margin:6px 0 10px">${q && q.left > 0 ? `이 곡은 더 고칠 수 없어요. 둘 다 마음에 안 들 때만 새 곡으로 다시 만들 수 있어요 (남은 횟수 1번 사용 · 지금 ${q.left}번 남음)` : '오늘 횟수를 다 썼어요. 횟수가 다시 채워지면 같은 가사로 새로 만들 수 있어요'}</p>
-        <button class="btn sub" data-r="againsame" style="width:100%;justify-content:center"${q && q.left > 0 ? '' : ' disabled'}>같은 가사로 새로 만들기</button>
-        <button class="btn sub" data-r="againchange" style="width:100%;justify-content:center;margin-top:8px"${q && q.left > 0 ? '' : ' disabled'}>장르 · 목소리 바꿔서 새로 만들기</button></div>`
+        <p class="st-note" style="margin:6px 0 10px">${q && q.left > 0 ? `이 곡은 더 고칠 수 없어요. 둘 다 마음에 안 들 때만 새 곡으로 다시 만들 수 있어요 (남은 횟수 1번 사용 · 지금 ${q.left}번 남음)` : `오늘 횟수를 다 썼어요. 횟수가 다시 채워지면 ${vocal ? '같은 가사로' : '같은 레시피로'} 새로 만들 수 있어요`}</p>
+        <button class="btn sub" data-r="againsame" style="width:100%;justify-content:center"${q && q.left > 0 ? '' : ' disabled'}>${vocal ? '같은 가사로 새로 만들기' : '같은 레시피로 새로 만들기'}</button>
+        <button class="btn sub" data-r="againchange" style="width:100%;justify-content:center;margin-top:8px"${q && q.left > 0 ? '' : ' disabled'}>${vocal ? '장르 · 목소리 바꿔서 새로 만들기' : '장르 · 분위기 바꿔서 새로 만들기'}</button>
+        ${vocal ? '' : `<button class="btn sub" data-r="againvocal" style="width:100%;justify-content:center;margin-top:8px"${q && q.left > 0 ? '' : ' disabled'}>🎤 가사 · 가수 넣어서 보컬곡으로 새로 만들기</button>`}</div>`
       : !sel && ready.length ? '<button class="seq-key" data-r="leave" style="margin-top:10px">이번 곡은 두고 새 레시피로 만들기</button>' : ''}
       ${vocal && base?.lyrics ? `<div class="st-q">이 곡의 가사</div><div class="lyr">${esc(base.lyrics)}</div>` : ''}
     </div>
@@ -711,6 +712,9 @@ function renderResult() {
     if (r === 'more') return more(null);
     if (r === 'edit') return editSheet();
     if (r === 'leave') { ls.set('studio_batch', null); freshStart(); return restart(); } // '새 레시피로' = 이전 가사 없이 새로
+    // 연주곡 (2026-11-10): '같은 가사' 가 아니라 '같은 레시피' · 보컬곡으로 바꿔 만들기도
+    if (!vocal && (r === 'againsame' || r === 'againchange')) return againInst(r === 'againchange', takes);
+    if (r === 'againvocal') { const t0 = takes.find((x) => x.status === 'READY') || takes[0] || {}; return toVocal(t0.recipe || S.recipe, null); }
     if (r === 'againsame' || r === 'againchange') return againWith(r === 'againchange', takes);
     if (r === 'pick') return pick();
   };
@@ -956,6 +960,27 @@ function againWith(change, takes) {
   B.toast(change ? '가사는 그대로 넣어 뒀어요. 장르나 목소리를 바꾸고 만들어 보세요' : '가사 · 목소리를 그대로 넣어 뒀어요. 아래에서 만들기를 누르면 새로 만들어요');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+/** 연주곡 다시 만들기: 그 곡의 레시피를 만들기 화면에 채워요 (오늘 횟수 1번) */
+function againInst(change, takes) {
+  const t0 = (takes || []).find((x) => x.status === 'READY') || (takes || [])[0] || {};
+  ls.set('studio_batch', null);
+  if (t0.recipe) S.recipe = { ...S.recipe, ...t0.recipe };
+  S.vocal = false; S.carried = false;
+  restart();
+  B.toast(change ? '레시피를 넣어 뒀어요. 장르나 분위기를 바꾸고 만들어 보세요' : '같은 레시피를 넣어 뒀어요. 아래에서 만들기를 누르면 새로 만들어요');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+/** 연주곡 고치기 → 보컬곡으로 새로 만들기 (2026-11-10): 레시피는 그대로 · 보컬곡 켜고 · 목소리 골라 두기 · 가사는 비워요 */
+function toVocal(r, g) {
+  ls.set('studio_batch', null);
+  S.recipe = { ...S.recipe, ...r, lead: 'auto' }; S.vocal = true;
+  const want = g === 'f' ? 'f_clear' : g === 'm' ? 'm_soft' : null;
+  if (want && VOICES.some((v) => v.id === want)) { S.tone = want; S.voiceCat = VOICES.find((v) => v.id === want).cat; }
+  S.ly = { v: '', c: '', b: '' }; S.bridgeOn = false; S.carried = false; S.consent = false;
+  restart();
+  B.toast('보컬곡으로 바꿔 뒀어요. 가사를 쓰거나 AI 작사를 누른 뒤 만들어 보세요');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 /** 새로 시작: 주제 · 가사 · 제목을 비워요 (레시피 · 목소리 · 공간은 그대로 · 앱 make_screen _freshStart 와 같아요 · 2026-11-09) */
 function freshStart() {
   S.ly = { v: '', c: '', b: '' }; S.bridgeOn = false; S.aiDraft = null; S.story = ''; S.carried = false; S.consent = false;
@@ -997,6 +1022,7 @@ function editSheet() {
   const ly0 = normLyrics(ly.v, ly.c, ly.b);
   const narr = { pos: 'none', tone: 'deep', voice: 'auto', text: '' };
   let consent = false, aiLy = false, busy = false, note = '', sec = null, secStyle = null;
+  let vw = null; // 연주곡에 가사 · 가수를 원할 때: { g: 'f' | 'm' | null } → 보컬곡으로 새로 만들기 안내 (2026-11-10)
   // 앱 _EditSheet 와 같은 버튼 (2026-11-08 · 가사 다시 쓰기 · 브릿지 · '후렴만' 포함)
   // 2026-11-10 고치기 창 보강: 버튼을 묶음으로 (분위기 · 흐름 · 악기 · 장르 · 목소리 · 가사) · 모두 applyRequest 가 알아듣는 말
   const QG = [
@@ -1007,7 +1033,7 @@ function editSheet() {
     ...(vocal ? [
       ['목소리', ['남자 목소리로', '여자 목소리로', '걸그룹으로', '합창으로', '고음으로', '더 감정 있게', '허밍 넣어 줘', '추임새 넣어 줘', '랩 넣어 줘', '랩 빼 줘']],
       ['가사 · 구성', ['가사 다시 써 줘', '더 시적으로 가사 다시', '추상적으로 가사 다시', '담담하게 가사 다시', '브릿지 넣어 줘', '후렴부터 시작', '후렴만 더 신나게', '후렴 가사만 바꿔 줘']],
-    ] : []),
+    ] : [['보컬', [['🎤 보컬곡으로 새로 만들기', '__vocal']]]]),
   ];
   const secName = (k) => ({ verse: '절', bridge: '브릿지' })[k] || '후렴';
   const keyOf = { verse: 'v', chorus: 'c', bridge: 'b' };
@@ -1042,10 +1068,12 @@ function editSheet() {
       <p class="st-note">말하듯 적어 주세요. 요청은 야르의 버튼 값으로만 바뀌어요 (가수 이름 · 기존 곡 흉내는 반영되지 않아요).</p>
       <div style="display:flex;gap:8px"><input class="st-in" id="eReq" maxlength="120" placeholder="${vocal ? '예: 더 신나게, 피아노 넣고, 남자 목소리로' : '예: 조금 더 잔잔하게, 기타로, 빈티지하게'}"><button class="btn" id="eApply" style="padding:10px 14px">적용</button></div>
       ${note ? `<p class="st-note" style="color:#FB923C;margin:6px 0 0">${busy ? '<span class="spin"></span> ' : ''}${esc(note)}</p>` : ''}
+      ${vw ? `<div class="ed-vw"><p>🎤 연주곡에 가사 · 가수를 넣으려면 <b>보컬곡으로 새로 만들어야 해요</b> (하루 횟수 1번). 지금 고른 장르 · 빠르기 · 분위기 · 흐름은 그대로 가져가요${vw.g ? ` · ${vw.g === 'f' ? '여자' : '남자'} 목소리로 골라 둘게요` : ''}.</p><button class="btn" id="eVocal">이 레시피로 보컬곡 만들기 →</button></div>` : ''}
       ${sec ? `<div style="margin-top:8px;padding:12px;border-radius:12px;background:rgba(255,123,58,.13);border:1px solid rgba(255,123,58,.4)"><p class="st-note" style="margin:0 0 8px;color:#eee">'${secName(sec)}'만 바꾸고 싶다면 ✂ 구간 고치기가 좋아요. 이 창은 곡 전체를 새로 만들고, 구간 고치기는 그 부분만 다시 불러요 (앞뒤는 그대로).</p><button class="seq-key" id="eSec" ${busy ? 'disabled' : ''}>✂ ${secName(sec)}만 고치기 · 테이크 1개</button></div>` : ''}
       <div class="ed-grid">
         <div class="ed-groups">${QG.map(([g, ws]) => `<div class="ed-g"><span class="ed-gl">${g}</span><div class="chips">${ws.map((w) => {
           const [label, key] = Array.isArray(w) ? w : [w, null];
+          if (key === '__vocal') return `<button class="chip-b grp ed-vq" data-vq="1">${esc(label)}</button>`;
           const on = key && (g === '악기' ? cur.r.lead === key : cur.r.genre === key);
           return `<button class="chip-b grp${on ? ' on' : ''}" data-q="${esc(label)}">${esc(label)}</button>`;
         }).join('')}</div></div>`).join('')}</div>
@@ -1066,8 +1094,14 @@ function editSheet() {
   box.addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (e.target === box || e.target.closest('[data-x]')) return box.remove();
     if (!b) return;
+    if (b.dataset.vq) { vw = { g: null }; return draw(); }
+    if (b.id === 'eVocal') { box.remove(); return toVocal(cur.r, vw && vw.g); }
     if (b.dataset.q || b.id === 'eApply') {
       const text = b.dataset.q || box.querySelector('#eReq').value;
+      if (!vocal && /가사|노래|불러|부르|보컬|가수|목소리|여자|여성|남자|남성|랩|허밍/.test(text)) {
+        vw = { g: /여자|여성|여가수/.test(text) ? 'f' : /남자|남성|남가수/.test(text) ? 'm' : null };
+        cur = applyRequest(text, cur, vocal); return draw();
+      }
       const la = vocal ? lyricRequest(text) : null;
       sec = vocal ? sectionRequest(text) : null; secStyle = sec ? sectionStyleRequest(text) : null;
       const next = applyRequest(text, cur, vocal);

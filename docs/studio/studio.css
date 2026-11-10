@@ -351,3 +351,6 @@ button.mi-tile:hover{border-color:rgba(255,140,0,.35)}
 .ed-reset{margin-top:8px;width:100%;padding:7px;border-radius:8px;font-size:12px;font-weight:700;color:#D9D3CA;background:#16171C;border:1px solid rgba(255,255,255,.1)}
 .ed-tip{margin:8px 0 0;font-size:11px;color:#7d6a58;line-height:1.5}
 @media(max-width:700px){.ed-grid{grid-template-columns:1fr}.ed-rc{position:static;order:-1}}
+
+.ed-vw{margin-top:10px;padding:12px 14px;border-radius:12px;background:rgba(255,123,58,.12);border:1px solid rgba(255,123,58,.45)}.ed-vw p{margin:0 0 10px;font-size:13px;color:#eee;line-height:1.55}.ed-vw .btn{width:100%;justify-content:center}
+.chip-b.ed-vq{color:#FFD29A;border-color:rgba(255,140,0,.45)}
