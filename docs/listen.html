@@ -83,6 +83,7 @@ section.view.on{display:block}
 .note{font-size:12.5px;color:var(--soft);margin:14px 0 0}
 h2.sec{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:0;font-size:24px;font-weight:800;letter-spacing:-.01em}
 h2.sec small{font-size:12.5px;color:var(--soft);font-weight:400}
+h2.sec .rgn{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;align-self:center}h2.sec .rgn button{font-size:11.5px;font-weight:700;color:var(--soft);background:none;border:0;padding:3px 10px;cursor:pointer}h2.sec .rgn button+button{border-left:1px solid var(--line)}h2.sec .rgn button.on{color:#FB923C;background:rgba(251,146,60,.12)}h2.sec .rgn button:hover{color:var(--text,#fff)}
 h2.sec a.rule{font-size:11.5px;font-weight:700;color:var(--soft);border:1px solid var(--line);border-radius:999px;padding:2px 9px;text-decoration:none}h2.sec a.rule:hover{color:var(--text,#fff)}
 /* 히어로 */
 .hero{position:relative;border-radius:28px;overflow:hidden;padding:clamp(22px,4vw,40px)}
@@ -486,7 +487,7 @@ html,body{background:var(--bg)}
   </div>
 
   <div class="listhead">
-    <h2 class="sec" id="listTitle">TOP <span id="topN">100</span> <small id="listSub">지난 24시간 재생 기준</small> <a class="rule" href="chart.html" title="차트를 어떻게 세는지 공개해요">집계 기준</a></h2>
+    <h2 class="sec" id="listTitle">TOP <span id="topN">100</span> <small id="listSub">지난 24시간 재생 기준</small> <a class="rule" href="chart.html" title="차트를 어떻게 세는지 공개해요">집계 기준</a><span class="rgn" id="rgn" role="group" aria-label="차트 나라"></span></h2>
     <div class="filters" id="filters">
       <button data-f="all" class="on">전체</button>
       <button data-f="vocal">🎙️ 보컬곡</button>
@@ -951,6 +952,34 @@ html,body{background:var(--bg)}
     $('spotShare').onclick = () => share(`${base()}?t=${t.id}`, t.title);
     document.querySelectorAll('.spot [data-pod]').forEach((b) => { b.onclick = () => { const i = chart.findIndex((x) => String(x.id) === b.dataset.pod); if (mode === 'listen' && list[idx]?.id === chart[i]?.id) return togglePlay(); listenPlay(chart, i < 0 ? 0 : i, 'chart'); }; });
   }
+  // 차트 나라 (2026-11-10 · 앱과 같아요): GLOBAL | 한국 | 일본 · 안 열린 나라는 🔒 · 누르면 얼마나 모였는지
+  const RG = [['KR', '한국'], ['JP', '일본']];
+  if (/^ja/i.test(navigator.language || '')) RG.reverse();
+  const rgSt = {};
+  function rgUi() {
+    const el = $('rgn'); if (!el) return;
+    el.innerHTML = '<button class="on" data-rg="">GLOBAL</button>' + RG.map(([c, n]) => `<button data-rg="${c}">${rgSt[c] && rgSt[c].open ? '' : '🔒 '}${n}</button>`).join('');
+  }
+  async function rgLoad() {
+    rgUi();
+    await Promise.all(RG.map(async ([c]) => {
+      try {
+        const r = await fetch(`${SB_URL}/rest/v1/rpc/country_chart_status`, { method: 'POST', headers: { apikey: SB_KEY, authorization: `Bearer ${SB_KEY}`, 'content-type': 'application/json' }, body: JSON.stringify({ p_country: c }) });
+        const j = await r.json(); if (Array.isArray(j) && j[0]) rgSt[c] = j[0];
+      } catch { /* 모르면 🔒 그대로 */ }
+    }));
+    rgUi();
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('#rgn [data-rg]'); if (!b || !b.dataset.rg) return;
+    const c = b.dataset.rg, n = RG.find((x) => x[0] === c)[1], g = rgSt[c];
+    if (g && g.open) return toast(`${n} 차트는 YARR 앱에서 볼 수 있어요`);
+    if (!g) return toast(`${n} 차트는 오픈 준비 중이에요`);
+    const part = (a, m) => (m > 0 ? Math.min(1, a / m) : 1);
+    const pct = Math.floor((part(g.listeners_7d, g.min_listeners) + part(g.tracks_7d, g.min_tracks)) / 2 * 100);
+    toast(`${n} 차트 오픈 준비 중 · ${pct}% 모였어요`);
+  });
+
   async function loadChart() {
     const id = new URLSearchParams(location.search).get('t');
     try {
@@ -1494,7 +1523,7 @@ html,body{background:var(--bg)}
   const q = new URLSearchParams(location.search);
   const sParam = q.get('s');
   if (sParam && ST['#' + sParam.toUpperCase()]) curStation = '#' + sParam.toUpperCase();
-  loadChart();
+  loadChart(); rgLoad();
   const fkParam = q.get('fork'); // 퍼가기 위젯의 ⚡ 이 곡 변주하기
   if (fkParam && /^[0-9a-f-]{36}$/i.test(fkParam)) { pendingFork = fkParam; go('studio', false); }
   else if (q.get('tab') === 'studio' || (q.has('code') && store.get('yarr_login_for', '') === 'studio')) go('studio', false);
