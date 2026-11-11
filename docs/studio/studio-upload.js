@@ -315,12 +315,17 @@ export async function mountMine(el, { sb, user, B, onTranslate, onGo, call }) {
   };
   // 🎬 AI 6컷 MV (093 SQL · 2026-11-11): 공개 중인 내 곡 · 크리에이터 Pro 한 달 20회 · 만들면 이 곡을 트는 모든 MV · 매장 TV 화면에 나와요
   const bstate = {}; let usage = null;
+  // 이미 만든 6컷 (093 · 내 것만 읽혀요): 새로고침해도 '들어갔어요'로 보이게 · 만드는 중이면 이어서 확인
+  try {
+    const { data: bs } = await sb.from('mv_boards').select('track_id,status,created_at').not('track_id', 'is', null).order('created_at', { ascending: false }).limit(200);
+    for (const x of bs || []) if (!bstate[x.track_id] && x.status !== 'FAILED') bstate[x.track_id] = { st: x.status, done: x.status === 'READY' ? 6 : 0 };
+  } catch { /* 093 전 */ }
   const board = (t) => {
     if (!call || t.k !== 'live') return '';
     const b = bstate[t.id];
-    const label = b?.st === 'RUNNING' ? `장면 만드는 중 · ${b.done || 0}/6` : b?.st === 'READY' ? '✓ AI 6컷 MV가 들어갔어요' : '✨ AI 6컷 MV 만들기';
+    const label = b?.st === 'RUNNING' ? `장면 만드는 중 · ${b.done || 0}/6 (눌러서 확인)` : b?.st === 'READY' ? '✓ AI 6컷 MV 있음 · 새로 만들기' : '✨ AI 6컷 MV 만들기';
     const left = usage ? (usage.pro ? `이번 달 ${usage.month_left}회 남음` : '크리에이터 Pro 기능') : 'Pro 한 달 20회';
-    return `<div class="mi-emb"><button class="mi-trb" data-board="${t.id}" ${b?.st === 'RUNNING' ? 'disabled' : ''}>${label}</button><a class="mi-trb" href="listen.html?t=${t.id}&mv=1" style="text-decoration:none">🎬 MV로 보기</a><em>노래 구간마다 가로 장면 6장 · 얼굴 없이 풍경 · 사물 · 뒷모습 · ${left}</em></div>`;
+    return `<div class="mi-emb"><button class="mi-trb" data-board="${t.id}" ${b?.st === 'RUNNING' && b.live ? 'disabled' : ''}>${label}</button><a class="mi-trb" href="listen.html?t=${t.id}&mv=1" style="text-decoration:none">🎬 MV로 보기</a><em>노래 구간마다 가로 장면 6장 · 얼굴 없이 풍경 · 사물 · 뒷모습 · ${left}</em></div>`;
   };
   async function makeBoard(id) {
     const t = rows.find((r) => r.id === id); if (!t) return;
@@ -329,16 +334,20 @@ export async function mountMine(el, { sb, user, B, onTranslate, onGo, call }) {
       draw();
       if (!usage.pro) return B?.toast?.('AI 6컷 MV는 크리에이터 Pro 기능이에요 (한 달 20회). 🎁 선물곡은 처음 한 번 무료예요.');
       if (usage.month_left <= 0) return B?.toast?.('이번 달 AI 6컷 20회를 다 썼어요. 다음 달 1일(한국 시간)에 다시 생겨요.');
-      if (!window.confirm(`'${t.title}'에 AI 장면 6컷을 만들까요?
+      const again = bstate[id]?.st === 'READY', resume = bstate[id]?.st === 'RUNNING';
+      if (!resume && !window.confirm(`${again ? '이미 AI 6컷이 있어요. 새로 만들면 새 장면으로 바뀌고 1회를 써요.
+
+' : ''}'${t.title}'에 AI 장면 6컷을 만들까요?
 노래 구간마다 가로 장면 한 장씩 · 얼굴 없이 풍경 · 사물 · 뒷모습으로 그려요.
 이번 달 남은 횟수 ${usage.month_left}회 / 20회 · 1~2분 걸려요`)) return;
-      bstate[id] = { st: 'RUNNING', done: 0 }; draw();
+      bstate[id] = { st: 'RUNNING', done: 0, live: true }; draw();
       const j = await call('make-board', { action: 'start', track_id: id }, 90000);
+      if (j.status && j.status !== 'RUNNING') { bstate[id] = { st: j.status, done: j.done }; draw(); return B?.toast?.(j.status === 'READY' ? '완성됐어요 · 이 곡을 트는 MV · 매장 TV 화면에 AI 장면이 나와요' : '장면을 충분히 만들지 못했어요. 횟수는 빠지지 않았어요.'); }
       let n = 0;
       const tick = async () => {
         if (!el.isConnected) return;   // 다른 탭으로 가면 멈춰요 (만들기는 서버에서 이어져요)
         const st = await call('make-board', { action: 'status', board_id: j.board_id }).catch(() => null);
-        if (st) bstate[id] = { st: st.status, done: st.done };
+        if (st) bstate[id] = { st: st.status, done: st.done, live: true };
         if (bstate[id].st === 'RUNNING' && ++n < 60) { draw(); return setTimeout(tick, 4000); }
         if (bstate[id].st === 'RUNNING') bstate[id] = null;
         if (usage && bstate[id]?.st === 'READY') usage.month_left = Math.max(0, usage.month_left - 1);
