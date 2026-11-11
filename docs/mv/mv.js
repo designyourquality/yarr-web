@@ -294,11 +294,18 @@ export function openMv(ctx) {
     L.forEach((x) => { x.getAnimations?.().forEach((a) => a.cancel()); x.style.backgroundImage = 'none'; });
     open = null; document.body.style.overflow = '';
     root.style.pointerEvents = 'none'; root.style.transition = 'opacity .18s'; root.style.opacity = '0';
+    // 2차 (2026-11-11 밤 · Edge 에서 또 까매짐): 페이지 전체를 한 번 숨겼다 보여서 그래픽 층을 처음부터 다시 그리게 해요.
+    // (유리 효과 · 배경 그림 층이 MV 층과 함께 지워지며 검게 남는 Edge 버그) · 0.3초 뒤 한 번 더
+    const repaint = () => {
+      const de = document.documentElement, x = scrollX, y = scrollY;
+      de.style.display = 'none'; void de.offsetHeight; de.style.display = '';
+      window.scrollTo(x, y);
+    };
     const done = () => {
       root.remove();
-      const y = scrollY;
-      document.body.style.opacity = '0.999';
-      requestAnimationFrame(() => { document.body.style.opacity = ''; window.scrollTo(scrollX, y); });
+      repaint();
+      requestAnimationFrame(() => requestAnimationFrame(repaint));
+      setTimeout(repaint, 300);
       ctx.onClose?.();
     };
     if (fsEl()) Promise.resolve((document.exitFullscreen || document.webkitExitFullscreen)?.call(document)).catch(() => {}).finally(() => setTimeout(done, 200));
