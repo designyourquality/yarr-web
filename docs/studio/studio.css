@@ -447,3 +447,6 @@ button.mi-tile:hover{border-color:rgba(255,140,0,.35)}
 .studio .st-grid.mk .btn:not(.st-go),.studio .st-daily .btn,.studio .gq-nav .btn,.studio .seq-key{border-radius:8px}
 .studio .gq-snd button{border-radius:9px}
 .mk-exit{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08)}
+/* 나가는 버튼을 글씨 링크 대신 눈에 띄는 버튼으로 (2026-11-11) */
+.mk-exit .seq-key{padding:11px 18px;border-radius:10px;font-size:14px;font-weight:800;color:#FFB27A;background:rgba(255,107,36,.1);border:1px solid rgba(255,154,92,.55);box-shadow:none}
+.mk-exit .seq-key:hover{background:rgba(255,107,36,.18);color:#fff}

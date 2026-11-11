@@ -320,7 +320,7 @@ export async function mountMine(el, { sb, user, B, onTranslate, onGo, call }) {
     const b = bstate[t.id];
     const label = b?.st === 'RUNNING' ? `장면 만드는 중 · ${b.done || 0}/6` : b?.st === 'READY' ? '✓ AI 6컷 MV가 들어갔어요' : '✨ AI 6컷 MV 만들기';
     const left = usage ? (usage.pro ? `이번 달 ${usage.month_left}회 남음` : '크리에이터 Pro 기능') : 'Pro 한 달 20회';
-    return `<div class="mi-emb"><button class="mi-trb" data-board="${t.id}" ${b?.st === 'RUNNING' ? 'disabled' : ''}>${label}</button><em>노래 구간마다 가로 장면 6장 · 얼굴 없이 풍경 · 사물 · 뒷모습 · ${left}</em></div>`;
+    return `<div class="mi-emb"><button class="mi-trb" data-board="${t.id}" ${b?.st === 'RUNNING' ? 'disabled' : ''}>${label}</button><a class="mi-trb" href="listen.html?t=${t.id}&mv=1" style="text-decoration:none">🎬 MV로 보기</a><em>노래 구간마다 가로 장면 6장 · 얼굴 없이 풍경 · 사물 · 뒷모습 · ${left}</em></div>`;
   };
   async function makeBoard(id) {
     const t = rows.find((r) => r.id === id); if (!t) return;

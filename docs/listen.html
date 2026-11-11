@@ -994,7 +994,7 @@ html,body{background:var(--bg)}
         document.title = `${shared.title} · ${shared.artist} | YARR`;
         $('heroChip').innerHTML = '<span class="ping"></span><span>공유된 곡</span>';
         $('heroTitle').innerHTML = `${esc(shared.title)}<br><span class="grad" style="font-size:.6em">${esc(shared.artist)}</span>`;
-        $('heroLead').textContent = '설치 없이 바로 들어 보세요. 아래에 같은 스테이션 곡이 이어서 나와요.';
+        $('heroLead').textContent = new URLSearchParams(location.search).get('mv') === '1' ? '▶ 재생을 누르면 🎬 MV 전체 화면으로 바로 열려요.' : '설치 없이 바로 들어 보세요. 아래에 같은 스테이션 곡이 이어서 나와요.';
         $('listTitle').innerHTML = `이어서 듣기 <small>${j.code && ST[j.code] ? esc(ST[j.code].name) + ' 스테이션' : ''}</small>`;
         spotlight(shared, '공유된 곡');
       } else {
@@ -1156,7 +1156,12 @@ html,body{background:var(--bg)}
     mode = 'listen'; list = l; idx = i; listSrc = src; const t = list[i]; if (!t) return;
     webSec = 0; webLastT = 0; webSent = false;
     setDock(t); markPlaying();
-    try { await startOn(t.url, false, t); }
+    try {
+      await startOn(t.url, false, t);
+      // 내 곡 탭의 '🎬 MV로 보기'(?t=곡&mv=1)로 왔으면, 그 곡을 처음 틀 때 MV 전체 화면을 바로 열어요
+      const qs = new URLSearchParams(location.search);
+      if (qs.get('mv') === '1' && qs.get('t') === t.id && !openMvUi.auto) { openMvUi.auto = true; openMvUi(false); }
+    }
     catch (e) { if (e.name === 'NotAllowedError') toast('재생 버튼을 한 번 더 눌러 주세요'); }
   }
   // 목록 끝까지 들으면 멈추지 않고 이어서: 마지막 곡의 스테이션(없으면 다른 스테이션) 곡을 들은 곡 빼고 붙여서 계속 (2026-11-02)
@@ -1392,7 +1397,7 @@ html,body{background:var(--bg)}
   async function studioBoot() {
     if (studioMod) { studioMod.show?.(); return runFork(); }
     try {
-      studioMod = await import('./studio/studio.js?v=20261144');
+      studioMod = await import('./studio/studio.js?v=20261147');
       await studioMod.mount($('studioRoot'), {
         loadSb, SB_URL, SB_KEY, STATIONS, ST, toast, esc, stPhoto, base, coverCss,
         pauseMain: () => { A.forEach((a) => a.pause()); },
