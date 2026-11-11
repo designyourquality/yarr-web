@@ -325,7 +325,7 @@ export async function mountMine(el, { sb, user, B, onTranslate, onGo, call }) {
     const b = bstate[t.id];
     const label = b?.st === 'RUNNING' ? `장면 만드는 중 · ${b.done || 0}/6 (눌러서 확인)` : b?.st === 'READY' ? '✓ AI 6컷 MV 있음 · 새로 만들기' : '✨ AI 6컷 MV 만들기';
     const left = usage ? (usage.pro ? `이번 달 ${usage.month_left}회 남음` : '크리에이터 Pro 기능') : 'Pro 한 달 20회';
-    return `<div class="mi-emb"><button class="mi-trb" data-board="${t.id}" ${b?.st === 'RUNNING' && b.live ? 'disabled' : ''}>${label}</button><a class="mi-trb" href="listen.html?t=${t.id}&mv=1" style="text-decoration:none">🎬 MV로 보기</a><em>노래 구간마다 가로 장면 6장 · 얼굴 없이 풍경 · 사물 · 뒷모습 · ${left}</em></div>`;
+    return `<div class="mi-emb"><button class="mi-trb" data-board="${t.id}" ${b?.st === 'RUNNING' && b.live ? 'disabled' : ''}>${label}</button><button class="mi-trb" data-mvsee="${t.id}">🎬 MV로 보기</button><em>노래 구간마다 가로 장면 6장 · 얼굴 없이 풍경 · 사물 · 뒷모습 · ${left}</em></div>`;
   };
   async function makeBoard(id) {
     const t = rows.find((r) => r.id === id); if (!t) return;
@@ -388,6 +388,13 @@ export async function mountMine(el, { sb, user, B, onTranslate, onGo, call }) {
   el.onclick = async (e) => {
     const f = e.target.closest('[data-f]'); if (f) { filter = f.dataset.f; return draw(); }
     const bd = e.target.closest('[data-board]'); if (bd) return makeBoard(bd.dataset.board);
+    const ms = e.target.closest('[data-mvsee]');
+    if (ms) {
+      if (playing && audio) { audio.pause(); playing = null; draw(); }   // 내 곡 미리 듣기는 멈추고
+      if (B?.playMv) { ms.disabled = true; try { await B.playMv(ms.dataset.mvsee); } finally { ms.disabled = false; } }
+      else location.href = `listen.html?t=${ms.dataset.mvsee}&mv=1`;
+      return;
+    }
     const em = e.target.closest('[data-emb]');
     if (em) {
       const row = rows.find((r) => r.id === em.dataset.emb);

@@ -1397,10 +1397,18 @@ html,body{background:var(--bg)}
   async function studioBoot() {
     if (studioMod) { studioMod.show?.(); return runFork(); }
     try {
-      studioMod = await import('./studio/studio.js?v=20261148');
+      studioMod = await import('./studio/studio.js?v=20261149');
       await studioMod.mount($('studioRoot'), {
         loadSb, SB_URL, SB_KEY, STATIONS, ST, toast, esc, stPhoto, base, coverCss,
         pauseMain: () => { A.forEach((a) => a.pause()); },
+        // 🎬 내 곡 탭의 'MV로 보기': 화면을 옮기지 않고 그 곡을 틀면서 MV 전체 화면을 바로 열어요 (2026-11-11)
+        playMv: async (id) => {
+          const j = await api({ action: 'track', id }).catch(() => null);
+          const t = j?.tracks?.find((x) => x.id === id);
+          if (!t) return toast('이 곡을 불러오지 못했어요 · 공개된 곡만 MV로 볼 수 있어요');
+          await listenPlay([t, ...(j.tracks || []).filter((x) => x.id !== id)], 0, 'mv');
+          openMvUi(false);
+        },
         rememberLogin: () => store.set('yarr_login_for', 'studio'),
       });
       runFork();
