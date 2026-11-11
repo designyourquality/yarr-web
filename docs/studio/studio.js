@@ -7,12 +7,12 @@ import {
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
   lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS,
   STATION_GROUPS, stGroupOf, voicePicks, THEMES, THEME, OPENINGS, LY_PENS, LY_HEATS, LY_TALKS, LY_VIEWS, lyricStyleRequest, lyricRequest, sectionRequest, sectionStyleRequest, dailyPick,
-  VOICE_TUNE_CORE, GIFT_OCC, GIFT_WHO, GIFT_SOUNDS, giftSound, giftTheme, giftGenre, giftTo, giftStory, giftTitle, giftMemHints, giftTone, giftAskOf } from './studio-data.js?v=20261140';
+  VOICE_TUNE_CORE, GIFT_OCC, GIFT_WHO, GIFT_SOUNDS, giftSound, giftTheme, giftGenre, giftTo, giftStory, giftTitle, giftMemHints, giftTone, giftAskOf } from './studio-data.js?v=20261141';
 import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
 import { mountSequencer } from './seq-ui.js?v=20261115';
-import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261140';
+import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261141';
 
-const V = '20261140';
+const V = '20261141';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -846,7 +846,8 @@ function renderResult() {
         <button class="btn sub" data-r="againsame" style="width:100%;justify-content:center"${q && q.left > 0 ? '' : ' disabled'}>${vocal ? '같은 가사로 새로 만들기' : '같은 레시피로 새로 만들기'}</button>
         <button class="btn sub" data-r="againchange" style="width:100%;justify-content:center;margin-top:8px"${q && q.left > 0 ? '' : ' disabled'}>${vocal ? '장르 · 목소리 바꿔서 새로 만들기' : '장르 · 분위기 바꿔서 새로 만들기'}</button>
         ${vocal ? '' : `<button class="btn sub" data-r="againvocal" style="width:100%;justify-content:center;margin-top:8px"${q && q.left > 0 ? '' : ' disabled'}>🎤 가사 · 가수 넣어서 보컬곡으로 새로 만들기</button>`}</div>`
-      : !sel && ready.length ? '<button class="seq-key" data-r="leave" style="margin-top:10px">이번 곡은 두고 새 레시피로 만들기</button>' : ''}
+      : ''}
+      ${!waiting() && takes.length ? `<div class="mk-exit">${S.gift ? '<button class="seq-key" data-r="leavegift">🎁 다른 선물 새로 만들기</button>' : ''}<button class="seq-key" data-r="leave">↺ 이 곡은 두고 새 곡 만들기</button></div>` : ''}
       ${vocal ? (() => { // 2026-11-11: 고친 테이크는 그 테이크의 가사로 (예전엔 늘 테이크 1 가사만 보였어요)
         const shown = (sel && sel.lyrics ? sel : null) || (playingTake && takes.find((t) => t.id === playingTake && t.lyrics)) || [...takes].reverse().find((t) => t.status === 'READY' && t.lyrics) || base;
         if (!shown?.lyrics) return '';
@@ -895,7 +896,13 @@ function renderResult() {
     if (r === 'rpgo') return repaint();
     if (r === 'more') return more(null);
     if (r === 'edit') return editSheet();
-    if (r === 'leave') { ls.set('studio_batch', null); freshStart(); return restart(); } // '새 레시피로' = 이전 가사 없이 새로
+    // 언제든 빠져나가기 (2026-11-11): 테이크를 골랐거나 오류가 나도 새 곡으로 · 고르지 않은 테이크는 올라가지 않아요
+    if (r === 'leave' || r === 'leavegift') {
+      if (!confirm('이 곡은 두고 새로 만들까요?\n\n고르지 않은 테이크는 내 곡으로 올라가지 않아요. 이미 쓴 횟수는 돌아오지 않아요.')) return;
+      ls.set('studio_batch', null); ls.set('studio_gift', null); freshStart();
+      if (r === 'leavegift') { S.gift = null; S.gq = null; S.vocal = true; S.lyTab = 'gift'; } else { S.gift = null; S.gq = null; S.lyTab = 'ai'; }
+      restart(); window.scrollTo({ top: 0, behavior: 'smooth' }); return;
+    }
     // 연주곡 (2026-11-10): '같은 가사' 가 아니라 '같은 레시피' · 보컬곡으로 바꿔 만들기도
     if (!vocal && (r === 'againsame' || r === 'againchange')) return againInst(r === 'againchange', takes);
     if (r === 'againvocal') { const t0 = takes.find((x) => x.status === 'READY') || takes[0] || {}; return toVocal(t0.recipe || S.recipe, null); }

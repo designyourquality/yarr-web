@@ -446,3 +446,4 @@ button.mi-tile:hover{border-color:rgba(255,140,0,.35)}
 .studio .chip-b,.studio .chip-b.grp,.studio .led{border-radius:7px;padding:7px 12px}
 .studio .st-grid.mk .btn:not(.st-go),.studio .st-daily .btn,.studio .gq-nav .btn,.studio .seq-key{border-radius:8px}
 .studio .gq-snd button{border-radius:9px}
+.mk-exit{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08)}
