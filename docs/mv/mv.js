@@ -104,41 +104,41 @@ const PATHS = [
 ];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const CSS = `
-.mv{position:fixed;inset:0;z-index:9000;background:#000;color:#fff;overflow:hidden;font-family:inherit;cursor:default;user-select:none}
-.mv.hide-ui{cursor:none}
-.mv .lay{position:absolute;inset:-2%;background:center/cover no-repeat;opacity:0;transition:opacity 1.6s ease}
-.mv .lay.on{opacity:1}
-.mv .fb{position:absolute;inset:0;background:radial-gradient(120% 90% at 50% 35%,#3a2414,#0b0b0c)}
-.mv .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,.07) 25%,rgba(0,0,0,.13) 55%,rgba(0,0,0,.9));pointer-events:none}
-.mv .ly{position:absolute;left:24px;right:24px;bottom:120px;text-align:center;text-shadow:0 2px 14px rgba(0,0,0,.8);pointer-events:none}
-.mv.tv .ly{bottom:150px}
-.mv .ly b{display:block;font-size:clamp(26px,4.2vw,52px);font-weight:900;line-height:1.3;word-break:keep-all;animation:mvIn .42s ease}
-.mv .ly b.sp{font-style:italic}
-.mv .ly small{display:block;margin-top:10px;font-size:clamp(14px,2vw,24px);font-weight:700;color:rgba(255,255,255,.6);line-height:1.3;word-break:keep-all}
-.mv .hint{position:absolute;left:24px;right:24px;bottom:92px;text-align:center;font-size:11.5px;color:rgba(255,255,255,.7);text-shadow:0 1px 8px #000;opacity:0;transition:opacity .4s;pointer-events:none}.mv .hint.on{opacity:1}.mv.tv .hint{bottom:110px}
-.mv .ly .sub{font-size:clamp(14px,1.6vw,19px);color:#e8e2da;font-weight:500;margin-top:6px}
+.ymv{position:fixed;inset:0;z-index:9000;background:#000;color:#fff;overflow:hidden;font-family:inherit;cursor:default;user-select:none}
+.ymv.hide-ui{cursor:none}
+.ymv .lay{position:absolute;inset:-2%;background:center/cover no-repeat;opacity:0;transition:opacity 1.6s ease}
+.ymv .lay.on{opacity:1}
+.ymv .fb{position:absolute;inset:0;background:radial-gradient(120% 90% at 50% 35%,#3a2414,#0b0b0c)}
+.ymv .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,.07) 25%,rgba(0,0,0,.13) 55%,rgba(0,0,0,.9));pointer-events:none}
+.ymv .ly{position:absolute;left:24px;right:24px;bottom:120px;text-align:center;text-shadow:0 2px 14px rgba(0,0,0,.8);pointer-events:none}
+.ymv.tv .ly{bottom:150px}
+.ymv .ly b{display:block;font-size:clamp(26px,4.2vw,52px);font-weight:900;line-height:1.3;word-break:keep-all;animation:mvIn .42s ease}
+.ymv .ly b.sp{font-style:italic}
+.ymv .ly small{display:block;margin-top:10px;font-size:clamp(14px,2vw,24px);font-weight:700;color:rgba(255,255,255,.6);line-height:1.3;word-break:keep-all}
+.ymv .hint{position:absolute;left:24px;right:24px;bottom:92px;text-align:center;font-size:11.5px;color:rgba(255,255,255,.7);text-shadow:0 1px 8px #000;opacity:0;transition:opacity .4s;pointer-events:none}.ymv .hint.on{opacity:1}.ymv.tv .hint{bottom:110px}
+.ymv .ly .sub{font-size:clamp(14px,1.6vw,19px);color:#e8e2da;font-weight:500;margin-top:6px}
 @keyframes mvIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-.mv .chip{display:inline-block;padding:3px 8px;border-radius:6px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.3);font-size:11px;font-weight:800;margin:0 6px 6px 0}
-.mv .chip.o{color:#ff9a5c;border-color:rgba(255,154,92,.6)}.mv .chip.g{color:#6ee7a0;border-color:rgba(110,231,160,.6)}
-.mv .ui{transition:opacity .25s}.mv.hide-ui .ui{opacity:0;pointer-events:none}
-.mv .top{position:absolute;left:12px;right:12px;top:12px;display:flex;align-items:flex-start;gap:8px}
-.mv .x{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.5);color:#fff;font-size:20px;cursor:pointer}
-.mv .bar{position:absolute;left:12px;right:12px;bottom:10px;padding:8px 12px;border-radius:16px;background:rgba(17,17,17,.82);border:1px solid rgba(255,255,255,.2);display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 10px}
-.mv .seek{flex:1 1 100%;display:flex;align-items:center;gap:10px;font-size:12px;color:#d8d2ca}
-.mv .seek .tl{flex:1;height:14px;display:flex;align-items:center;cursor:pointer}.mv .seek .tl div{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.2);overflow:hidden}.mv .seek .tl i{display:block;height:100%;width:0;background:#ff9a5c}
-.mv .bar button{border:0;background:none;color:#fff;font:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 8px;border-radius:10px}
-.mv .bar button:hover{background:rgba(255,255,255,.08)}
-.mv .bar .pp{width:48px;height:48px;border-radius:50%;background:#ff7a33;font-size:20px}
-.mv .bar .o{color:#ff9a5c}
-.mv .tvl{position:absolute;left:72px;top:20px}.mv .tvl .k{font-family:'DotGothic',monospace;color:#ffb46a;font-size:14px;letter-spacing:.5px}.mv .tvl p{margin:4px 0 0;font-size:12px;color:rgba(255,255,255,.8)}
-.mv .tvr{position:absolute;right:24px;top:16px;text-align:right}.mv .tvr .clk{font-family:'DotGothic',monospace;font-size:clamp(32px,4vw,48px);line-height:1}.mv .tvr .live{margin-top:6px;font-size:12px;font-weight:800}.mv .tvr .live:before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff4d3d;margin-right:6px;vertical-align:1px}
-.mv .tvb{position:absolute;left:24px;right:24px;bottom:22px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
-.mv .np{flex:0 1 auto;width:fit-content;max-width:min(380px,100%);min-width:0;padding:10px 14px;border-radius:12px;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.09)}
-.mv .np .k{font-family:'DotGothic',monospace;font-size:11px;color:#ff9a5c}.mv .np b{display:block;font-size:18px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mv .np span{font-size:12.5px;color:rgba(255,255,255,.8)}
-.mv .qr{flex:none;padding:8px;border-radius:12px;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.09);text-align:center;font-size:10.5px;font-weight:700}
-.mv .qr .q{width:84px;height:84px;background:#fff;border-radius:4px;padding:4px;margin:0 auto 4px}.mv .qr .q svg{width:100%;height:100%;display:block}
-.mv.tv .bar{bottom:auto;top:84px;left:50%;right:auto;transform:translateX(-50%)}
-@media (max-width:640px){.mv .tvl{left:24px;top:64px}.mv .tvl .k{font-size:12px}.mv.tv .bar{top:118px}.mv .ly{bottom:150px}.mv.tv .ly{bottom:170px}.mv .tvr .clk{font-size:30px}.mv .qr .q{width:64px;height:64px}}
+.ymv .chip{display:inline-block;padding:3px 8px;border-radius:6px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.3);font-size:11px;font-weight:800;margin:0 6px 6px 0}
+.ymv .chip.o{color:#ff9a5c;border-color:rgba(255,154,92,.6)}.ymv .chip.g{color:#6ee7a0;border-color:rgba(110,231,160,.6)}
+.ymv .ui{transition:opacity .25s}.ymv.hide-ui .ui{opacity:0;pointer-events:none}
+.ymv .top{position:absolute;left:12px;right:12px;top:12px;display:flex;align-items:flex-start;gap:8px}
+.ymv .x{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.5);color:#fff;font-size:20px;cursor:pointer}
+.ymv .bar{position:absolute;left:12px;right:12px;bottom:10px;padding:8px 12px;border-radius:16px;background:rgba(17,17,17,.82);border:1px solid rgba(255,255,255,.2);display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 10px}
+.ymv .seek{flex:1 1 100%;display:flex;align-items:center;gap:10px;font-size:12px;color:#d8d2ca}
+.ymv .seek .tl{flex:1;height:14px;display:flex;align-items:center;cursor:pointer}.ymv .seek .tl div{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.2);overflow:hidden}.ymv .seek .tl i{display:block;height:100%;width:0;background:#ff9a5c}
+.ymv .bar button{border:0;background:none;color:#fff;font:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 8px;border-radius:10px}
+.ymv .bar button:hover{background:rgba(255,255,255,.08)}
+.ymv .bar .pp{width:48px;height:48px;border-radius:50%;background:#ff7a33;font-size:20px}
+.ymv .bar .o{color:#ff9a5c}
+.ymv .tvl{position:absolute;left:72px;top:20px}.ymv .tvl .k{font-family:'DotGothic',monospace;color:#ffb46a;font-size:14px;letter-spacing:.5px}.ymv .tvl p{margin:4px 0 0;font-size:12px;color:rgba(255,255,255,.8)}
+.ymv .tvr{position:absolute;right:24px;top:16px;text-align:right}.ymv .tvr .clk{font-family:'DotGothic',monospace;font-size:clamp(32px,4vw,48px);line-height:1}.ymv .tvr .live{margin-top:6px;font-size:12px;font-weight:800}.ymv .tvr .live:before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff4d3d;margin-right:6px;vertical-align:1px}
+.ymv .tvb{position:absolute;left:24px;right:24px;bottom:22px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.ymv .np{flex:0 1 auto;width:fit-content;max-width:min(380px,100%);min-width:0;padding:10px 14px;border-radius:12px;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.09)}
+.ymv .np .k{font-family:'DotGothic',monospace;font-size:11px;color:#ff9a5c}.ymv .np b{display:block;font-size:18px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ymv .np span{font-size:12.5px;color:rgba(255,255,255,.8)}
+.ymv .qr{flex:none;padding:8px;border-radius:12px;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.09);text-align:center;font-size:10.5px;font-weight:700}
+.ymv .qr .q{width:84px;height:84px;background:#fff;border-radius:4px;padding:4px;margin:0 auto 4px}.ymv .qr .q svg{width:100%;height:100%;display:block}
+.ymv.tv .bar{bottom:auto;top:84px;left:50%;right:auto;transform:translateX(-50%)}
+@media (max-width:640px){.ymv .tvl{left:24px;top:64px}.ymv .tvl .k{font-size:12px}.ymv.tv .bar{top:118px}.ymv .ly{bottom:150px}.ymv.tv .ly{bottom:170px}.ymv .tvr .clk{font-size:30px}.ymv .qr .q{width:64px;height:64px}}
 `;
 
 let open = null; // 열린 MV (한 번에 하나)
@@ -151,7 +151,7 @@ export function openMv(ctx) {
   if (open) { open.setTv(!!ctx.tv); return open; }
   if (!document.getElementById('mvCss')) { const st = document.createElement('style'); st.id = 'mvCss'; st.textContent = CSS; document.head.appendChild(st); }
   const root = document.createElement('div');
-  root.className = 'mv'; root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', '뮤직비디오 전체 화면');
+  root.className = 'ymv';   // 'mv' 는 차트 순위 변동 표시(▲▼)와 이름이 겹쳐 그 표시가 화면 전체를 검게 덮었어요 (2026-11-12 원인) root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', '뮤직비디오 전체 화면');
   root.innerHTML = `<div class="fb"></div><div class="lay" data-l="0"></div><div class="lay" data-l="1"></div><div class="shade"></div>
     <div class="ly" aria-live="polite"></div><div class="hint">가사 위치는 곡 구조로 어림해요</div><div class="tvx"></div>
     <div class="ui"><div class="top"><button class="x" data-a="close" aria-label="닫기">✕</button><div class="chips"></div></div>
@@ -294,25 +294,7 @@ export function openMv(ctx) {
     L.forEach((x) => { x.getAnimations?.().forEach((a) => a.cancel()); x.style.backgroundImage = 'none'; });
     open = null; document.body.style.overflow = '';
     root.style.pointerEvents = 'none'; root.style.transition = 'opacity .18s'; root.style.opacity = '0';
-    // 2차 (2026-11-11 밤 · Edge 에서 또 까매짐): 페이지 전체를 한 번 숨겼다 보여서 그래픽 층을 처음부터 다시 그리게 해요.
-    // (유리 효과 · 배경 그림 층이 MV 층과 함께 지워지며 검게 남는 Edge 버그) · 0.3초 뒤 한 번 더
-    // 3차 (2026-11-12 · 노트북 크롬에서 또 까매짐): 같은 순간에 숨겼다 보이면 화면은 다시 안 그려져요.
-    // 한 프레임은 진짜로 숨기고 다음 프레임에 보여서 그래픽 층을 버리고 새로 그리게 해요 (+ 1px 스크롤로 타일 다시 그리기)
-    const raf2 = (fn) => requestAnimationFrame(() => requestAnimationFrame(fn));
-    const repaint = () => {
-      const de = document.documentElement, b = document.body, bg = de.style.background;
-      de.style.background = '#121214'; b.style.visibility = 'hidden';
-      raf2(() => {
-        b.style.visibility = ''; de.style.background = bg;
-        window.scrollBy(0, 1); raf2(() => { window.scrollBy(0, -1); window.dispatchEvent(new Event('resize')); });
-      });
-    };
-    const done = () => {
-      root.remove();
-      repaint();
-      setTimeout(repaint, 500);
-      ctx.onClose?.();
-    };
+    const done = () => { root.remove(); ctx.onClose?.(); };
     if (fsEl()) Promise.resolve((document.exitFullscreen || document.webkitExitFullscreen)?.call(document)).catch(() => {}).finally(() => setTimeout(done, 200));
     else setTimeout(done, 200);
   }
