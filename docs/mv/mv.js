@@ -21,7 +21,8 @@ export function estimateCues(lyrics, duration) {
   const heads = blocks.map((b) => b[0]);
   const studio = heads.length > 0 && heads.every((h) => STUDIO_HEADS.has(h)) && new Set(heads).size === heads.length;
   const seq = []; // [key, lines, weight, fixed|null]
-  const introFixed = clamp(dur * 0.08, 6, 14), outroFixed = clamp(dur * 0.07, 5, 14);
+  // 마무리는 3~6초 (2026-11-11 · 7% 로 잡으니 뒤로 갈수록 가사가 앞섰어요)
+  const introFixed = clamp(dur * 0.08, 6, 14), outroFixed = clamp(dur * 0.03, 3, 6);
   const w = (ls, narr) => (narr ? ls.length * 1.2 + 1 : ls.length + 1);
   if (studio) {
     const of = (k) => blocks.find((b) => b[0] === k)?.[1] || [];
@@ -63,9 +64,10 @@ export function estimateCues(lyrics, duration) {
 export function cuesFromSections(secs, duration) {
   const last = secs.length ? secs[secs.length - 1].e : 0;
   const k = duration > 0 && last > 0 && Math.abs(duration / last - 1) < 0.12 ? duration / last : 1;
-  const sections = secs.map((x) => ({ key: x.k, start: x.s * k, end: x.e * k, lines: Array.isArray(x.l) ? x.l : [], exact: !!x.x }));
+  const sections = secs.map((x) => ({ key: x.k, start: x.s * k, end: x.e * k, lines: Array.isArray(x.l) ? x.l : [], exact: !!x.x, times: Array.isArray(x.t) ? x.t.map((v) => v * k) : null }));
   const cues = [];
-  for (const x of sections) x.lines.forEach((text, i) => cues.push({ t: x.start + 0.2 + ((x.end - x.start) * i) / (x.lines.length + 0.6), text, sec: x.key, spoken: x.key === 'narr' }));
+  // 줄 시간(t): GPU 로 받아 적어 맞춘 실제 시간 · 없으면 구간 안에서 고르게
+  for (const x of sections) x.lines.forEach((text, i) => cues.push({ t: Number.isFinite(x.times?.[i]) ? x.times[i] : x.start + 0.2 + ((x.end - x.start) * i) / (x.lines.length + 0.6), text, sec: x.key, spoken: x.key === 'narr' }));
   return { sections, cues, exact: sections.some((x) => x.exact) };
 }
 

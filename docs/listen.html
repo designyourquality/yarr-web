@@ -1272,7 +1272,7 @@ html,body{background:var(--bg)}
   let mvMod = null;
   async function openMvUi(tv) {
     if (!curTrack()) { if (tv && mode !== 'store') return toast('매장 BGM 재생을 먼저 눌러 주세요'); if (!tv) return toast('먼저 곡을 재생해 주세요'); }
-    try { mvMod = mvMod || await import('./mv/mv.js?v=20261151'); } catch { return toast('MV 화면을 열지 못했어요. 새로고침 후 다시 눌러 주세요'); }
+    try { mvMod = mvMod || await import('./mv/mv.js?v=20261152'); } catch { return toast('MV 화면을 열지 못했어요. 새로고침 후 다시 눌러 주세요'); }
     mvMod.openMv({
       track: curTrack, audio, toggle: () => $('toggle').click(), next: () => $('next').click(), prev: () => $('prev').click(),
       pics: mvPics, station: () => mode === 'store' ? ST[storeStationCode] : (stOf(curTrack() || {}) || null), api, sbUrl: SB_URL, sbKey: SB_KEY,
