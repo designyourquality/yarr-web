@@ -7,12 +7,12 @@ import {
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
   lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS,
   STATION_GROUPS, stGroupOf, voicePicks, THEMES, THEME, OPENINGS, LY_PENS, LY_HEATS, LY_TALKS, LY_VIEWS, lyricStyleRequest, lyricRequest, sectionRequest, sectionStyleRequest, dailyPick,
-  VOICE_TUNE_CORE, GIFT_OCC, GIFT_WHO, GIFT_SOUNDS, giftSound, giftTheme, giftGenre, giftTo, giftStory, giftTitle } from './studio-data.js?v=20261133';
+  VOICE_TUNE_CORE, GIFT_OCC, GIFT_WHO, GIFT_SOUNDS, giftSound, giftTheme, giftGenre, giftTo, giftStory, giftTitle } from './studio-data.js?v=20261135';
 import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
 import { mountSequencer } from './seq-ui.js?v=20261115';
-import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261129';
+import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261135';
 
-const V = '20261133';
+const V = '20261135';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -235,7 +235,7 @@ function layout() {
   root.querySelector('#stTabs').onclick = (e) => {
     const b = e.target.closest('[data-v]'); if (!b) return;
     S.view = b.dataset.v; root.querySelectorAll('#stTabs button').forEach((x) => x.classList.toggle('on', x === b));
-    stopTake(); seq?.stop();
+    stopTake(); seq?.stop(); header();
     if (S.view === 'make') { S.batch ? renderResult() : renderMake(); }
     else if (S.view === 'upload') mountUpload(body(), { sb, user, B, err, call, onDone: loadQuota });
     else mountMine(body(), { sb, user, B, onTranslate: translate, onGo: (v) => root.querySelector(`#stTabs [data-v="${v}"]`)?.click() });
@@ -247,6 +247,11 @@ function header() {
   const led = root?.querySelector('#stLed'); if (!led) return;
   led.textContent = `MAKE ${q ? q.led : '--'}`;
   const vocal = S.status?.vocal ?? S.vocal;
+  // 탭마다 제목 · 부제 (2026-11-11)
+  const h = root.querySelector('#stH');
+  if (S.view === 'upload') { h.textContent = '내 곡 올리기 · 외부곡 출품'; root.querySelector('#stSub').textContent = 'Suno · ElevenLabs 등 유료 플랜으로 만든 곡을 올려 차트 · 매장 BGM 편성 후보에 도전해요'; return; }
+  if (S.view === 'mine') { h.textContent = '내 곡'; root.querySelector('#stSub').textContent = '올린 곡의 검수 상태 · 재생 · 매장 재생 기록을 한눈에 봐요'; return; }
+  h.textContent = S.gift ? '노래 선물 만들기' : '야르에서 바로 만들기';
   root.querySelector('#stSub').textContent = S.gift ? `🎁 ${giftTo(S.gift)}에게 줄 노래 · 차트 · 매장에 나가지 않는 선물곡` : vocal ? '내 가사로 노래를 만들어요 · 보컬곡' : '어디서 틀지 고르면 야르가 레시피를 맞춰요 · 연주곡';
   root.querySelector('#stTrial').textContent = q?.trialLine || '';
 }

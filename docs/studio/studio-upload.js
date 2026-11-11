@@ -39,10 +39,13 @@ export function mountUpload(el, { sb, B, call, onDone }) {
   const toolStoreOk = () => !eleven() || /^(scale|business)/i.test(F.plan);
   const storeOk = () => toolStoreOk() && (F.inst || (F.lyAi && F.notKomca));
   const planNote = () => free() ? ['st-err', '무료 플랜으로 만든 곡은 상업 이용이 안 돼서 YARR에 올릴 수 없어요.']
-    : eleven() ? ['', toolStoreOk() ? 'ElevenLabs Scale · Business 플랜이라 검수 후 차트 · 스테이션에 공개되고, 기준 충족 시 매장 BGM 스테이션 편성 후보로 등록돼요.' : 'ElevenLabs 곡은 약관상 Scale · Business 플랜만 매장 재생이 허용돼서, 이 곡은 차트 · 스테이션에만 공개돼요.']
-      : ['', '유료 플랜이라 검수 후 차트 · 스테이션에 공개되고, 연주곡이거나 가사도 AI가 만든 곡이면 기준 충족 시 매장 BGM 스테이션 편성 후보로 등록돼요.'];
-  const storeNote = () => !toolStoreOk() ? 'ElevenLabs Pro · Creator 플랜 곡은 매장 공공장소 재생이 허용되지 않아 매장 편성 후보에서 빠져요. 차트 · 스테이션에는 공개돼요.'
-    : F.inst ? '연주곡은 기준(음량 · 길이 · 검수)을 충족하면 매장 BGM 스테이션 편성 후보가 돼요.' : (F.lyAi && F.notKomca) ? '가사 있는 AI 곡으로 기준 충족 시 매장 편성 후보가 돼요. 가사 곡을 끈 매장에서는 빠져요.' : '가사도 AI가 만들었다고 확인해야 매장 편성 후보가 될 수 있어요. 확인하지 않으면 차트 · 스테이션에만 공개돼요.';
+    : eleven() && !toolStoreOk() ? ['', 'ElevenLabs 곡은 약관상 Scale · Business 플랜만 매장 재생이 허용돼서, 이 곡은 검수 통과 시 차트 · 스테이션에만 공개돼요.']
+      : ['', '유료 플랜이라 검수 통과 시 차트 · 스테이션에 공개돼요. 연주곡이거나 가사까지 AI가 만든 곡은 검수 통과 시 매장 BGM 스테이션 편성 후보로 등록돼요.'];
+  // 왼쪽(플랜 안내)과 같은 기준 · 같은 표현 (2026-11-11): 연주곡이거나 가사까지 AI가 만든 곡은 검수 통과 시 매장 BGM 스테이션 편성 후보로 등록돼요
+  const storeNote = () => !toolStoreOk() ? 'ElevenLabs Pro · Creator 플랜 곡은 매장 공공장소 재생이 허용되지 않아 매장 편성 후보에서 빠지고, 검수 통과 시 차트 · 스테이션에만 공개돼요.'
+    : F.inst ? '연주곡이라 검수 통과 시 매장 BGM 스테이션 편성 후보로 등록돼요.'
+      : F.lyAi ? '가사까지 AI가 만든 곡이라 검수 통과 시 매장 BGM 스테이션 편성 후보로 등록돼요. 가사 곡을 끈 매장에서는 빠져요.'
+        : '직접 쓴 가사가 있는 곡은 검수 통과 시 차트 · 스테이션에만 공개돼요. 가사까지 AI가 만들었다면 위에 체크해 주세요.';
 
   function draw() {
     const step = !F.file ? 1 : !F.title.trim() ? 2 : 3;
@@ -56,7 +59,7 @@ export function mountUpload(el, { sb, B, call, onDone }) {
     <div class="st-grid">
       <div class="st-card">
         <div class="seq-row"><h3 style="flex:1">트랙 업로드</h3><span class="st-count">UPLOAD ${step}/3</span></div>
-        <p class="st-note" style="margin-top:0">다른 곳(Suno · ElevenLabs · Stable Audio)에서 만든 곡을 올려 차트에 도전해요. 자동 검수를 거쳐 다음 0시에 차트 · 스테이션에 공개되고, 기준을 충족하면 매장 BGM 스테이션 편성 후보로 등록돼요.</p>
+        <p class="st-note" style="margin-top:0">다른 곳(Suno · ElevenLabs · Stable Audio)에서 만든 곡을 올려 차트에 도전해요. 자동 검수를 통과하면 다음 0시에 차트 · 스테이션에 공개되고, 연주곡이거나 가사까지 AI가 만든 곡은 매장 BGM 스테이션 편성 후보로 등록돼요.</p>
         <div class="up-rule"><b>올릴 수 있는 곡</b><span>✓ 유료 플랜으로 만든 <b>정식 생성본</b>만 (상업 이용 가능 플랜)</span><span>✕ 무료 플랜으로 만든 곡</span><span>✕ 다른 사람 곡을 리믹스 · 커버 · 리메이크한 곡, 기존 곡을 넣어 만든 곡</span></div>
         <div class="st-q">02 · 곡 정보</div>
         <input class="st-in" id="uTitle" maxlength="60" placeholder="곡 제목 · 예: 한강 노을 드라이브" value="${esc(F.title)}">
@@ -83,7 +86,7 @@ export function mountUpload(el, { sb, B, call, onDone }) {
         <p class="st-note">사실과 다르게 확인하면 정산이 보류되고 곡이 내려갈 수 있어요.</p>
         <div class="st-q">03 · 확인</div>
         <label class="st-check"><input type="checkbox" id="uKomca" ${F.notKomca ? 'checked' : ''}><span><b>[필수] 이 곡은 음악 저작권 단체(음저협 등)에 등록하지 않았고, 저는 그 단체 회원이 아니에요</b><br><span class="st-note" style="margin:0">YARR 는 저작권 단체와 사용 계약이 없어서 등록된 곡은 차트 · 스테이션 · 매장에서 틀 수 없어요. 나중에 등록하려면 먼저 알려 주세요. 곡을 비공개로 돌려요.</span></span></label>
-        <label class="st-check"><input type="checkbox" id="uRights" ${F.rights ? 'checked' : ''}><span><b>유료 플랜으로 만든 정식 생성본이고(무료 플랜 생성분 · 다른 사람 곡 리믹스가 아니에요), 상업 이용 권리가 있으며 타인의 권리를 침해하지 않음을 확인합니다. 위반 시 정산이 보류되고 곡이 내려가요.</b></span></label>
+        <label class="st-check"><input type="checkbox" id="uRights" ${F.rights ? 'checked' : ''}><span><b>이 곡의 상업 이용 권리가 있고, 타인의 권리를 침해하지 않음을 확인합니다. 위반 시 정산이 보류되고 곡이 내려가요.</b><br><span class="st-note" style="margin:0;color:#FDBA74">유료 플랜 구독 중 만든 정식 생성본만 가능하며, 무료 플랜 생성분과 다른 사람 곡 리믹스(Remix)는 등록할 수 없어요.</span></span></label>
         <button class="btn st-go" id="uGo" ${F.busy ? 'disabled' : ''}>${F.busy ? '<span class="spin"></span> ' + esc(F.step || '올리는 중…') : '검수 시작 · 올리기'}</button>
         <p class="st-note ${F.msg.startsWith('✓') ? '' : 'st-err'}" id="uMsg">${esc(F.msg)}</p>
         <p class="st-note">음량 맞춤 · 기존 곡 대조 · 최종 판정은 올린 뒤 서버 검수에서 해요. 기존 곡으로 확인되면 반려되고 공개되지 않아요.</p>
