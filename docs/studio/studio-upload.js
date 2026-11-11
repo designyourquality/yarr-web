@@ -335,9 +335,7 @@ export async function mountMine(el, { sb, user, B, onTranslate, onGo, call }) {
       if (!usage.pro) return B?.toast?.('AI 6컷 MV는 크리에이터 Pro 기능이에요 (한 달 20회). 🎁 선물곡은 처음 한 번 무료예요.');
       if (usage.month_left <= 0) return B?.toast?.('이번 달 AI 6컷 20회를 다 썼어요. 다음 달 1일(한국 시간)에 다시 생겨요.');
       const again = bstate[id]?.st === 'READY', resume = bstate[id]?.st === 'RUNNING';
-      if (!resume && !window.confirm(`${again ? '이미 AI 6컷이 있어요. 새로 만들면 새 장면으로 바뀌고 1회를 써요.
-
-' : ''}'${t.title}'에 AI 장면 6컷을 만들까요?
+      if (!resume && !window.confirm(`${again ? '이미 AI 6컷이 있어요. 새로 만들면 새 장면으로 바뀌고 1회를 써요.\n\n' : ''}'${t.title}'에 AI 장면 6컷을 만들까요?
 노래 구간마다 가로 장면 한 장씩 · 얼굴 없이 풍경 · 사물 · 뒷모습으로 그려요.
 이번 달 남은 횟수 ${usage.month_left}회 / 20회 · 1~2분 걸려요`)) return;
       bstate[id] = { st: 'RUNNING', done: 0, live: true }; draw();
