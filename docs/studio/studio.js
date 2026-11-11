@@ -7,12 +7,12 @@ import {
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
   lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS,
   STATION_GROUPS, stGroupOf, voicePicks, THEMES, THEME, OPENINGS, LY_PENS, LY_HEATS, LY_TALKS, LY_VIEWS, lyricStyleRequest, lyricRequest, sectionRequest, sectionStyleRequest, dailyPick,
-  VOICE_TUNE_CORE, GIFT_OCC, GIFT_WHO, GIFT_SOUNDS, giftSound, giftTheme, giftGenre, giftTo, giftStory, giftTitle, giftMemHints, giftTone, giftAskOf } from './studio-data.js?v=20261139';
+  VOICE_TUNE_CORE, GIFT_OCC, GIFT_WHO, GIFT_SOUNDS, giftSound, giftTheme, giftGenre, giftTo, giftStory, giftTitle, giftMemHints, giftTone, giftAskOf } from './studio-data.js?v=20261140';
 import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
 import { mountSequencer } from './seq-ui.js?v=20261115';
-import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261139';
+import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261140';
 
-const V = '20261139';
+const V = '20261140';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -847,7 +847,12 @@ function renderResult() {
         <button class="btn sub" data-r="againchange" style="width:100%;justify-content:center;margin-top:8px"${q && q.left > 0 ? '' : ' disabled'}>${vocal ? '장르 · 목소리 바꿔서 새로 만들기' : '장르 · 분위기 바꿔서 새로 만들기'}</button>
         ${vocal ? '' : `<button class="btn sub" data-r="againvocal" style="width:100%;justify-content:center;margin-top:8px"${q && q.left > 0 ? '' : ' disabled'}>🎤 가사 · 가수 넣어서 보컬곡으로 새로 만들기</button>`}</div>`
       : !sel && ready.length ? '<button class="seq-key" data-r="leave" style="margin-top:10px">이번 곡은 두고 새 레시피로 만들기</button>' : ''}
-      ${vocal && base?.lyrics ? `<div class="st-q">이 곡의 가사</div><div class="lyr">${esc(base.lyrics)}</div>` : ''}
+      ${vocal ? (() => { // 2026-11-11: 고친 테이크는 그 테이크의 가사로 (예전엔 늘 테이크 1 가사만 보였어요)
+        const shown = (sel && sel.lyrics ? sel : null) || (playingTake && takes.find((t) => t.id === playingTake && t.lyrics)) || [...takes].reverse().find((t) => t.status === 'READY' && t.lyrics) || base;
+        if (!shown?.lyrics) return '';
+        const diff = takes.some((t) => t.lyrics && t.lyrics !== base?.lyrics);
+        return `<div class="st-q">${diff ? `테이크 ${shown.take}의 가사${shown.lyrics !== base?.lyrics ? ' · 바뀐 가사' : ''}<span class="r">테이크를 고르거나 틀면 그 가사가 보여요</span>` : '이 곡의 가사'}</div><div class="lyr">${esc(shown.lyrics)}</div>`;
+      })() : ''}
     </div>
     ${S.gift ? `<div class="st-card ${sel ? '' : 'hidden'}">
       <div class="st-q" style="margin-top:0">🎁 선물 카드</div>
