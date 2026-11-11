@@ -363,3 +363,82 @@ button.mi-tile:hover{border-color:rgba(255,140,0,.35)}
 .st-daily .btn{white-space:nowrap;padding:10px 14px;font-size:13px}
 @media(max-width:520px){.st-daily{flex-direction:column;align-items:stretch}}
 .st-daily .dl-n{font-size:11.5px;font-weight:700;color:#FFB340;margin-top:2px}
+/* 2026-11-11 만들기 화면 정리: 왼쪽 입력 · 오른쪽 고정 출력 · 가사 탭 · 선물 인터뷰 · 목소리 3칸 */
+.st-grid.mk{grid-template-columns:minmax(0,1.45fr) minmax(0,1fr)}
+.st-grid.mk>div:first-child>*+*{margin-top:14px}
+.st-side{position:sticky;top:12px}
+@media (max-width:900px){.st-grid.mk{grid-template-columns:minmax(0,1fr)}.st-side{position:static}}
+.st-tabs.mode{display:grid;grid-template-columns:1fr 1fr;margin-bottom:4px}
+.st-tabs.mode button{justify-content:center;padding:12px 10px}
+.st-badge{margin-left:6px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;color:#1A1205;background:linear-gradient(180deg,#FFC24D,#FF9A1F);letter-spacing:0;white-space:nowrap}
+.seg{display:inline-flex;gap:2px;padding:3px;border-radius:11px;background:#0F1014;border:1px solid var(--line);flex-wrap:wrap}
+.seg button{padding:6px 10px;border-radius:8px;font-size:12px;font-weight:700;color:var(--soft);letter-spacing:0}
+.seg button.on{color:#fff;background:linear-gradient(180deg,#FF7B38,#E05214);box-shadow:0 2px 10px -3px rgba(255,107,36,.8)}
+@media (max-width:560px){.st-card>.st-q:first-child{flex-wrap:wrap}.st-card>.st-q:first-child .r{margin-left:0;width:100%}.seg{width:100%;display:grid;grid-template-columns:repeat(3,1fr)}.seg button{padding:7px 4px}}
+.st-var{margin:0 0 10px;padding:8px 10px;border-radius:10px;background:rgba(255,140,0,.06);border:1px solid rgba(255,140,0,.18);font-size:11.5px}
+.st-narr{margin-top:10px;padding:2px 12px 10px;border-radius:12px;background:rgba(255,255,255,.025);border:1px solid var(--line)}
+.st-narr summary{margin:10px 0 6px}
+.tune3{margin-top:4px}.tune3 .t3l{width:56px;flex:none;font-size:12.5px;font-weight:700}.tune3 .t3s{margin:0;width:52px;flex:none;font-size:11.5px}.tune3 .t3s.r{text-align:right}
+.gq-bar{display:flex;align-items:center;gap:6px;margin:2px 0 4px}.gq-bar i{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.1)}.gq-bar i.on{background:#FF7B38}
+.gq-bar span{font:700 12px ui-monospace,Menlo,monospace;color:#FFB067;margin-left:4px}
+.gq-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.gq-row label span{display:block;font-size:11.5px;color:var(--soft);margin-bottom:4px}
+.gq-mem{display:flex;align-items:center;gap:10px;margin-top:8px}.gq-mem b{font:700 14px ui-monospace,Menlo,monospace;color:#FFB067;width:16px;text-align:center}.gq-mem .st-in{flex:1}
+.gq-snd{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.gq-snd button{text-align:left;padding:11px 13px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid var(--line)}
+.gq-snd button b{display:block;font-size:13.5px}.gq-snd button small{display:block;margin-top:3px;font-size:11.5px;color:var(--soft);line-height:1.4}
+.gq-snd button.on{border-color:rgba(255,140,0,.75);background:rgba(255,140,0,.1);box-shadow:0 0 12px -3px rgba(255,140,0,.8)}.gq-snd button.on b{color:#FFD29A}
+.gq-nav{display:flex;justify-content:space-between;gap:8px;margin-top:14px}
+.gq-sum{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 12px;border-radius:12px;background:rgba(255,140,0,.08);border:1px solid rgba(255,140,0,.3)}
+.gq-sum>span{font-size:24px}.gq-sum div{flex:1;min-width:0}.gq-sum b{display:block;font-size:14px}.gq-sum small{display:block;font-size:11.5px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:520px){.gq-row{grid-template-columns:1fr}}
+.st-grid>.st-card+.st-card{margin-top:0}
+.up-rule{display:flex;flex-direction:column;gap:3px;margin:4px 0 6px;padding:10px 12px;border-radius:12px;background:rgba(255,194,77,.07);border:1px solid rgba(255,194,77,.3);font-size:12.5px;color:#D6D0C6}
+.up-rule>b{color:#FFD29A;font-size:12px;letter-spacing:.04em}
+/* 2026-11-11 시안 스타일 (최종 통합 리디자인): 콘솔 카드 · 큰 RECIPE 전광판 · 초록 체크 · 접히는 프로 카드 */
+.st-grid.mk .mk-card{padding:18px 18px;border-radius:16px;background:#141418;border:1px solid rgba(255,255,255,.09);box-shadow:none}
+.mk-h{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:800;color:#F4F1EC;margin:0 0 12px}
+.mk-h.sm{font-size:13px;margin:14px 0 8px}
+.mk-h .r{margin-left:auto}
+.mk-tag{margin-left:auto;font:600 10.5px ui-monospace,Menlo,monospace;letter-spacing:.08em;color:#8A847C;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55%}
+.mk-h .mk-tag{color:#22C55E}
+.mk-card .mk-h:first-child .mk-tag{color:#8A847C}
+.mk-sub{margin:10px 0 0;font-size:11.5px;color:#8A847C}
+.mk-div{height:1px;background:rgba(255,255,255,.08);margin:14px 0}
+.mk-l{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:#EDE8E1;margin:16px 0 8px}
+.mk-l:first-child{margin-top:0}
+.mk-l .r{margin-left:auto;font:500 10.5px ui-monospace,Menlo,monospace;color:#8A847C;font-weight:500}
+.st-tabs.mode button{border-radius:12px;padding:14px 10px;font-size:14.5px;background:#101014}
+.st-tabs.mode button.on{background:linear-gradient(180deg,#2A1A10,#1A120C);border-color:#FF6A00;box-shadow:0 0 0 1px rgba(255,106,0,.35),0 0 22px -6px rgba(255,106,0,.8)}
+/* 프로 카드 */
+.mk-pro{padding:0!important;overflow:hidden}
+.mk-pro-h{width:100%;display:flex;align-items:center;gap:12px;padding:16px 18px;text-align:left;background:#17181D}
+.mk-pro-h b{display:block;font-size:15px}.mk-pro-h small{display:block;margin-top:3px;font-size:11.5px;color:#8A847C}.mk-pro-h em{font-style:normal;color:#FF9A3D;font-weight:700}
+.mk-fold{margin-left:auto;white-space:nowrap;color:#FF8A3D;font-size:12.5px;font-weight:700}
+.mk-pro-b{padding:16px 18px 18px;border-top:1px solid rgba(255,255,255,.08)}
+.mk-knob{gap:14px;margin:6px 0}.mk-knob>span{width:48px;flex:none;font-size:12px;color:#8A847C}.mk-knob>span.r{text-align:right}.mk-knob>span.on{color:#FF8A3D;font-weight:800}
+.mk-cmp{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:#101014}
+.mk-cmp b{display:block;font-size:14px}.mk-cmp small{display:block;margin-top:3px;font-size:11.5px;color:#8A847C;line-height:1.45}.mk-cmp .sw{margin-left:auto;flex:none}
+/* 목소리 다듬기 3칸 */
+.mk-tune{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.mk-tl{display:flex;align-items:baseline;justify-content:space-between;gap:6px;font-size:11px;color:#8A847C}
+.mk-tl b{font-size:12px;color:#EDE8E1;text-align:center}.mk-tl b em{font-style:normal;color:#FF9A3D;font-weight:700}
+.mk-t .st-range{margin-top:2px}
+@media (max-width:640px){.mk-tune{grid-template-columns:1fr;gap:10px}}
+/* 오른쪽 출력 패널 */
+.mk-right{padding:18px!important}
+.mk-out{padding:16px;border-radius:14px;background:#050506;border:1px solid rgba(255,255,255,.1);box-shadow:inset 0 0 30px rgba(0,0,0,.8)}
+.mk-out-h{display:flex;justify-content:space-between;gap:8px;font:600 10.5px ui-monospace,Menlo,monospace;letter-spacing:.1em;color:#7C766E}
+.mk-lufs{color:#22C55E}
+.mk-rc.lcd-1{margin-top:12px;font:800 22px ui-monospace,Menlo,monospace;color:#FF6A1A;white-space:normal;overflow:visible;line-height:1.3;letter-spacing:.02em;text-shadow:0 0 14px rgba(255,106,0,.45)}
+.mk-rc2{margin-top:6px;font:600 12px ui-monospace,Menlo,monospace;color:#CFC8BE}
+.mk-var{display:flex;gap:8px;margin-top:14px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.02)}
+.mk-var>span{color:#FF8A3D}.mk-var p{margin:0;font-size:11.5px;color:#BDB6AC;line-height:1.5}.mk-var b{color:#FF9A3D}.mk-var small{font-family:ui-monospace,Menlo,monospace;color:#7C766E}
+.mk-fit{margin-top:14px;padding:12px 14px;border-radius:12px;background:#101014;border:1px solid rgba(255,255,255,.09)}
+.mk-fit .mk-h.sm:first-child{margin-top:0}
+.mk-ok{display:flex;gap:8px;margin:5px 0;font-size:12.5px;color:#CFC8BE;line-height:1.45}.mk-ok i{font-style:normal;color:#22C55E;font-weight:900}
+.mk-ok.hi span{color:#4ADE80;font-weight:700}
+.mk-go{background:linear-gradient(180deg,#FF7A1A,#F25C05)!important;box-shadow:0 6px 0 #8A2E02,0 12px 28px rgba(255,106,0,.35)!important;border-radius:12px!important;font-weight:800!important}
+.mk-foot{margin-top:16px;padding:12px 14px;border-radius:12px;border:1px solid rgba(34,197,94,.22);background:rgba(34,197,94,.04);font-size:12px;color:#BDB6AC;line-height:1.55}
+.mk-foot:empty{display:none}
+@media (max-width:560px){.mk-rc.lcd-1{font-size:19px}.mk-pro-h small{font-size:11px}}
+@media (max-width:560px){.mk-l .r{display:none}}

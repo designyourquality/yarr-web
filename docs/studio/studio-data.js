@@ -425,3 +425,39 @@ export function dailyPick(now = new Date()) {
   const [key, emoji, title, station, genre, flow, weather, time, vocal, theme, spark] = DAILY[((day % DAILY.length) + DAILY.length) % DAILY.length];
   return { key, emoji, title, station, genre, flow, weather, time, vocal: vocal === 1, theme, spark: spark === 1, date: `${k.getUTCMonth() + 1}.${k.getUTCDate()}` };
 }
+
+// ---------- 🎁 노래 선물 (2026-11-11 · 앱 lib/data/gift.dart 와 같아요) ----------
+/** 목소리 다듬기 첫 화면 3칸 (나머지 떨림 · 랩은 '고쳐서 다시 만들기'에서 말로) */
+export const VOICE_TUNE_CORE = VOICE_TUNE_ROWS.filter(([k]) => ['range', 'texture', 'emotion'].includes(k)).map(([k, n, lo, hi]) => [k, k === 'range' ? '음 높이' : n, lo, hi]);
+/** 어떤 날: 서버 GIFT_OCCASIONS 와 같은 키 · [키, 이름, 스튜디오 주제] */
+export const GIFT_OCC = [
+  ['birthday', '🎂 생일', 'birthday'], ['anniversary', '💍 기념일', 'anniversary'], ['wedding', '💐 결혼 · 결혼기념일', 'anniversary'],
+  ['parents', '🏠 부모님께 감사', 'family'], ['thanks', '🙏 고마워요', 'family'], ['love', '💘 사랑 고백', 'flutter'],
+  ['friend', '🤝 우정', 'friends'], ['cheer', '💪 응원 · 힘내', 'cheer'], ['newstart', '🌱 졸업 · 새출발', 'newstart'], ['sorry', '🫂 미안해 · 화해', 'comfort'],
+];
+export const GIFT_WHO = ['엄마', '아빠', '부모님', '연인', '남편', '아내', '친구', '아이', '선생님', '동료'];
+/** 목소리 · 분위기: [키, 이름, 장르 여러 개(다시 만들면 돌아가며), 목소리, 설명] */
+export const GIFT_SOUNDS = [
+  ['ballad_f', '🎹 따뜻한 발라드 · 여자', ['kballad', 'indie', 'rnb'], 'f_ballad', '애틋한 여자 목소리 · 피아노 발라드, 포크, 미디엄 팝으로 돌아가며'],
+  ['ballad_m', '🎹 따뜻한 발라드 · 남자', ['kballad', 'acoustic', 'rnb'], 'm_ballad', '호소력 있는 남자 목소리 · 피아노 발라드, 어쿠스틱, 미디엄 팝으로'],
+  ['acoustic_f', '🎸 포근한 어쿠스틱 · 여자', ['indie', 'acoustic', 'bossa'], 'f_folk', '담백한 여자 목소리 · 포크, 통기타, 보사노바로'],
+  ['acoustic_m', '🎸 포근한 어쿠스틱 · 남자', ['acoustic', 'indie', 'jazz'], 'm_acoustic', '따뜻한 남자 목소리 · 통기타, 포크, 재즈로'],
+  ['duet', '💞 남녀 듀엣', ['acoustic', 'kballad', 'citypop'], 'duet', '둘이 주고받다가 후렴은 함께'],
+  ['pop', '🎉 신나는 축하 팝', ['kpop', 'disco', 'citypop'], 'f_clear', '밝고 경쾌하게, 파티 분위기'],
+  ['trot', '🎺 흥겨운 트로트', ['trot', 'disco'], 'm_trot', '부모님 세대가 좋아하는 흥겨운 가락'],
+];
+const occName = (k) => (GIFT_OCC.find((x) => x[0] === k)?.[1] || '').replace(/^\S+\s/, '');
+export const giftSound = (k) => GIFT_SOUNDS.find((x) => x[0] === k) || GIFT_SOUNDS[0];
+export const giftTheme = (g) => GIFT_OCC.find((x) => x[0] === g.occ)?.[2] || 'family';
+export const giftGenre = (g, n) => { const l = giftSound(g.sound)[2]; return l[((n % l.length) + l.length) % l.length]; };
+export const giftTo = (g) => (g.name || '').trim() || g.who;
+/** 가사 주제 한 줄 (150자 안) · 사용자가 준 가족 · 친구 이름은 가사에 써도 돼요 (서버 작사 규칙) */
+export function giftStory(g) {
+  const nm = (g.name || '').trim(), who = nm ? `${g.who}(${nm})` : g.who;
+  const mem = (g.mem || []).map((m) => m.trim()).filter(Boolean);
+  let s = `${who}에게 주는 ${occName(g.occ)} 노래.`;
+  if (mem.length) s += ` 함께한 추억: ${mem.join(', ')}.`;
+  if (nm) s += ` 후렴에 이름 '${nm}'을 한 번 불러 줘.`;
+  return s.slice(0, 150);
+}
+export const giftTitle = (g) => `${giftTo(g)}에게 · ${occName(g.occ)}`.slice(0, 60);

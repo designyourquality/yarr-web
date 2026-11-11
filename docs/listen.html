@@ -684,7 +684,8 @@ html,body{background:var(--bg)}
   <span class="kick" style="color:#FB923C">YARR 스튜디오</span><h3>✨ AI로 내 곡 만들기</h3>
   <div class="card"><b>AI 작사 도우미</b> · 주제 한 줄을 적으면 절 · 후렴 가사를 써 줘요. 한국어 · 영어 · 일본어. 브릿지만 따로 써 달라고 할 수도 있어요.</div>
   <div class="card"><b>여러 목소리 · 장르 · 분위기</b>를 고르면 한 번에 두 가지 버전을 만들어요. 버전마다 시작 방식이 달라요.</div>
-  <div class="card"><b>매장에서도 틀려면</b> 가사까지 AI가 만든 곡이어야 해요. AI가 쓴 가사를 직접 고치면 ‘직접 쓴 가사’가 되어 차트에만 올라가요.</div>
+  <div class="card"><b>매장 BGM 편성 후보가 되려면</b> 검수 기준을 충족하고, 가사까지 AI가 만든 곡이어야 해요. AI가 쓴 가사를 직접 고치면 ‘직접 쓴 가사’가 되어 차트 · 리스너에만 공개돼요.</div>
+  <div class="card"><b>🎁 노래 선물</b> · 세 가지만 답하면 소중한 사람에게 줄 노래를 만들어 링크로 보내요. 선물곡은 차트 · 매장에 나가지 않아요.</div>
   <div class="card"><b>직접 찍기 · 곡 올리기</b> · 스텝 시퀀서로 멜로디 · 코드 · 드럼을 찍어 AI에게 연주를 맡기거나, 다른 곳에서 만든 곡을 올려 차트에 도전할 수 있어요.</div>
   <div class="card">무료: 가입 후 7일 동안 하루 1곡, 그 뒤로 한 달 5곡</div>
   <button class="btn" style="width:100%;justify-content:center" data-close data-tab="studio">🌐 웹에서 바로 만들기</button>
@@ -1347,7 +1348,7 @@ html,body{background:var(--bg)}
   async function studioBoot() {
     if (studioMod) { studioMod.show?.(); return runFork(); }
     try {
-      studioMod = await import('./studio/studio.js?v=20261131');
+      studioMod = await import('./studio/studio.js?v=20261132');
       await studioMod.mount($('studioRoot'), {
         loadSb, SB_URL, SB_KEY, STATIONS, ST, toast, esc, stPhoto, base, coverCss,
         pauseMain: () => { A.forEach((a) => a.pause()); },
