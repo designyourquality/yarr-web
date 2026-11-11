@@ -296,16 +296,21 @@ export function openMv(ctx) {
     root.style.pointerEvents = 'none'; root.style.transition = 'opacity .18s'; root.style.opacity = '0';
     // 2차 (2026-11-11 밤 · Edge 에서 또 까매짐): 페이지 전체를 한 번 숨겼다 보여서 그래픽 층을 처음부터 다시 그리게 해요.
     // (유리 효과 · 배경 그림 층이 MV 층과 함께 지워지며 검게 남는 Edge 버그) · 0.3초 뒤 한 번 더
+    // 3차 (2026-11-12 · 노트북 크롬에서 또 까매짐): 같은 순간에 숨겼다 보이면 화면은 다시 안 그려져요.
+    // 한 프레임은 진짜로 숨기고 다음 프레임에 보여서 그래픽 층을 버리고 새로 그리게 해요 (+ 1px 스크롤로 타일 다시 그리기)
+    const raf2 = (fn) => requestAnimationFrame(() => requestAnimationFrame(fn));
     const repaint = () => {
-      const de = document.documentElement, x = scrollX, y = scrollY;
-      de.style.display = 'none'; void de.offsetHeight; de.style.display = '';
-      window.scrollTo(x, y);
+      const de = document.documentElement, b = document.body, bg = de.style.background;
+      de.style.background = '#121214'; b.style.visibility = 'hidden';
+      raf2(() => {
+        b.style.visibility = ''; de.style.background = bg;
+        window.scrollBy(0, 1); raf2(() => { window.scrollBy(0, -1); window.dispatchEvent(new Event('resize')); });
+      });
     };
     const done = () => {
       root.remove();
       repaint();
-      requestAnimationFrame(() => requestAnimationFrame(repaint));
-      setTimeout(repaint, 300);
+      setTimeout(repaint, 500);
       ctx.onClose?.();
     };
     if (fsEl()) Promise.resolve((document.exitFullscreen || document.webkitExitFullscreen)?.call(document)).catch(() => {}).finally(() => setTimeout(done, 200));
