@@ -94,7 +94,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const CSS = `
 .mv{position:fixed;inset:0;z-index:9000;background:#000;color:#fff;overflow:hidden;font-family:inherit;cursor:default;user-select:none}
 .mv.hide-ui{cursor:none}
-.mv .lay{position:absolute;inset:-2%;background:center/cover no-repeat;opacity:0;transition:opacity 1.6s ease;will-change:transform,opacity}
+.mv .lay{position:absolute;inset:-2%;background:center/cover no-repeat;opacity:0;transition:opacity 1.6s ease}
 .mv .lay.on{opacity:1}
 .mv .fb{position:absolute;inset:0;background:radial-gradient(120% 90% at 50% 35%,#3a2414,#0b0b0c)}
 .mv .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,.07) 25%,rgba(0,0,0,.13) 55%,rgba(0,0,0,.9));pointer-events:none}
@@ -111,7 +111,7 @@ const CSS = `
 .mv .ui{transition:opacity .25s}.mv.hide-ui .ui{opacity:0;pointer-events:none}
 .mv .top{position:absolute;left:12px;right:12px;top:12px;display:flex;align-items:flex-start;gap:8px}
 .mv .x{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.5);color:#fff;font-size:20px;cursor:pointer}
-.mv .bar{position:absolute;left:12px;right:12px;bottom:10px;padding:8px 12px;border-radius:16px;background:rgba(17,17,17,.82);border:1px solid rgba(255,255,255,.2);display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 10px;backdrop-filter:blur(8px)}
+.mv .bar{position:absolute;left:12px;right:12px;bottom:10px;padding:8px 12px;border-radius:16px;background:rgba(17,17,17,.82);border:1px solid rgba(255,255,255,.2);display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 10px}
 .mv .seek{flex:1 1 100%;display:flex;align-items:center;gap:10px;font-size:12px;color:#d8d2ca}
 .mv .seek .tl{flex:1;height:14px;display:flex;align-items:center;cursor:pointer}.mv .seek .tl div{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.2);overflow:hidden}.mv .seek .tl i{display:block;height:100%;width:0;background:#ff9a5c}
 .mv .bar button{border:0;background:none;color:#fff;font:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:6px 8px;border-radius:10px}
@@ -264,9 +264,20 @@ export function openMv(ctx) {
     clearInterval(slideT); clearInterval(pollT); clearInterval(clockT); clearTimeout(hideT); clearTimeout(hintT);
     anim?.cancel?.(); wake?.release?.().catch(() => {}); wake = null;
     document.removeEventListener('keydown', onKey); document.removeEventListener('visibilitychange', onVis);
-    if (document.fullscreenElement === root) document.exitFullscreen().catch(() => {});
-    root.remove(); open = null; document.body.style.overflow = '';
-    ctx.onClose?.();
+    // 닫을 때 화면이 까맣게 남던 문제 (2026-11-11 · Edge): 장면 애니메이션을 먼저 모두 멈추고, 살짝 흐려지게 한 뒤 지워요.
+    // 그다음 페이지를 한 번 다시 그리게 해요 (그래픽 층이 남아 검은 화면으로 보이지 않게)
+    L.forEach((x) => { x.getAnimations?.().forEach((a) => a.cancel()); x.style.backgroundImage = 'none'; });
+    open = null; document.body.style.overflow = '';
+    root.style.pointerEvents = 'none'; root.style.transition = 'opacity .18s'; root.style.opacity = '0';
+    const done = () => {
+      root.remove();
+      const y = scrollY;
+      document.body.style.opacity = '0.999';
+      requestAnimationFrame(() => { document.body.style.opacity = ''; window.scrollTo(scrollX, y); });
+      ctx.onClose?.();
+    };
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {}).finally(() => setTimeout(done, 200));
+    else setTimeout(done, 200);
   }
   root.addEventListener('click', (e) => {
     const a = e.target.closest('[data-a]')?.dataset.a;

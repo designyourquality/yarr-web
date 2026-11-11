@@ -502,7 +502,7 @@ html,body{background:var(--bg)}
     <h2 class="sec" style="font-size:21px">상황별 스테이션 <small>틀어 두기 좋은 곡을 이어서</small></h2>
     <button class="pill-btn o" data-tab="stations">24개 스테이션 전체 보기 →</button>
   </div>
-  <div class="stations" id="chartStations"></div>
+  <div class="stations five" id="chartStations"></div>
 </section>
 
 <!-- 스테이션 -->
@@ -528,7 +528,7 @@ html,body{background:var(--bg)}
     <div class="filters" id="sFilters"><button data-sf="shuffle">🔀 섞기</button><button data-sf="all" class="on">전체</button><button data-sf="vocal">🎙️ 보컬 포함</button><button data-sf="inst">🎹 연주곡만</button><button data-sf="store" class="sf">🏪 매장 가능</button></div></div>
   <div class="list glass" id="stationList"><div class="empty">스테이션을 골라 주세요</div></div>
   <div class="listhead" style="margin-top:44px"><h2 class="sec" style="font-size:21px">전체 24개 스테이션 <small>카드를 누르면 바로 바뀌어요</small></h2></div>
-  <div class="stations" id="allStations"></div>
+  <div class="stations five" id="allStations"></div>
   <div class="cta glass">
     <div><h3>앱에서는 더 많이 할 수 있어요</h3><p>좋아요 · 매장 BGM 영업시간 예약 · 안내방송 · AI 작사 도우미로 내 곡 만들기</p></div>
     <button class="btn" data-modal="mApp">Google Play에서 받기</button>
@@ -863,9 +863,9 @@ html,body{background:var(--bg)}
     A.forEach((x) => x.pause());
     const a = new Audio(); prevA = a; prevId = id; a.preload = 'auto'; a.volume = 0;
     a.addEventListener('loadedmetadata', () => { if (prevA !== a) return; a.currentTime = Math.max(0, Math.min(t.card.hl, (a.duration || 0) - 15)); a.play().catch(() => { stopPreview(); toast('미리듣기를 열지 못했어요'); }); }, { once: true });
-    a.addEventListener('playing', () => { let v = 0; const f = setInterval(() => { if (prevA !== a) return clearInterval(f); v = Math.min(1, v + 0.1); a.volume = v; if (v >= 1) clearInterval(f); }, 50); }, { once: true });
+    a.addEventListener('playing', () => { let v = 0; const f = setInterval(() => { if (prevA !== a) return clearInterval(f); const top = gainOf(t); v = Math.min(top, v + 0.07); a.volume = v; if (v >= top) clearInterval(f); }, 50); }, { once: true });
     a.src = t.url;
-    prevT = setTimeout(() => { let v = 1; const f = setInterval(() => { if (prevA !== a) return clearInterval(f); v -= 0.1; a.volume = Math.max(0, v); if (v <= 0) { clearInterval(f); stopPreview(); } }, 80); }, 14200);
+    prevT = setTimeout(() => { let v = gainOf(t); const f = setInterval(() => { if (prevA !== a) return clearInterval(f); v -= 0.1; a.volume = Math.max(0, v); if (v <= 0) { clearInterval(f); stopPreview(); } }, 80); }, 14200);
     document.querySelectorAll(`.wvw[data-prev="${id}"]`).forEach((x) => { x.classList.add('on'); const l = x.querySelector('.wvl'); if (l) l.textContent = '■ 듣는 중'; });
   }
   // 🌳 변주 가계도 (2026-11-05 · 071 SQL track_family): 맨 위 원곡부터 공개 변주곡 전부 · 지금 목록에 있는 곡은 눌러서 듣기
@@ -915,6 +915,7 @@ html,body{background:var(--bg)}
   // ---------- 차트 ----------
   let chart = [], shown = [], filter = 'all', counts = {}, shared = null, chartDone = false;
   function renderChart() {
+    loudFetch(chart.map((t) => t.id));   // 곡마다 음량 맞추기용 값 (한 번에 · 이미 받은 곡은 건너뛰어요)
     shown = chart.filter((t) => filter === 'all' || (filter === 'vocal' && !t.instrumental) || (filter === 'inst' && t.instrumental) || (filter === 'store' && t.store));
     const el = $('chartList');
     el.innerHTML = shown.length ? shown.map((t, i) => rowHtml(t, i, !shared)).join('') : '<div class="empty">조건에 맞는 곡이 없어요</div>';
@@ -1043,6 +1044,7 @@ html,body{background:var(--bg)}
   addEventListener('pointerup', () => { if (drag?.moved) { chips.dataset.dragged = '1'; setTimeout(() => delete chips.dataset.dragged, 0); } chips.style.scrollBehavior = ''; drag = null; });
   $('stChips').onclick = (e) => { if (chips.dataset.dragged) return; const b = e.target.closest('[data-st]'); if (!b) return; if (b.classList.contains('soon')) return toast('이 스테이션은 곡을 채우는 중이에요. 곧 열려요'); loadStation(b.dataset.st); };
   function renderStationList() {
+    loudFetch(stationTracks.map((t) => t.id));
     stationShown = stationTracks.filter((t) => sFilter === 'all' || (sFilter === 'vocal' && !t.instrumental) || (sFilter === 'inst' && t.instrumental) || (sFilter === 'store' && t.store));
     const el = $('stationList');
     el.innerHTML = stationTracks.length
@@ -1120,12 +1122,32 @@ html,body{background:var(--bg)}
       requestAnimationFrame(step);
     });
   }
-  async function startOn(url, cross) {
+  // ---------- 곡마다 음량 맞추기 (2026-11-11 · 앱 Player.loudGain 과 같아요) ----------
+  // 검수 때 잰 실제 음량(lufs_value)으로 -14 LUFS 에 맞춰요. 피크 상한 때문에 -15 ~ -17.5 에 머문 곡(약 5%)을 키우려고
+  // 평소 출력을 약 -3dB(0.7) 낮춰 두고, 곡마다 최대 ±3dB 를 더하거나 빼요. 값을 못 받으면 0.7 그대로
+  const WEB_BASE = 0.7, loud = new Map();
+  const gainOf = (t) => { const l = loud.get(t?.id); if (!Number.isFinite(l) || l < -40 || l > 0) return WEB_BASE; const db = Math.max(-3, Math.min(3, -14 - l)); return Math.min(1, WEB_BASE * 10 ** (db / 20)); };
+  async function loudFetch(ids) {
+    const need = [...new Set(ids.filter((id) => id && !loud.has(id) && /^[0-9a-f-]{36}$/i.test(id)))];
+    for (let i = 0; i < need.length; i += 100) {
+      const part = need.slice(i, i + 100);
+      try {
+        const r = await fetch(`${SB_URL}/rest/v1/tracks?select=id,lufs_value&id=in.(${part.join(',')})`, { headers: { apikey: SB_KEY, authorization: `Bearer ${SB_KEY}` } });
+        const rows = r.ok ? await r.json() : [];
+        part.forEach((id) => loud.set(id, NaN));   // 값이 없는 곡도 다시 묻지 않게
+        for (const x of rows || []) if (x.lufs_value != null) loud.set(x.id, Number(x.lufs_value));
+      } catch { /* 못 받으면 기본 음량 */ }
+    }
+  }
+  async function startOn(url, cross, t = null) {
     const old = audio(); ai = 1 - ai; const el = audio();
-    el.src = url; el.volume = cross ? 0 : 1;
+    const g = () => gainOf(t);
+    el.src = url; el.volume = cross ? 0 : g();
     try { await el.play(); } catch (e) { ai = 1 - ai; throw e; }
-    if (cross && !old.paused) { fade(el, 1, 3000); fade(old, 0, 3000).then(() => { old.pause(); old.removeAttribute('src'); old.load(); }); }
-    else { el.volume = 1; old.pause(); }
+    if (cross && !old.paused) { fade(el, g(), 3000); fade(old, 0, 3000).then(() => { old.pause(); old.removeAttribute('src'); old.load(); }); }
+    else { el.volume = g(); old.pause(); }
+    // 음량 값이 아직 없으면 받아서 바로 맞춰요 (겹쳐 넘어가는 3초 동안은 기다려요)
+    if (t && !loud.has(t.id)) loudFetch([t.id]).then(() => setTimeout(() => { if (audio() === el && el.getAttribute('src') === url) el.volume = g(); }, cross ? 3100 : 0));
   }
   let listSrc = '';   // 지금 듣는 목록이 어디서 왔는지 ('chart' · 'station:#CODE') → 위쪽 재생 버튼을 ⏸ 로
   async function listenPlay(l, i, src = listSrc) {
@@ -1134,7 +1156,7 @@ html,body{background:var(--bg)}
     mode = 'listen'; list = l; idx = i; listSrc = src; const t = list[i]; if (!t) return;
     webSec = 0; webLastT = 0; webSent = false;
     setDock(t); markPlaying();
-    try { await startOn(t.url, false); }
+    try { await startOn(t.url, false, t); }
     catch (e) { if (e.name === 'NotAllowedError') toast('재생 버튼을 한 번 더 눌러 주세요'); }
   }
   // 목록 끝까지 들으면 멈추지 않고 이어서: 마지막 곡의 스테이션(없으면 다른 스테이션) 곡을 들은 곡 빼고 붙여서 계속 (2026-11-02)
@@ -1245,7 +1267,7 @@ html,body{background:var(--bg)}
   let mvMod = null;
   async function openMvUi(tv) {
     if (!curTrack()) { if (tv && mode !== 'store') return toast('매장 BGM 재생을 먼저 눌러 주세요'); if (!tv) return toast('먼저 곡을 재생해 주세요'); }
-    try { mvMod = mvMod || await import('./mv/mv.js?v=20261143'); } catch { return toast('MV 화면을 열지 못했어요. 새로고침 후 다시 눌러 주세요'); }
+    try { mvMod = mvMod || await import('./mv/mv.js?v=20261144'); } catch { return toast('MV 화면을 열지 못했어요. 새로고침 후 다시 눌러 주세요'); }
     mvMod.openMv({
       track: curTrack, audio, toggle: () => $('toggle').click(), next: () => $('next').click(), prev: () => $('prev').click(),
       pics: mvPics, station: () => mode === 'store' ? ST[storeStationCode] : (stOf(curTrack() || {}) || null), api, sbUrl: SB_URL, sbKey: SB_KEY,
@@ -1370,7 +1392,7 @@ html,body{background:var(--bg)}
   async function studioBoot() {
     if (studioMod) { studioMod.show?.(); return runFork(); }
     try {
-      studioMod = await import('./studio/studio.js?v=20261143');
+      studioMod = await import('./studio/studio.js?v=20261144');
       await studioMod.mount($('studioRoot'), {
         loadSb, SB_URL, SB_KEY, STATIONS, ST, toast, esc, stPhoto, base, coverCss,
         pauseMain: () => { A.forEach((a) => a.pause()); },
@@ -1400,7 +1422,7 @@ html,body{background:var(--bg)}
     const q = rows.map((r) => ({ id: r.id, title: r.title, artist: r.creator_nickname || 'YARR', genre: r.genre, bpm: r.bpm, instrumental: r.is_instrumental !== false, engine: brand(r), tags: [storeStationCode], url: urls[r.audio_url.slice('storage:uploads/'.length)] })).filter((t) => t.url);
     // 선호곡 ♥: 한 바퀴에 한 번 더 (목록 반대편에 · 앱과 같은 방식)
     if (q.length >= 4) for (const f of q.filter((t) => favorites.has(t.id))) q.splice((q.indexOf(f) + Math.floor(q.length / 2)) % q.length, 0, f);
-    storeQueue = q; storeQi = -1; loadedAt = Date.now();
+    storeQueue = q; storeQi = -1; loadedAt = Date.now(); loudFetch(q.map((t) => t.id));
     const m = recentMap(); const uniq = new Set(q.map((t) => t.id));
     $('kFresh').textContent = uniq.size ? `${[...uniq].filter((id) => !m[id]).length} / ${uniq.size}곡` : '-';
   }
@@ -1418,7 +1440,7 @@ html,body{background:var(--bg)}
     $('dTitle').textContent = t.title; $('dMeta').textContent = `${t.artist}${t.genre ? ' · ' + t.genre : ''}${t.engine && t.engine !== t.artist ? ' · ' + t.engine : ''}`;
     $('dStation').textContent = `${ST[storeStationCode].emoji} ${ST[storeStationCode].name} · 음악 신탁단체 비등록 곡`;
     setDock(t);
-    try { await startOn(t.url, cross); }
+    try { await startOn(t.url, cross, t); }
     catch (e) { if (e.name === 'NotAllowedError') return storeFail('브라우저가 자동 재생을 막았어요. 재생 버튼을 한 번 더 눌러 주세요.'); return; }
     markRecent(t.id); listened = 0; lastT = 0; errors = 0;
     session = sb.rpc('start_stream', { p_track_id: t.id, p_stream_type: 'B2B_STORE', p_device_fingerprint: device }).then((r) => r.data || null, () => null);

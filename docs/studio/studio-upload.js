@@ -219,7 +219,7 @@ async function showCert(id) {
 }
 const mineCtx = {};
 
-export async function mountMine(el, { sb, user, B, onTranslate, onGo }) {
+export async function mountMine(el, { sb, user, B, onTranslate, onGo, call }) {
   Object.assign(mineCtx, { sb, B });
   el.innerHTML = '<div class="st-card mine"><span class="spin"></span> 내 곡을 불러오는 중…</div>';
   const q = (cols) => sb.from('tracks').select(cols).eq('creator_id', user.id).order('created_at', { ascending: false }).limit(40);
@@ -308,10 +308,46 @@ export async function mountMine(el, { sb, user, B, onTranslate, onGo }) {
         ${recipe(t)}
         ${trans(t)}
         ${t.k === 'live' && String(t.ai_plan || '').startsWith('YARR 스튜디오') ? `<div class="mi-emb"><button class="mi-trb" data-cert="${t.id}">✔ 창작 음원 이용 확인서</button><em>영상 · SNS 배경음악으로 쓸 때 보여 줄 수 있는 기록 (Pro)</em></div>` : ''}
+        ${board(t)}
         ${t.k === 'live' ? `<div class="mi-emb"><button class="mi-trb" data-emb="${t.id}">&lt;/&gt; 위젯 코드 복사</button><em>블로그 · 노션 · 사이트에 넣는 미니 플레이어 (15초 미리듣기 · 전체 듣기 · ⚡ 변주하기)</em></div>` : ''}
       </div>
     </article>`;
   };
+  // 🎬 AI 6컷 MV (093 SQL · 2026-11-11): 공개 중인 내 곡 · 크리에이터 Pro 한 달 20회 · 만들면 이 곡을 트는 모든 MV · 매장 TV 화면에 나와요
+  const bstate = {}; let usage = null;
+  const board = (t) => {
+    if (!call || t.k !== 'live') return '';
+    const b = bstate[t.id];
+    const label = b?.st === 'RUNNING' ? `장면 만드는 중 · ${b.done || 0}/6` : b?.st === 'READY' ? '✓ AI 6컷 MV가 들어갔어요' : '✨ AI 6컷 MV 만들기';
+    const left = usage ? (usage.pro ? `이번 달 ${usage.month_left}회 남음` : '크리에이터 Pro 기능') : 'Pro 한 달 20회';
+    return `<div class="mi-emb"><button class="mi-trb" data-board="${t.id}" ${b?.st === 'RUNNING' ? 'disabled' : ''}>${label}</button><em>노래 구간마다 가로 장면 6장 · 얼굴 없이 풍경 · 사물 · 뒷모습 · ${left}</em></div>`;
+  };
+  async function makeBoard(id) {
+    const t = rows.find((r) => r.id === id); if (!t) return;
+    try {
+      usage = await call('make-board', { action: 'usage' });
+      draw();
+      if (!usage.pro) return B?.toast?.('AI 6컷 MV는 크리에이터 Pro 기능이에요 (한 달 20회). 🎁 선물곡은 처음 한 번 무료예요.');
+      if (usage.month_left <= 0) return B?.toast?.('이번 달 AI 6컷 20회를 다 썼어요. 다음 달 1일(한국 시간)에 다시 생겨요.');
+      if (!window.confirm(`'${t.title}'에 AI 장면 6컷을 만들까요?
+노래 구간마다 가로 장면 한 장씩 · 얼굴 없이 풍경 · 사물 · 뒷모습으로 그려요.
+이번 달 남은 횟수 ${usage.month_left}회 / 20회 · 1~2분 걸려요`)) return;
+      bstate[id] = { st: 'RUNNING', done: 0 }; draw();
+      const j = await call('make-board', { action: 'start', track_id: id }, 90000);
+      let n = 0;
+      const tick = async () => {
+        if (!el.isConnected) return;   // 다른 탭으로 가면 멈춰요 (만들기는 서버에서 이어져요)
+        const st = await call('make-board', { action: 'status', board_id: j.board_id }).catch(() => null);
+        if (st) bstate[id] = { st: st.status, done: st.done };
+        if (bstate[id].st === 'RUNNING' && ++n < 60) { draw(); return setTimeout(tick, 4000); }
+        if (bstate[id].st === 'RUNNING') bstate[id] = null;
+        if (usage && bstate[id]?.st === 'READY') usage.month_left = Math.max(0, usage.month_left - 1);
+        draw();
+        B?.toast?.(bstate[id]?.st === 'READY' ? '완성됐어요 · 이 곡을 트는 MV · 매장 TV 화면에 AI 장면이 나와요' : '장면을 충분히 만들지 못했어요. 횟수는 빠지지 않았어요.');
+      };
+      setTimeout(tick, 4000);
+    } catch (x) { bstate[id] = null; draw(); B?.toast?.(x.message || '잠시 뒤 다시 눌러 주세요'); }
+  }
   // 레시피 공개 스위치: 스튜디오 곡은 세팅(변주) · 올린 곡은 곡 설명 원문 · 내려간 곡은 안 보여요
   const recipe = (t) => {
     const f = flags[t.id]; if (!f || t.k === 'off' || t.k === 'bad') return '';
@@ -342,6 +378,7 @@ export async function mountMine(el, { sb, user, B, onTranslate, onGo }) {
   draw();
   el.onclick = async (e) => {
     const f = e.target.closest('[data-f]'); if (f) { filter = f.dataset.f; return draw(); }
+    const bd = e.target.closest('[data-board]'); if (bd) return makeBoard(bd.dataset.board);
     const em = e.target.closest('[data-emb]');
     if (em) {
       const row = rows.find((r) => r.id === em.dataset.emb);

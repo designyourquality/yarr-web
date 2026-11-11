@@ -10,7 +10,7 @@ import {
   VOICE_TUNE_CORE, GIFT_OCC, GIFT_WHO, GIFT_SOUNDS, giftSound, giftTheme, giftGenre, giftTo, giftStory, giftTitle, giftMemHints, giftTone, giftAskOf } from './studio-data.js?v=20261143';
 import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
 import { mountSequencer } from './seq-ui.js?v=20261115';
-import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261141';
+import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261144';
 
 const V = '20261141';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
@@ -238,7 +238,7 @@ function layout() {
     stopTake(); seq?.stop(); header();
     if (S.view === 'make') { S.batch ? renderResult() : renderMake(); }
     else if (S.view === 'upload') mountUpload(body(), { sb, user, B, err, call, onDone: loadQuota });
-    else mountMine(body(), { sb, user, B, onTranslate: translate, onGo: (v) => root.querySelector(`#stTabs [data-v="${v}"]`)?.click() });
+    else mountMine(body(), { sb, user, B, call, onTranslate: translate, onGo: (v) => root.querySelector(`#stTabs [data-v="${v}"]`)?.click() });
   };
   header();
 }
