@@ -120,10 +120,10 @@ const CSS = `
 .mv .bar .o{color:#ff9a5c}
 .mv .tvl{position:absolute;left:72px;top:20px}.mv .tvl .k{font-family:'DotGothic',monospace;color:#ffb46a;font-size:14px;letter-spacing:.5px}.mv .tvl p{margin:4px 0 0;font-size:12px;color:rgba(255,255,255,.8)}
 .mv .tvr{position:absolute;right:24px;top:16px;text-align:right}.mv .tvr .clk{font-family:'DotGothic',monospace;font-size:clamp(32px,4vw,48px);line-height:1}.mv .tvr .live{margin-top:6px;font-size:12px;font-weight:800}.mv .tvr .live:before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff4d3d;margin-right:6px;vertical-align:1px}
-.mv .tvb{position:absolute;left:24px;right:24px;bottom:22px;display:flex;align-items:flex-end;gap:12px}
-.mv .np{flex:1;min-width:0;padding:10px 14px;border-radius:12px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2)}
+.mv .tvb{position:absolute;left:24px;right:24px;bottom:22px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.mv .np{flex:0 1 auto;width:fit-content;max-width:min(380px,100%);min-width:0;padding:10px 14px;border-radius:12px;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.09)}
 .mv .np .k{font-family:'DotGothic',monospace;font-size:11px;color:#ff9a5c}.mv .np b{display:block;font-size:18px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mv .np span{font-size:12.5px;color:rgba(255,255,255,.8)}
-.mv .qr{flex:none;padding:8px;border-radius:12px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);text-align:center;font-size:10.5px;font-weight:700}
+.mv .qr{flex:none;padding:8px;border-radius:12px;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.09);text-align:center;font-size:10.5px;font-weight:700}
 .mv .qr .q{width:84px;height:84px;background:#fff;border-radius:4px;padding:4px;margin:0 auto 4px}.mv .qr .q svg{width:100%;height:100%;display:block}
 .mv.tv .bar{bottom:auto;top:84px;left:50%;right:auto;transform:translateX(-50%)}
 @media (max-width:640px){.mv .tvl{left:24px;top:64px}.mv .tvl .k{font-size:12px}.mv.tv .bar{top:118px}.mv .ly{bottom:150px}.mv.tv .ly{bottom:170px}.mv .tvr .clk{font-size:30px}.mv .qr .q{width:64px;height:64px}}
@@ -145,7 +145,7 @@ export function openMv(ctx) {
     <div class="ui"><div class="top"><button class="x" data-a="close" aria-label="닫기">✕</button><div class="chips"></div></div>
     <div class="bar"><div class="seek"><span class="cur">0:00</span><div class="tl"><div><i></i></div></div><span class="dur">0:00</span></div>
     <button data-a="prev" aria-label="이전 곡">⏮</button><button class="pp" data-a="toggle" aria-label="재생 · 일시정지">▶</button><button data-a="next" aria-label="다음 곡">⏭</button>
-    <span class="tvbtn"></span><button class="o" data-a="tv"></button></div></div>`;
+    <span class="tvbtn"></span><button class="o" data-a="tv"></button><button class="o" data-a="fs" hidden></button></div></div>`;
   document.body.appendChild(root);
   const q = (s) => root.querySelector(s);
   const L = [q('[data-l="0"]'), q('[data-l="1"]')];
@@ -251,6 +251,16 @@ export function openMv(ctx) {
     root.classList.remove('hide-ui');
     clearTimeout(hideT); hideT = setTimeout(() => root.classList.add('hide-ui'), tv ? 6000 : 4000);
   }
+  // ⛶ 전체 화면 (주소창 · 탭 바 없이 꽉 차게 · 매장 모니터 · 태블릿) · 누를 때만 (브라우저가 버튼을 눌러야만 허락해요)
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+  const fsOk = !!(root.requestFullscreen || root.webkitRequestFullscreen);
+  function fsUi() { const b = q('[data-a="fs"]'); b.hidden = !fsOk; b.textContent = fsEl() ? '⛶ 전체 화면 끄기' : '⛶ 전체 화면'; }
+  function fsToggle() {
+    if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
+    else (root.requestFullscreen || root.webkitRequestFullscreen)?.call(root)?.catch?.(() => ctx.toast?.('이 브라우저는 전체 화면을 열지 못했어요'));
+  }
+  const onFs = () => { fsUi(); poke(); };
+  document.addEventListener('fullscreenchange', onFs); document.addEventListener('webkitfullscreenchange', onFs);
   async function setTv(on) {
     tv = on; root.classList.toggle('tv', tv);
     q('[data-a="tv"]').textContent = tv ? '📱 일반 화면' : '📺 매장 TV 모드';
@@ -264,6 +274,7 @@ export function openMv(ctx) {
     clearInterval(slideT); clearInterval(pollT); clearInterval(clockT); clearTimeout(hideT); clearTimeout(hintT);
     anim?.cancel?.(); wake?.release?.().catch(() => {}); wake = null;
     document.removeEventListener('keydown', onKey); document.removeEventListener('visibilitychange', onVis);
+    document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('webkitfullscreenchange', onFs);
     // 닫을 때 화면이 까맣게 남던 문제 (2026-11-11 · Edge): 장면 애니메이션을 먼저 모두 멈추고, 살짝 흐려지게 한 뒤 지워요.
     // 그다음 페이지를 한 번 다시 그리게 해요 (그래픽 층이 남아 검은 화면으로 보이지 않게)
     L.forEach((x) => { x.getAnimations?.().forEach((a) => a.cancel()); x.style.backgroundImage = 'none'; });
@@ -276,7 +287,7 @@ export function openMv(ctx) {
       requestAnimationFrame(() => { document.body.style.opacity = ''; window.scrollTo(scrollX, y); });
       ctx.onClose?.();
     };
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {}).finally(() => setTimeout(done, 200));
+    if (fsEl()) Promise.resolve((document.exitFullscreen || document.webkitExitFullscreen)?.call(document)).catch(() => {}).finally(() => setTimeout(done, 200));
     else setTimeout(done, 200);
   }
   root.addEventListener('click', (e) => {
@@ -285,7 +296,8 @@ export function openMv(ctx) {
     if (a === 'toggle') ctx.toggle();
     else if (a === 'next') ctx.next();
     else if (a === 'prev') ctx.prev();
-    else if (a === 'tv') { setTv(!tv); if (tv && root.requestFullscreen && !document.fullscreenElement) root.requestFullscreen().catch(() => {}); }
+    else if (a === 'tv') setTv(!tv);
+    else if (a === 'fs') fsToggle();
     else if (a === 'fav') { const t = ctx.track(); if (t) ctx.fav(t); }
     if (e.target.closest('.tl')) { const r = e.target.closest('.tl').getBoundingClientRect(), el = ctx.audio(); if (el.duration) el.currentTime = ((e.clientX - r.left) / r.width) * el.duration; }
     poke(); setTimeout(tick, 60);
@@ -298,7 +310,7 @@ export function openMv(ctx) {
   clockT = setInterval(() => { shift = (shift + 1) % 4; tvUi(); }, 30000); // 매장 TV 번인 방지: 30초마다 글자 자리를 조금씩
   loadTrack(ctx.track());
   setTv(tv);
-  if (tv && root.requestFullscreen) root.requestFullscreen().catch(() => {});
+  fsUi();
   open = { close, setTv };
   return open;
 }
