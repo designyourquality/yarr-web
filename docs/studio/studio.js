@@ -7,12 +7,12 @@ import {
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
   lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS,
   STATION_GROUPS, stGroupOf, voicePicks, THEMES, THEME, OPENINGS, LY_PENS, LY_HEATS, LY_TALKS, LY_VIEWS, lyricStyleRequest, lyricRequest, sectionRequest, sectionStyleRequest, dailyPick,
-  VOICE_TUNE_CORE, GIFT_OCC, GIFT_WHO, GIFT_SOUNDS, giftSound, giftTheme, giftGenre, giftTo, giftStory, giftTitle } from './studio-data.js?v=20261135';
+  VOICE_TUNE_CORE, GIFT_OCC, GIFT_WHO, GIFT_SOUNDS, giftSound, giftTheme, giftGenre, giftTo, giftStory, giftTitle, giftMemHints, giftTone, giftAskOf } from './studio-data.js?v=20261139';
 import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
 import { mountSequencer } from './seq-ui.js?v=20261115';
-import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261135';
+import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261139';
 
-const V = '20261135';
+const V = '20261139';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* */ } } };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -291,24 +291,26 @@ function renderMake() {
         <div class="st-tabs mode"><button data-vocal="0" class="${vocal ? '' : 'on'}">🎹 연주곡 · 매장 · 차트</button><button data-vocal="1" class="${vocal ? 'on' : ''}">🎤 보컬곡 · 내 가사로</button></div>
         <p class="mk-sub">모드를 바꾸면 그 모드의 공간 · BPM · 장르로 바로 바뀌어요 (이전 세팅이 남지 않아요)</p>
       </div>
-      <div class="st-card mk-card">
+      ${vocal && giftUi() ? `<div class="st-card mk-card"><div class="mk-h">01 · 🎁 선물 노래<span class="mk-tag">GIFT MODE</span></div>
+        <p class="mk-sub" style="margin:0">주제 · 분위기는 아래 선물 인터뷰 답으로 정해져요. 어떤 날을 고르면 장르 · BPM · 제목이 바로 맞춰져요.</p>
+        <button class="seq-key" data-giftoff="1" style="margin-top:10px">↩ 일반 보컬곡으로 돌아가기</button></div>` : `      <div class="st-card mk-card">
         <div class="mk-h">01 · ${vocal ? (S.byTheme ? '어떤 이야기 · 감정의 노래인가요?' : '어떤 분위기의 곡인가요?') : '어디서 틀 곡인가요?'}<span class="mk-tag">${vocal && S.byTheme ? 'AUTO BPM &amp; GENRE SYNC' : 'SPACE STATION'}</span></div>
         ${vocal ? `<div class="chips" style="margin-bottom:8px"><button class="chip-b${S.byTheme ? ' on' : ''}" data-bytheme="1">💬 주제 · 감정으로</button><button class="chip-b${S.byTheme ? '' : ' on'}" data-bytheme="0">📍 장소 분위기로</button></div>` : ''}
         ${vocal && S.byTheme ? `<div class="chips">${THEMES.map(([k, n]) => `<button class="chip-b${r.theme === k ? ' on' : ''}" data-theme="${k}">${esc(n)}</button>`).join('')}</div>` : `<div class="chips st-groups">${STATION_GROUPS.map(([name], i) => `<button class="chip-b grp${i === g ? ' on' : ''}" data-stg="${i}">${esc(name)}${i === selG && i !== g ? ' •' : ''}</button>`).join('')}</div>
         <div class="mk-div"></div><div class="chips">${STATION_GROUPS[g][1].map((c) => ST[c]).filter(Boolean).map((s) => `<button class="chip-b${s.code === r.station ? ' on' : ''}" data-st="${s.code}">${esc(s.tag)}</button>`).join('')}</div>`}
-      </div>
-      ${vocal ? lyricsCard() + voiceCard() : ''}
-      <div class="st-card mk-card mk-pro${S.pro ? ' open' : ''}">
+      </div>`}
+      ${vocal ? lyricsCard() + (giftUi() ? '' : voiceCard()) : ''}
+      ${giftUi() ? '' : `<div class="st-card mk-card mk-pro${S.pro ? ' open' : ''}">
         <button class="mk-pro-h" id="mPro"><div><b>🎛 프로 하드웨어 컨트롤</b><small>장르 · ${vocal ? '' : '주인공 악기 · '}곡 흐름 · 분위기 노브 · 길이${vocal ? ' · 곡 시작' : ''} · <em>🎹 멜로디 직접 찍기</em></small></div><span class="mk-fold">${S.pro ? '▲ 접기' : '▼ 펼치기'}</span></button>
         ${S.pro ? `<div class="mk-pro-b">${proPanel()}</div>` : ''}
-      </div>
+      </div>`}
     </div>
     <div class="st-side">
       <div class="st-card mk-card mk-right">
         <div class="mk-out">
           <div class="mk-out-h"><span>OUTPUT // RECIPE</span><span class="mk-lufs">● -14 LUFS MASTER</span></div>
           <div class="mk-rc lcd-1">RECIPE · ${bpmOf(r)} BPM · ${esc(genreName(r))}${S.composeOn && S.draft ? ' · MY MELODY ' + esc(S.draft.chords.join('-')) : ''}</div>
-          <div class="mk-rc2">${vocal ? 'VOCAL · ' + esc(voiceLabel(S.tone)) : esc(st?.tag || '') + ' · 연주곡'} · ${r.duration}초${S.gift ? ' · 🎁 GIFT' : ''}</div>
+          <div class="mk-rc2">${vocal ? 'VOCAL · ' + esc(voiceLabel(S.tone)) : esc(st?.tag || '') + ' · 연주곡'} · ${r.duration}초${giftUi() ? ' · 🎁 GIFT' : ''}</div>
           <div class="mk-var"><span>⚡</span><p><b>서버 자동 변주 ON</b> · 만들 때마다 조성 · 그루브 · 시대감 · 편곡이 자동으로 조합돼요 <small>(어떤 조합이었는지 기록해 둬요)</small></p></div>
         </div>
         <div class="mk-fit">${fitCard()}</div>
@@ -325,6 +327,19 @@ function renderMake() {
   goBtn(); header();
 }
 
+/** 신나는 목소리 카드는 빠른 공간 템포로 (기념일 공간 70 BPM에 축하 팝이 늘어지지 않게) */
+const GIFT_SOUND_ST = { pop: '#BRUNCH_CAFE', trot: '#POCHA_NIGHT', duet: '#HANGANG_PICNIC' };
+/** 선물 화면인지: 인터뷰 중(선물 탭)이거나 선물 모드 (2026-11-11) */
+const giftUi = () => S.vocal && (!!S.gift || S.lyTab === 'gift');
+const interviewing = () => S.vocal && S.lyTab === 'gift' && !!S.gq;
+const gqOk = (q) => q && (q.step === 0 ? !!(q.occ && q.who) : q.step === 1 ? q.mem.some((m) => m.trim()) : !!q.sound);
+/** 인터뷰 답이 바뀌면 오른쪽 RECIPE · 제목도 바로 (어떤 날 → 주제 · 공간 · BPM, 목소리 → 장르 · 목소리) */
+function gqPreview() {
+  const q = S.gq; if (!q) return;
+  if (q.occ) { const th = giftTheme(q), st = GIFT_SOUND_ST[q.sound] || THEME[th]?.station || '#WOOD_CAFE'; S.recipe = { ...newRecipe(st), theme: th, lead: 'auto', genre: q.sound ? giftGenre(q, 0) : 'auto' }; }
+  if (q.sound) { S.tone = giftTone(q); S.voiceCat = VOICES.find((v) => v.id === S.tone)?.cat || S.voiceCat; }
+  S.title = q.occ && q.who ? giftTitle(q) : '';
+}
 /** 02 · 가사: ✨ AI 작사 | ✍️ 직접 쓰기 | 🎁 선물 인터뷰 (2026-11-11 · 한 자리에서 바꿔요) */
 function lyricsCard() {
   const tab = S.lyTab;
@@ -370,16 +385,26 @@ function ownTab() {
     </details>`;
 }
 /** 🎁 선물 인터뷰 (3단): ① 어떤 날 · 누구에게 → ② 둘만의 추억 → ③ 목소리 → AI 가사 */
+function giftResult() {
+  return `${giftSummary()}
+    ${S.aiBusy ? '<p class="st-note"><span class="spin"></span> 인터뷰 답으로 선물 가사를 쓰고 있어요… (20초쯤)</p>' : ''}
+    ${hasLines() ? `<div class="mk-l">${aiExact() ? '✨ AI가 쓴 선물 가사' : '✍️ 고친 선물 가사'}<span class="r">제목 '${esc(S.title)}'</span></div>
+      ${S.giftEdit ? ownTab() : `<div class="lyr">${esc(['[1절]', ...lines(S.ly.v).slice(0, Math.ceil(lines(S.ly.v).length / 2)), '', '[후렴]', S.ly.c, ...(lines(S.ly.v).length > 4 ? ['', '[2절]', ...lines(S.ly.v).slice(Math.ceil(lines(S.ly.v).length / 2)), '', '[후렴]', S.ly.c] : [])].join('\n'))}</div>`}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px"><button class="btn sub" data-giftedit="1" style="padding:8px 12px;font-size:12.5px">${S.giftEdit ? '✓ 고치기 닫기' : '✍️ 직접 고치기'}</button><button class="btn" data-giftai="1" style="padding:8px 14px;font-size:13px" ${S.aiBusy ? 'disabled' : ''}>✨ 가사 다시 쓰기</button></div>
+      <p class="st-note">마음에 들면 오른쪽에서 [필수] 동의에 체크하고 만들어요. 다시 쓰기를 누르면 같은 추억으로 다른 가사를 써요.</p>`
+      : !S.aiBusy ? '<div style="text-align:right"><button class="btn" data-giftai="1">✨ 선물 가사 쓰기</button></div>' : ''}`;
+}
 function giftTab() {
+  if (S.gift && !S.gq) return giftResult();
   const q = S.gq || (S.gq = S.gift ? { ...S.gift, mem: [...S.gift.mem], step: 0 } : { step: 0, occ: null, who: null, name: '', from: '', mem: ['', '', ''], sound: null });
-  const ok = q.step === 0 ? q.occ && q.who : q.step === 1 ? q.mem.some((m) => m.trim()) : !!q.sound;
+  const ok = gqOk(q);
   const bar = `<div class="gq-bar">${[0, 1, 2].map((i) => `<i class="${i <= q.step ? 'on' : ''}"></i>`).join('')}<span>${q.step + 1}/3</span></div>`;
   const body = q.step === 0 ? `<div class="st-q">어떤 날의 선물인가요?</div><div class="chips">${GIFT_OCC.map(([k, n]) => `<button class="chip-b${q.occ === k ? ' on' : ''}" data-gocc="${k}">${esc(n)}</button>`).join('')}</div>
       <div class="st-q">누구에게 주나요?</div><div class="chips">${GIFT_WHO.map((w) => `<button class="chip-b${q.who === w ? ' on' : ''}" data-gwho="${esc(w)}">${esc(w)}</button>`).join('')}</div>
       <div class="gq-row"><label><span>받는 사람 이름 (선택)</span><input class="st-in" data-gin="name" maxlength="12" placeholder="예: 지은" value="${esc(q.name)}"></label><label><span>보내는 사람 (선택)</span><input class="st-in" data-gin="from" maxlength="12" placeholder="예: 막내" value="${esc(q.from)}"></label></div>
       <p class="st-note">이름은 후렴에 한 번 불러요. 선물 카드에도 보여요.</p>`
     : q.step === 1 ? `<div class="st-q">둘만 아는 추억이나 단어를 적어 주세요</div><p class="st-note" style="margin-top:0">하나만 적어도 돼요. 구체적일수록 노래가 진짜 '우리 이야기'가 돼요.</p>
-      ${['예: 제주도 첫 여행', '예: 비 오는 날 우산 하나', '예: 매일 아침 된장찌개'].map((h, i) => `<div class="gq-mem"><b>${i + 1}</b><input class="st-in" data-gmem="${i}" maxlength="20" placeholder="${h}" value="${esc(q.mem[i])}"></div>`).join('')}
+      ${giftMemHints(q.who).map((h, i) => `<div class="gq-mem"><b>${i + 1}</b><input class="st-in" data-gmem="${i}" maxlength="20" placeholder="${h}" value="${esc(q.mem[i])}"></div>`).join('')}
       <p class="st-note">가수 · 노래 제목이나 기존 노래 가사는 넣을 수 없어요.</p>`
     : `<div class="st-q">어떤 목소리로 부를까요?</div><div class="gq-snd">${GIFT_SOUNDS.map(([k, n, , , d]) => `<button class="${q.sound === k ? 'on' : ''}" data-gsnd="${k}"><b>${esc(n)}</b><small>${esc(d)}</small></button>`).join('')}</div>
       <p class="st-note" style="color:#FDBA74">AI가 가사를 먼저 보여 드려요. 다 만든 곡은 차트 · 매장에 나가지 않고, 링크를 아는 사람만 듣는 선물 플레이어로 보내요.</p>`;
@@ -387,16 +412,16 @@ function giftTab() {
 }
 function giftSummary() {
   const g = S.gift, mem = g.mem.map((m) => m.trim()).filter(Boolean);
-  return `<div class="gq-sum"><span>🎁</span><div><b>${esc(giftTo(g))} · ${esc(GIFT_OCC.find((x) => x[0] === g.occ)?.[1] || '')}</b><small>${esc([giftSound(g.sound)[1], ...mem].join(' · '))}</small></div><button class="seq-key" data-lytab="gift">다시 답하기</button></div>`;
+  return `<div class="gq-sum"><span>🎁</span><div><b>${esc(giftTo(g))} · ${esc(GIFT_OCC.find((x) => x[0] === g.occ)?.[1] || '')}</b><small>${esc([giftSound(g.sound)[1], ...mem].join(' · '))}</small></div><button class="seq-key" data-regift="1">다시 답하기</button></div>`;
 }
 /** 인터뷰 끝 → 선물 모드: 주제 · 공간 · 장르 · 목소리 · 제목을 맞추고 AI 가사를 바로 써요 */
 function applyGift(q) {
   const g = { occ: q.occ, who: q.who, name: q.name.trim(), from: q.from.trim(), mem: q.mem.map((m) => m.trim()), sound: q.sound, turn: S.gift?.turn ?? Math.floor(Math.random() * 3) };
-  const th = giftTheme(g), station = THEME[th]?.station || '#WOOD_CAFE';
+  const th = giftTheme(g), station = GIFT_SOUND_ST[g.sound] || THEME[th]?.station || '#WOOD_CAFE';
   S.gift = g; S.gq = null; S.vocal = true; S.byTheme = true;
   S.recipe = { ...newRecipe(station), theme: th, genre: giftGenre(g, g.turn), lead: 'auto' };
-  S.tone = giftSound(g.sound)[3]; S.voiceCat = VOICES.find((v) => v.id === S.tone)?.cat || S.voiceCat;
-  S.story = giftStory(g); S.title = giftTitle(g); S.lyTab = 'ai';
+  S.tone = giftTone(g); S.voiceCat = VOICES.find((v) => v.id === S.tone)?.cat || S.voiceCat;
+  S.story = giftStory(g); S.title = giftTitle(g); S.lyTab = 'gift'; S.giftEdit = false;
   S.ly = { v: '', c: '', b: '' }; S.aiDraft = null; S.bridgeOn = false; S.consent = false; S.parent = null;
   renderMake(); return aiWrite(true);
 }
@@ -446,7 +471,7 @@ function fitCard(keep) {
   const vocal = S.status?.vocal ?? S.vocal;
   let first = true;
   const ok = (t) => { const h = `<div class="mk-ok${first ? ' hi' : ''}"><i>✓</i><span>${t}</span></div>`; first = false; return h; };
-  if (S.gift) return `<div class="mk-h sm">🎁 선물곡 체크</div>${ok('차트 · 리스너 · 매장 · 검색에 나가지 않아요')}${ok('다 만들면 링크를 아는 사람만 듣는 선물 플레이어로 보내요')}${ok('같은 목소리로 다시 만들어도 반주 장르가 돌아가며 바뀌어요')}`;
+  if (giftUi() && !S.status) return `<div class="mk-h sm">🎁 선물 카드 &amp; 카톡 링크</div>${ok('비공개 링크로만 공유 · 차트 · 리스너 · 매장 · 검색에 나가지 않아요')}${ok('받는 사람 이름은 후렴에 한 번 · 선물 카드에도 보여요')}${ok('LP 플레이어 + 가사 + 한마디 카드로 열려요 · 앱 설치 없이 들어요')}${ok('같은 목소리로 다시 만들어도 반주 장르가 돌아가며 바뀌어요')}`;
   if (!vocal) {
     const slot = r.time !== 'none' ? Object.fromEntries(TIMES)[r.time] : st.slot || '언제나';
     return `<div class="mk-h sm">매장 적합도 &amp; 출품 체크</div>${ok('연주곡 · 기준을 충족하면 매장 BGM 스테이션 편성 후보가 돼요')}${fits ? ok(`템포 ${bpm} BPM · ${esc(st.tag)} 기본 템포에 맞아요`) : ''}${dur >= 60 ? ok(`길이 ${Math.round(dur)}초 · 60초 이상이라 재생이 집계돼요`) : ''}${ok(`추천 시간대: ${esc(slot)}`)}${ok('올리면 자동 검수가 음량을 매장 기준(-14 LUFS)에 맞추고 앞뒤를 부드럽게 해요')}`;
@@ -465,10 +490,17 @@ function goBtn() {
   const needLyrics = S.vocal && !hasLines();
   const problem = S.vocal && hasLines() ? (lyricsProblem(S.ly.v, S.ly.c, S.bridgeOn ? S.ly.b : '') || narrProblem(S.narr)) : null;
   const lyricsOk = !S.vocal || (!problem && S.consent);
-  const lb = makeLabel(q, { needLyrics, aiBusy: S.aiBusy });
-  b.textContent = /^[✨▶]/.test(lb) || needLyrics ? lb : `▶ ${lb}`;
-  b.disabled = S.busy || S.aiBusy || !q?.canMake || !(lyricsOk || needLyrics);
   const foot = root.querySelector('#mFoot');
+  if (interviewing()) { // 🎁 인터뷰 중: 오른쪽 큰 버튼도 인터뷰 단계와 같이 (중간에 일반 AI 작사로 새지 않게)
+    const g = S.gq, okStep = gqOk(g);
+    b.textContent = g.step < 2 ? (okStep ? `🎁 선물 인터뷰 ${g.step + 1}/3 · 다음 단계로 →` : `🎁 선물 인터뷰 ${g.step + 1}/3 진행 중`) : (okStep ? '🎁 선물 가사 확인하고 만들기' : '🎁 선물 인터뷰 3/3 · 목소리를 골라 주세요');
+    b.disabled = S.busy || S.aiBusy || !okStep || (g.step === 2 && !q?.canMake);
+    if (foot) foot.innerHTML = esc(g.step === 0 ? '왼쪽에서 어떤 날 · 받는 사람을 고르면 RECIPE와 제목이 바로 맞춰져요.' : g.step === 1 ? '둘만의 추억을 하나 이상 적어 주세요. 구체적일수록 우리 이야기가 돼요.' : '목소리를 고르면 AI가 선물 가사를 먼저 보여 드려요. 확인하고 동의하면 만들어요.');
+    return;
+  }
+  const lb = makeLabel(q, { needLyrics, aiBusy: S.aiBusy });
+  b.textContent = S.gift && needLyrics ? '🎁 선물 가사 쓰기 · 확인하고 만들어요' : /^[✨▶]/.test(lb) || needLyrics ? lb : `▶ ${lb}`;
+  b.disabled = S.busy || S.aiBusy || !q?.canMake || !(lyricsOk || needLyrics);
   if (foot) foot.innerHTML = esc(
     S.gift && !(S.vocal && problem) && !(S.vocal && hasLines() && !S.consent) ? (hasLines() ? '선물곡은 차트 · 리스너 · 매장에 나가지 않아요. 다 만들면 링크를 아는 사람만 듣는 선물 플레이어로 보내요.' : '인터뷰 답으로 AI가 가사를 써요. 가사를 확인하고 동의하면 바로 만들어요.')
     : S.vocal && problem ? `만들기 전에 고쳐 주세요: ${errText(problem)}`
@@ -496,10 +528,18 @@ function bindMake() {
       B.toast(`${want ? '🎤 보컬곡' : '🎹 연주곡'} 모드 · RECIPE를 ${bpmOf(S.recipe)} BPM · ${genreName(S.recipe)}로 바꿨어요`);
       return;
     }
-    if (d.lytab) { S.lyTab = d.lytab; if (d.lytab === 'gift' && S.gift) S.gq = { ...S.gift, mem: [...S.gift.mem], step: 0 }; return renderMake(); }
-    if (d.gocc) { S.gq.occ = d.gocc; return renderMake(); }
-    if (d.gwho) { S.gq.who = d.gwho; return renderMake(); }
-    if (d.gsnd) { S.gq.sound = d.gsnd; return renderMake(); }
+    if (d.lytab) {
+      S.lyTab = d.lytab;
+      if (d.lytab === 'gift' && !S.gift) { S.gq = S.gq || { step: 0, occ: null, who: null, name: '', from: '', mem: ['', '', ''], sound: null }; gqPreview(); }
+      return renderMake();
+    }
+    if (d.gocc) { S.gq.occ = d.gocc; gqPreview(); return renderMake(); }
+    if (d.gwho) { S.gq.who = d.gwho; gqPreview(); return renderMake(); }
+    if (d.gsnd) { S.gq.sound = d.gsnd; gqPreview(); return renderMake(); }
+    if (d.regift) { S.lyTab = 'gift'; S.gq = { ...S.gift, mem: [...S.gift.mem], step: 0 }; return renderMake(); }
+    if (d.giftai) return aiWrite(false);
+    if (d.giftedit) { S.giftEdit = !S.giftEdit; return renderMake(); }
+    if (d.giftoff) { S.gift = null; S.gq = null; S.lyTab = 'ai'; S.title = defaultTitle(r.station); return renderMake(); }
     if (d.gnav) {
       const q = S.gq; if (!q) return;
       if (d.gnav === 'back') { q.step = Math.max(0, q.step - 1); return renderMake(); }
@@ -571,7 +611,7 @@ function bindMake() {
     if (t.dataset.knob) { S.recipe[t.dataset.knob] = +t.value; const bb = root.querySelector('#mBpm'); if (bb) bb.textContent = `${bpmOf(S.recipe)} BPM`; }
     if (t.dataset.tunek) { const v = +t.value - 1; if (v) S.tune[t.dataset.tunek] = v; else delete S.tune[t.dataset.tunek];
       const row = VOICE_TUNE_CORE.find((x) => x[0] === t.dataset.tunek), em = root.querySelector(`[data-tunev="${t.dataset.tunek}"]`); if (row && em) em.textContent = v < 0 ? row[2] : v > 0 ? row[3] : '자동'; }
-    if (t.dataset.gin && S.gq) S.gq[t.dataset.gin] = t.value;
+    if (t.dataset.gin && S.gq) { S.gq[t.dataset.gin] = t.value; if (t.dataset.gin === 'name' && S.gq.occ && S.gq.who) { S.title = giftTitle(S.gq); const ti = root.querySelector('#mTitle'); if (ti) ti.value = S.title; } }
     if (t.dataset.gmem != null && S.gq) { S.gq.mem[+t.dataset.gmem] = t.value; const nx = root.querySelector('[data-gnav="next"]'); if (nx) nx.disabled = !S.gq.mem.some((m) => m.trim()); }
     goBtn();
   };
@@ -661,10 +701,11 @@ async function aiWrite(quiet) {
   S.aiBusy = true; err(''); goBtn();
   const ai = root.querySelector('#mAi'); if (ai) ai.innerHTML = '<span class="spin"></span>';
   try {
-    const j = await call('lyrics', { topic, station: S.recipe.station, genre: S.recipe.genre, bridge: S.bridgeOn, lang: S.aiLang, form: S.aiForm, recipe: S.recipe, vocal: S.tone, style: { talk: S.aiTalk, view: S.aiView, hook: S.aiHook, eng: S.aiLang !== 'en' && S.aiEng !== 'none' ? S.aiEng : false, pen: S.aiPen, heat: S.aiHeat }, ...(S.photo ? { image: { media: S.photo.media, data: S.photo.data } } : {}) }, 60000);
+    const j = await call('lyrics', { topic, station: S.recipe.station, genre: S.recipe.genre, bridge: S.bridgeOn, lang: S.aiLang, form: S.gift ? 'long' : S.aiForm, recipe: S.recipe, vocal: S.tone, ...(S.gift ? { gift: giftAskOf(S.gift) } : {}), style: { talk: S.aiTalk, view: S.aiView, hook: S.aiHook, eng: S.aiLang !== 'en' && S.aiEng !== 'none' ? S.aiEng : false, pen: S.aiPen, heat: S.aiHeat }, ...(S.photo ? { image: { media: S.photo.media, data: S.photo.data } } : {}) }, 60000);
     S.ly = { v: (j.verse || []).join('\n'), c: (j.chorus || []).join('\n'), b: S.bridgeOn ? (j.bridge || []).join('\n') : S.ly.b };
     S.aiDraft = normLyrics(S.ly.v, S.ly.c, S.bridgeOn ? S.ly.b : '');
-    if (j.title && (!S.title.trim() || S.title === defaultTitle(S.recipe.station))) S.title = String(j.title).slice(0, 60);
+    // 🎁 선물곡은 '수진에게 · 결혼기념일' 대신 AI가 지은 진짜 노래 제목으로
+    if (j.title && (S.gift || !S.title.trim() || S.title === defaultTitle(S.recipe.station))) S.title = String(j.title).slice(0, 60);
     S.consent = false;
     B.toast('AI가 가사를 썼어요 · 확인하고 [필수] 동의에 체크해 주세요');
   } catch (x) { err(x.message); } finally { S.aiBusy = false; renderMake(); }
@@ -683,6 +724,7 @@ async function aiBridge() {
 
 // ---------- 만들기 ----------
 async function go() {
+  if (interviewing()) { const g = S.gq; if (!gqOk(g)) return; if (g.step < 2) { g.step++; return renderMake(); } return applyGift(g); }
   if (S.vocal && !hasLines()) return aiWrite(true);
   if (!S.title.trim()) return err('곡 제목을 적어 주세요');
   if (S.composeOn && !(S.draft && S.draft.ready)) return err('직접 찍기: 음표를 3개 이상 찍거나, 직접 찍기를 꺼 주세요');

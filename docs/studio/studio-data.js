@@ -438,15 +438,17 @@ export const GIFT_OCC = [
 export const GIFT_WHO = ['엄마', '아빠', '부모님', '연인', '남편', '아내', '친구', '아이', '선생님', '동료'];
 /** 목소리 · 분위기: [키, 이름, 장르 여러 개(다시 만들면 돌아가며), 목소리, 설명] */
 export const GIFT_SOUNDS = [
-  ['ballad_f', '🎹 따뜻한 발라드 · 여자', ['kballad', 'indie', 'rnb'], 'f_ballad', '애틋한 여자 목소리 · 피아노 발라드, 포크, 미디엄 팝으로 돌아가며'],
-  ['ballad_m', '🎹 따뜻한 발라드 · 남자', ['kballad', 'acoustic', 'rnb'], 'm_ballad', '호소력 있는 남자 목소리 · 피아노 발라드, 어쿠스틱, 미디엄 팝으로'],
-  ['acoustic_f', '🎸 포근한 어쿠스틱 · 여자', ['indie', 'acoustic', 'bossa'], 'f_folk', '담백한 여자 목소리 · 포크, 통기타, 보사노바로'],
-  ['acoustic_m', '🎸 포근한 어쿠스틱 · 남자', ['acoustic', 'indie', 'jazz'], 'm_acoustic', '따뜻한 남자 목소리 · 통기타, 포크, 재즈로'],
-  ['duet', '💞 남녀 듀엣', ['acoustic', 'kballad', 'citypop'], 'duet', '둘이 주고받다가 후렴은 함께'],
-  ['pop', '🎉 신나는 축하 팝', ['kpop', 'disco', 'citypop'], 'f_clear', '밝고 경쾌하게, 파티 분위기'],
-  ['trot', '🎺 흥겨운 트로트', ['trot', 'disco'], 'm_trot', '부모님 세대가 좋아하는 흥겨운 가락'],
+  ['ballad_f', '🎹 따뜻한 발라드 · 여자', ['kballad', 'indie', 'rnb'], 'f_ballad', '애틋한 여자 목소리 · 피아노 발라드 · 포크 · 미디엄 팝으로 돌아가며 편곡해요'],
+  ['ballad_m', '🎹 따뜻한 발라드 · 남자', ['kballad', 'acoustic', 'rnb'], 'm_ballad', '호소력 있는 남자 목소리 · 피아노 발라드 · 어쿠스틱 · 미디엄 팝으로 돌아가며 편곡해요'],
+  ['acoustic_f', '🎸 포근한 어쿠스틱 · 여자', ['indie', 'acoustic', 'bossa'], 'f_folk', '담백한 여자 목소리 · 포크 · 통기타 · 보사노바로 돌아가며 편곡해요'],
+  ['acoustic_m', '🎸 포근한 어쿠스틱 · 남자', ['acoustic', 'indie', 'jazz'], 'm_acoustic', '따뜻한 남자 목소리 · 통기타 · 포크 · 재즈로 돌아가며 편곡해요'],
+  ['duet', '💞 남녀 듀엣', ['acoustic', 'kballad', 'citypop'], 'duet', '둘이 주고받다가 후렴은 함께 · 어쿠스틱 · 발라드 · 시티팝으로 돌아가며 편곡해요'],
+  ['pop', '🎉 신나는 축하 팝', ['kpop', 'disco', 'citypop'], 'f_clear', '밝고 경쾌한 파티 분위기 · K-팝 · 디스코 · 시티팝으로 돌아가며 편곡해요'],
+  ['trot', '🎺 흥겨운 트로트', ['trot', 'disco'], 'm_trot', '부모님 세대가 좋아하는 흥겨운 가락 · 정통 트로트 · 디스코 트로트로 돌아가며 편곡해요'],
 ];
-const occName = (k) => (GIFT_OCC.find((x) => x[0] === k)?.[1] || '').replace(/^\S+\s/, '');
+/** 제목 · 가사 주제에 쓰는 짧은 이름 (2026-11-11 · '결혼 · 결혼기념일' 같은 버튼 이름 그대로 쓰지 않게) */
+const OCC_SHORT = { birthday: '생일', anniversary: '기념일', wedding: '결혼기념일', parents: '감사', thanks: '고마움', love: '고백', friend: '우정', cheer: '응원', newstart: '새출발', sorry: '화해' };
+const occName = (k) => OCC_SHORT[k] || (GIFT_OCC.find((x) => x[0] === k)?.[1] || '').replace(/^\S+\s/, '');
 export const giftSound = (k) => GIFT_SOUNDS.find((x) => x[0] === k) || GIFT_SOUNDS[0];
 export const giftTheme = (g) => GIFT_OCC.find((x) => x[0] === g.occ)?.[2] || 'family';
 export const giftGenre = (g, n) => { const l = giftSound(g.sound)[2]; return l[((n % l.length) + l.length) % l.length]; };
@@ -461,3 +463,18 @@ export function giftStory(g) {
   return s.slice(0, 150);
 }
 export const giftTitle = (g) => `${giftTo(g)}에게 · ${occName(g.occ)}`.slice(0, 60);
+
+/** 추억 칸 예시: 받는 사람마다 (2026-11-11) */
+const MEM_EX = { parents: ["예: 매일 아침 된장찌개", "예: 학교 앞에서 기다려 주던 날", "예: 첫 월급으로 사 드린 선물"], couple: ["예: 제주도 첫 여행", "예: 비 오는 날 우산 하나", "예: 처음 손잡은 골목길"], friend: ["예: 시험 끝나고 먹던 떡볶이", "예: 밤새 통화하던 고3 겨울", "예: 둘이 떠난 첫 여행"], kid: ["예: 처음 걸음마 뗀 날", "예: 잠들기 전 읽어 준 동화", "예: 놀이터 그네"], teacher: ["예: 칠판 앞 마지막 수업", "예: 힘들 때 건네주신 한마디", "예: 졸업식 날 사진"], coworker: ["예: 야근 끝 편의점 컵라면", "예: 첫 프로젝트 마감 날", "예: 점심시간 산책"] };
+export const giftMemHints = (who) => MEM_EX[{ 엄마: 'parents', 아빠: 'parents', 부모님: 'parents', 연인: 'couple', 남편: 'couple', 아내: 'couple', 친구: 'friend', 아이: 'kid', 선생님: 'teacher', 동료: 'coworker' }[who]] || MEM_EX.couple;
+
+/** 목소리: 성별이 정해지지 않은 카드(축하 팝 · 트로트)는 받는 사람에 맞춰요 · 아내에게 = 남자 · 남편에게 = 여자 (2026-11-11) */
+const GIFT_SWAP = { pop: ['m_soft', 'f_clear'], trot: ['m_trot', 'f_trot'] };
+export function giftTone(g) {
+  const t = giftSound(g.sound)[3], sw = GIFT_SWAP[g.sound];
+  if (!sw) return t;
+  return g.who === '아내' ? sw[0] : g.who === '남편' ? sw[1] : t;
+}
+const OCC_SHORT_X = { birthday: '생일', anniversary: '기념일', wedding: '결혼기념일', parents: '감사', thanks: '고마움', love: '고백', friend: '우정', cheer: '응원', newstart: '새출발', sorry: '화해' };
+/** 서버 선물 작사 규칙에 넘길 값 */
+export const giftAskOf = (g) => ({ to: g.who, name: (g.name || '').trim(), occasion: OCC_SHORT_X[g.occ] || '', memories: (g.mem || []).map((m) => m.trim()).filter(Boolean) });
