@@ -59,6 +59,16 @@ export function estimateCues(lyrics, duration) {
   return { sections, cues };
 }
 
+/** 서버가 준 구간(스튜디오 곡 구조 · 정밀이면 실제 시작 시간) → 같은 모양의 timing. 곡 길이가 조금 다르면 비율로 맞춰요 */
+export function cuesFromSections(secs, duration) {
+  const last = secs.length ? secs[secs.length - 1].e : 0;
+  const k = duration > 0 && last > 0 && Math.abs(duration / last - 1) < 0.12 ? duration / last : 1;
+  const sections = secs.map((x) => ({ key: x.k, start: x.s * k, end: x.e * k, lines: Array.isArray(x.l) ? x.l : [], exact: !!x.x }));
+  const cues = [];
+  for (const x of sections) x.lines.forEach((text, i) => cues.push({ t: x.start + 0.2 + ((x.end - x.start) * i) / (x.lines.length + 0.6), text, sec: x.key, spoken: x.key === 'narr' }));
+  return { sections, cues, exact: sections.some((x) => x.exact) };
+}
+
 /** 지금 위치의 줄 번호 (전주 · 마무리면 -1) */
 export function cueAt(timing, pos) {
   if (!timing) return -1;
@@ -149,7 +159,7 @@ export function openMv(ctx) {
   document.body.appendChild(root);
   const q = (s) => root.querySelector(s);
   const L = [q('[data-l="0"]'), q('[data-l="1"]')];
-  let tv = !!ctx.tv, li = 0, slide = 0, pics = [], forId = null, timing = null, lyrics = null, timedFor = 0, lufs = null, lineKey = '', anim = null;
+  let tv = !!ctx.tv, li = 0, slide = 0, pics = [], forId = null, timing = null, lyrics = null, timedFor = 0, lufs = null, lineKey = '', anim = null, srvSecs = null;
   let scenes = null, sceneAt = -1, hintT = 0;
   let hideT = 0, slideT = 0, pollT = 0, clockT = 0, wake = null, shift = 0, qrSvg = '', qrFor = '';
   const fmt = (s) => !isFinite(s) || s < 0 ? '0:00' : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -175,7 +185,7 @@ export function openMv(ctx) {
     if (pics.length > 1) slideT = setInterval(() => { if (!ctx.audio().paused && !scenes) show(++slide); }, slideLen());
   }
   async function loadTrack(t) {
-    forId = t?.id ?? null; lyrics = null; timing = null; timedFor = 0; lufs = null; lineKey = ''; scenes = null; sceneAt = -1;
+    forId = t?.id ?? null; lyrics = null; timing = null; timedFor = 0; lufs = null; lineKey = ''; scenes = null; sceneAt = -1; srvSecs = null;
     pics = t ? ctx.pics(t) : [];
     restartSlides(); chips(); lyricsUi(); tvUi();
     if (!t) return;
@@ -185,6 +195,8 @@ export function openMv(ctx) {
       if (Number.isFinite(j?.lufs)) lufs = j.lufs;
       // 2단계 AI 6컷이 있으면 곡 구간을 따라 장면이 바뀌어요 (빈 칸은 분위기 그림)
       if (Array.isArray(j?.scenes) && j.scenes.length === 6 && j.scenes.some(Boolean)) { scenes = j.scenes; sceneAt = -1; }
+      // 스튜디오 곡: 서버가 아는 실제 곡 구조로 가사 시간을 맞춰요 (어림보다 정확 · 정밀 구간이면 실제 시작 시간)
+      if (Array.isArray(j?.sections) && j.sections.some((x) => x.l?.length)) { srvSecs = j.sections; timedFor = 0; lineKey = ''; }
       chips(); tvUi(); tick();
     }).catch(() => {});
     if (t.instrumental === false || t.instrumental == null) {
@@ -212,10 +224,10 @@ export function openMv(ctx) {
     const el = ctx.audio(), t = ctx.track();
     if ((t?.id ?? null) !== forId) { loadTrack(t); return; }
     const d = el.duration;
-    if (lyrics && d > 0 && Math.abs(d - timedFor) > 1) {
-      const first = !timedFor; timedFor = d; timing = estimateCues(lyrics, d); chips(); lineKey = '';
-      // 가사가 처음 붙을 때 3초만 작게 (늘 떠 있으면 몰입이 깨져요)
-      if (first && !tv) { q('.hint').classList.add('on'); clearTimeout(hintT); hintT = setTimeout(() => q('.hint')?.classList.remove('on'), 3000); }
+    if ((lyrics || srvSecs) && d > 0 && Math.abs(d - timedFor) > 1) {
+      const first = !timedFor; timedFor = d; timing = srvSecs ? cuesFromSections(srvSecs, d) : estimateCues(lyrics, d); chips(); lineKey = '';
+      // 가사가 처음 붙을 때 3초만 작게 (늘 떠 있으면 몰입이 깨져요) · 실제 시간으로 맞춘 곡은 안내 없이
+      if (first && !tv && !timing.exact) { q('.hint').classList.add('on'); clearTimeout(hintT); hintT = setTimeout(() => q('.hint')?.classList.remove('on'), 3000); }
     }
     if (scenes) { const k = sceneSlot(timing, el.currentTime || 0, d); if (k !== sceneAt) { sceneAt = k; show(k, scenes[k] || pics[k % (pics.length || 1)], true); } }
     lyricsUi();
