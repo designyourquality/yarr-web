@@ -94,9 +94,19 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .bad .env,.bad .player{display:none}.bad .err{display:block}
 .load .env h1,.load .env .cta{opacity:.4;pointer-events:none}
 @media (prefers-reduced-motion:reduce){.box,.lp{animation:none}.arm{transition:none}}
+/* 🎬 AI 장면 6컷 (2026-11-11 · 보낸 사람이 넣었을 때만): 노래 진행에 맞춰 천천히 바뀌는 배경 */
+.scn{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.scn i{position:absolute;inset:-4%;background:center/cover no-repeat;opacity:0;transition:opacity 1.6s ease;animation:scnKb 24s ease-in-out infinite alternate}
+.scn i.on{opacity:.6}
+.scn::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(18,18,20,.5),rgba(18,18,20,.72) 45%,rgba(18,18,20,.92))}
+@keyframes scnKb{from{transform:scale(1.04) translate(-2%,-1%)}to{transform:scale(1.18) translate(2%,1.5%)}}
+@media (prefers-reduced-motion:reduce){.scn i{animation:none}}
+body.has-scn{background:var(--bg)}
+.wrap{position:relative;z-index:1}
 </style>
 </head>
 <body class="load">
+<div class="scn" id="scn" aria-hidden="true"><i></i><i></i></div>
 <div class="wrap">
   <div class="top"><span class="logo" aria-hidden="true"></span><b>YARR</b><span class="ai" title="AI 작곡 · AI 가창">🤖 AI로 만든 노래</span></div>
 
@@ -139,7 +149,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   const $ = (id) => document.getElementById(id);
   const au = $('au');
   const token = new URLSearchParams(location.search).get('g') || '';
-  let gift = null, refetched = false, userScroll = 0;
+  let gift = null, refetched = false, userScroll = 0, scenes = null, sceneK = -1, sceneL = 0;
+  function scene(k) {
+    if (!scenes) return;
+    let u = null; for (let i = k; i >= 0 && !u; i--) u = scenes[i]; for (let i = k; i < 6 && !u; i++) u = scenes[i];
+    if (!u || k === sceneK) return;
+    sceneK = k;
+    const L = document.querySelectorAll('#scn i'), el = L[sceneL = 1 - sceneL];
+    el.style.backgroundImage = `url('${u}')`; el.classList.add('on'); L[1 - sceneL].classList.remove('on');
+  }
 
   const fail = () => { document.body.className = 'bad'; };
   const mmss = (s) => (isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '0:00');
@@ -177,6 +195,10 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
     }
     au.src = g.url;
     document.body.className = '';
+    // AI 장면 6컷: 노래를 여섯 구간으로 나눠 차례로 (빈 칸은 앞 장면을 이어가요)
+    scenes = Array.isArray(g.scenes) ? g.scenes : null;
+    if (scenes && scenes.some(Boolean)) { document.body.classList.add('has-scn'); scenes.forEach((u) => { if (u) { const im = new Image(); im.src = u; } }); scene(0); }
+    else scenes = null;
   }
 
   function setIcon(play) { $('ppIcon').setAttribute('d', play ? 'M7 5h4v14H7zM13 5h4v14h-4z' : 'M8 5v14l11-7z'); $('pp').setAttribute('aria-label', play ? '일시 정지' : '재생'); }
@@ -190,6 +212,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
     if (!au.duration) return;
     $('seek').value = String(Math.round((au.currentTime / au.duration) * 1000));
     $('cur').textContent = mmss(au.currentTime);
+    if (scenes) scene(Math.min(5, Math.floor((au.currentTime / au.duration) * 6)));
     // 흐르는 가사: 곡 진행만큼 천천히 내려가요 (직접 스크롤하면 8초 동안 멈춰요)
     const box = $('lyrics');
     if (Date.now() - userScroll > 8000 && box.scrollHeight > box.clientHeight) {

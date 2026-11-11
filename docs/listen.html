@@ -351,7 +351,7 @@ footer a:hover{text-decoration:underline}
   .stations{grid-template-columns:repeat(2,1fr)}.stations.five{grid-template-columns:repeat(2,1fr)}
   .trk{grid-template-columns:24px 44px minmax(0,1fr);padding:10px 12px;gap:10px}.trk .right .eng{display:none}.trk .right{grid-column:3;justify-self:start;margin-top:-4px}
   .kpis{grid-template-columns:1fr}.turn{flex-direction:column;text-align:center}.dctl{justify-content:center}
-  .dock .in{gap:12px;padding:10px 12px}.dock .l{width:auto;flex:1}.dock .c{flex:0 0 auto;margin:0}.scrub,.dock .r{display:none}
+  .dock .in{gap:12px;padding:10px 12px}.dock .l{width:auto;flex:1}.dock .c{flex:0 0 auto;margin:0}.scrub,.dock #shareSong{display:none}.dock #mvOpen{padding:6px 10px;font-size:12.5px}
   .sbanner .side{display:none}.sbanner .scard{flex-basis:100%}
 }
 @media (max-width:420px){.tabs .n,.tabs .lt,.tabs .spk{display:none}.hact .pill-btn span{display:none}.tabs button{padding:6px 8px}}
@@ -600,6 +600,7 @@ html,body{background:var(--bg)}
             <div class="dctl">
               <button class="btn" id="dPlay"><svg viewBox="0 0 24 24" id="dPlayIc"><path d="M8 5v14l11-7z"/></svg><span id="dPlayTx">재생</span></button>
               <button class="btn sub" id="dNext" disabled>다음 곡 ›</button>
+              <button class="btn sub" id="dTv" title="매장 TV · 태블릿에 띄우는 화면: 분위기 그림 · 가사 · 지금 곡 · QR">📺 매장 TV 화면</button>
               <button class="btn sub fav" id="dFav" disabled title="선호곡은 한 바퀴에 한 번 더 나와요 (약 2배)"><span id="dFavIc">♡</span> 선호곡 (약 2배)</button>
             </div>
           </div>
@@ -651,6 +652,7 @@ html,body{background:var(--bg)}
       <div class="scrub"><span id="cur">0:00</span><div class="tl" id="tl"><div><i id="fill"></i></div></div><span id="dur">0:00</span></div>
     </div>
     <div class="r">
+      <button class="pill-btn o" id="mvOpen" title="분위기 그림 · 큰 가사 전체 화면">🎬 MV</button>
       <button class="pill-btn" id="shareSong">📤 곡 링크 공유</button>
     </div>
   </div>
@@ -1233,6 +1235,26 @@ html,body{background:var(--bg)}
   $('prev').onclick = () => mode === 'listen' && idx > 0 && listenPlay(list, idx - 1);
   $('next').onclick = () => mode === 'listen' ? listenNext() : storeNext(true);
   $('tl').onclick = (e) => { const r = $('tl').getBoundingClientRect(); const el = audio(); if (el.duration && mode === 'listen') el.currentTime = ((e.clientX - r.left) / r.width) * el.duration; };
+  // 🎬 뮤직비디오 전체 화면 (2026-11-11 · 1단계 분위기 영상): 누를 때만 mv.js 를 불러와요. 차트 · 하단 바에서는 그림 · 애니메이션을 안 돌려요
+  const curTrack = () => mode === 'listen' ? list[idx] : storeQueue[storeQi];
+  const mvPics = (t) => {
+    const pool = poolOf(t), n = COVER_POOLS[pool] || 0; if (!n) return [];
+    const h = hash31('srv-' + t.id), step = n > 6 && n % 3 ? 3 : 1;   // 앱 MvScreen 과 같은 순서
+    return Array.from({ length: Math.min(6, n) }, (_, i) => `/covers/${pool}/${String((h + i * step) % n + 1).padStart(2, '0')}.webp`);
+  };
+  let mvMod = null;
+  async function openMvUi(tv) {
+    if (!curTrack()) { if (tv && mode !== 'store') return toast('매장 BGM 재생을 먼저 눌러 주세요'); if (!tv) return toast('먼저 곡을 재생해 주세요'); }
+    try { mvMod = mvMod || await import('./mv/mv.js?v=20261143'); } catch { return toast('MV 화면을 열지 못했어요. 새로고침 후 다시 눌러 주세요'); }
+    mvMod.openMv({
+      track: curTrack, audio, toggle: () => $('toggle').click(), next: () => $('next').click(), prev: () => $('prev').click(),
+      pics: mvPics, station: () => mode === 'store' ? ST[storeStationCode] : (stOf(curTrack() || {}) || null), api, sbUrl: SB_URL, sbKey: SB_KEY,
+      link: (t) => `${location.origin}/listen.html?t=${t.id}`,
+      fav: (t) => setFav(t.id, !favorites.has(t.id)), canFav: () => mode === 'store', tv,
+    });
+  }
+  $('mvOpen').onclick = () => openMvUi(false);
+  $('dTv').onclick = () => openMvUi(true);
   $('shareSong').onclick = () => { const t = mode === 'listen' ? list[idx] : storeQueue[storeQi]; if (t) share(`${base()}?t=${t.id}`, t.title); };
   if ('mediaSession' in navigator) {
     navigator.mediaSession.setActionHandler('play', () => $('toggle').click());
@@ -1348,7 +1370,7 @@ html,body{background:var(--bg)}
   async function studioBoot() {
     if (studioMod) { studioMod.show?.(); return runFork(); }
     try {
-      studioMod = await import('./studio/studio.js?v=20261141');
+      studioMod = await import('./studio/studio.js?v=20261143');
       await studioMod.mount($('studioRoot'), {
         loadSb, SB_URL, SB_KEY, STATIONS, ST, toast, esc, stPhoto, base, coverCss,
         pauseMain: () => { A.forEach((a) => a.pause()); },
@@ -1375,7 +1397,7 @@ html,body{background:var(--bg)}
     const paths = rows.map((r) => r.audio_url.slice('storage:uploads/'.length));
     const urls = {};
     for (let i = 0; i < paths.length; i += 200) { const { data: d } = await sb.functions.invoke('house-music/audio-urls', { body: { paths: paths.slice(i, i + 200) } }); Object.assign(urls, d?.urls || {}); }
-    const q = rows.map((r) => ({ id: r.id, title: r.title, artist: r.creator_nickname || 'YARR', genre: r.genre, engine: brand(r), tags: [storeStationCode], url: urls[r.audio_url.slice('storage:uploads/'.length)] })).filter((t) => t.url);
+    const q = rows.map((r) => ({ id: r.id, title: r.title, artist: r.creator_nickname || 'YARR', genre: r.genre, bpm: r.bpm, instrumental: r.is_instrumental !== false, engine: brand(r), tags: [storeStationCode], url: urls[r.audio_url.slice('storage:uploads/'.length)] })).filter((t) => t.url);
     // 선호곡 ♥: 한 바퀴에 한 번 더 (목록 반대편에 · 앱과 같은 방식)
     if (q.length >= 4) for (const f of q.filter((t) => favorites.has(t.id))) q.splice((q.indexOf(f) + Math.floor(q.length / 2)) % q.length, 0, f);
     storeQueue = q; storeQi = -1; loadedAt = Date.now();

@@ -7,7 +7,7 @@ import {
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
   lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS,
   STATION_GROUPS, stGroupOf, voicePicks, THEMES, THEME, OPENINGS, LY_PENS, LY_HEATS, LY_TALKS, LY_VIEWS, lyricStyleRequest, lyricRequest, sectionRequest, sectionStyleRequest, dailyPick,
-  VOICE_TUNE_CORE, GIFT_OCC, GIFT_WHO, GIFT_SOUNDS, giftSound, giftTheme, giftGenre, giftTo, giftStory, giftTitle, giftMemHints, giftTone, giftAskOf } from './studio-data.js?v=20261141';
+  VOICE_TUNE_CORE, GIFT_OCC, GIFT_WHO, GIFT_SOUNDS, giftSound, giftTheme, giftGenre, giftTo, giftStory, giftTitle, giftMemHints, giftTone, giftAskOf } from './studio-data.js?v=20261143';
 import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
 import { mountSequencer } from './seq-ui.js?v=20261115';
 import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261141';
@@ -1146,7 +1146,7 @@ async function makeGift() {
   try {
     const j = await call('make-gift', { make_id: t.id, title: (S.title || S.status.title || giftTitle(g)).trim(), to: giftTo(g), ...(g.from ? { from: g.from } : {}), occasion: g.occ, ...(S.giftMsg.trim() ? { message: S.giftMsg.trim() } : {}) });
     ls.set('studio_batch', null); ls.set('studio_gift', null); S.batch = null;
-    S.done = { gift: true, url: j.url, title: j.title, to: giftTo(g) };
+    S.done = { gift: true, url: j.url, title: j.title, to: giftTo(g), giftId: j.gift_id || null, board: null, boardDone: 0 };
     B.toast('선물 링크를 만들었어요 🎁');
   } catch (x) { err(x.message); } finally { S.busy = false; renderResult(); }
 }
@@ -1157,6 +1157,8 @@ function giftDone() {
     <p class="st-note">링크를 열면 LP가 돌아가며 가사와 함께 노래가 흘러요. 링크를 아는 사람만 들을 수 있어요.</p>
     ${d.url ? `<div class="lcd" style="margin-top:12px"><div class="lcd-1" style="white-space:normal;word-break:break-all">${esc(d.url)}</div></div>
     <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn" data-g="share">💬 카카오톡 · 문자로 보내기</button><button class="btn sub" data-g="copy">🔗 링크 복사</button><a class="btn sub" href="${esc(d.url)}" target="_blank" rel="noopener">▶ 미리 보기</a></div>` : '<p class="st-note">이 곡은 이미 선물로 간직했어요.</p>'}
+    ${d.url && d.giftId ? `<div class="up-rule" style="margin-top:14px"><b>✨ 선물 화면에 AI 장면 6컷 넣기</b><p class="st-note" style="margin:4px 0 8px">노래 구간마다 가로 장면 6장을 만들어 선물 링크 화면에 띄워요. 사람 얼굴은 넣지 않고 풍경 · 사물 · 뒷모습으로 그려요. 선물곡은 계정당 처음 한 번 무료 · 크리에이터 Pro는 한 달 20회예요.</p>
+      <button class="btn sub" data-g="scenes" ${d.board === 'RUNNING' || d.board === 'READY' ? 'disabled' : ''}>${d.board === 'RUNNING' ? `장면 만드는 중 · ${d.boardDone}/6` : d.board === 'READY' ? '✓ AI 장면 6컷이 선물 화면에 들어갔어요' : '✨ AI 장면 6컷 만들기'}</button></div>` : ''}
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn sub" data-g="again">🎁 다른 선물 만들기</button><button class="btn sub" data-g="make">만들기 화면으로</button></div>
   </div></div>`;
   body().onclick = async (e) => {
@@ -1164,9 +1166,33 @@ function giftDone() {
     const text = `${d.to ? d.to + '에게 ' : ''}노래 선물이 도착했어요 🎁\n${d.url}`;
     if (b.dataset.g === 'copy') { try { await navigator.clipboard.writeText(d.url); B.toast('링크를 복사했어요'); } catch { B.toast(d.url); } }
     if (b.dataset.g === 'share') { if (navigator.share) navigator.share({ title: d.title || '노래 선물', text }).catch(() => {}); else { try { await navigator.clipboard.writeText(text); B.toast('보낼 문구와 링크를 복사했어요 · 카카오톡에 붙여 넣어 주세요'); } catch { B.toast(d.url); } } }
+    if (b.dataset.g === 'scenes') return giftScenes();
     if (b.dataset.g === 'again') { S.gift = null; S.gq = null; S.giftMsg = ''; S.lyTab = 'gift'; S.vocal = true; freshStart(); restart(); }
     if (b.dataset.g === 'make') { S.gift = null; S.gq = null; S.giftMsg = ''; S.lyTab = 'ai'; freshStart(); restart(); }
   };
+}
+/** 🎬 선물에 AI 장면 6컷 (093 SQL · 2026-11-11): 무료 계정은 계정당 첫 1회 · Pro 는 한 달 20회 안에서 */
+async function giftScenes() {
+  const d = S.done; if (!d?.giftId || d.board === 'RUNNING') return;
+  try {
+    const u = await call('make-board', { action: 'usage' });
+    const left = u.pro ? u.month_left : u.free_left;
+    if (!left) return B.toast(u.pro ? '이번 달 AI 6컷 20회를 다 썼어요. 다음 달 1일에 다시 생겨요.' : '무료 AI 6컷은 계정당 한 번이에요. 크리에이터 Pro는 한 달 20회까지 만들 수 있어요.');
+    if (!confirm(u.pro ? `AI 장면 6컷을 만들까요? 이번 달 남은 횟수 ${left}회 / 20회 · 1~2분 걸려요` : '선물곡 무료 1회로 AI 장면 6컷을 만들까요? 1~2분 걸려요')) return;
+    d.board = 'RUNNING'; d.boardDone = 0; giftDone();
+    const j = await call('make-board', { action: 'start', gift_id: d.giftId }, 90000);
+    let n = 0;
+    const tick = async () => {
+      if (S.done !== d) return;   // 다른 화면으로 가면 멈춰요
+      const st = await call('make-board', { action: 'status', board_id: j.board_id }).catch(() => null);
+      if (st) { d.boardDone = st.done || 0; d.board = st.status; }
+      if (d.board === 'RUNNING' && ++n < 60) { giftDone(); return setTimeout(tick, 4000); }
+      if (d.board === 'RUNNING') d.board = null;
+      giftDone();
+      B.toast(d.board === 'READY' ? '선물 링크에 AI 장면 6컷이 들어갔어요' : '장면을 충분히 만들지 못했어요. 횟수는 빠지지 않았어요.');
+    };
+    setTimeout(tick, 4000);
+  } catch (x) { d.board = null; giftDone(); B.toast(x.message); }
 }
 /** 같은 가사로 새로 만들기: 마지막으로 나온 테이크의 가사 · 목소리를 만들기 화면에 채워요 (오늘 횟수 1번 · 앱과 같아요) */
 function againWith(change, takes) {
