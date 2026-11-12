@@ -18,6 +18,9 @@ RUN /opt/conda/bin/python -m pip install --no-cache-dir "faster-whisper==1.1.1" 
 RUN /opt/conda/bin/python -c "import torch; print('torch==' + torch.__version__.split('+')[0])" > /tmp/torch-pin.txt \
  && /opt/conda/bin/python -m pip install --no-cache-dir -c /tmp/torch-pin.txt "demucs==4.0.1" soundfile \
  && /opt/conda/bin/python -c "from demucs.pretrained import get_model; get_model('htdemucs')"
+# Lyric sync (2026-11-12): forced alignment with torchaudio MMS_FA (same torch pin · model downloaded at build time)
+RUN /opt/conda/bin/python -m pip install --no-cache-dir -c /tmp/torch-pin.txt "torchaudio==$(cut -d= -f3 /tmp/torch-pin.txt)" \
+ && /opt/conda/bin/python -c "import torchaudio; torchaudio.pipelines.MMS_FA.get_model(with_star=False)"
 COPY gpu/ace-step/stems.py /app/yarr_stems.py
 COPY gpu/ace-step/vocal_check.py /app/yarr_vocal_check.py
 # Edit tools (2026-11-07): section timing (align.py · same whisper model) · mix/key/tempo uses ffmpeg in handler.py
