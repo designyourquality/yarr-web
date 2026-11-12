@@ -136,6 +136,8 @@ const CSS = `
 .ymv .np{flex:0 1 auto;width:fit-content;max-width:min(380px,100%);min-width:0;padding:10px 14px;border-radius:12px;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.09)}
 .ymv .np .k{font-family:'DotGothic',monospace;font-size:11px;color:#ff9a5c}.ymv .np b{display:block;font-size:18px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ymv .np span{font-size:12.5px;color:rgba(255,255,255,.8)}
 .ymv .qr{flex:none;padding:8px;border-radius:12px;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.09);text-align:center;font-size:10.5px;font-weight:700}
+.ymv .nb{position:absolute;left:16px;top:62px;max-width:calc(100% - 32px);transition:top .25s}.ymv.hide-ui .nb{top:16px}.ymv .nb .np{background:rgba(0,0,0,.36)}
+.ymv .nq{position:absolute;right:16px;bottom:22px;opacity:0;pointer-events:none;transition:opacity .25s}.ymv.hide-ui .nq{opacity:1}
 .ymv .qr .q{width:84px;height:84px;background:#fff;border-radius:4px;padding:4px;margin:0 auto 4px}.ymv .qr .q svg{width:100%;height:100%;display:block}
 .ymv.tv .bar{bottom:auto;top:84px;left:50%;right:auto;transform:translateX(-50%)}
 @media (max-width:640px){.ymv .tvl{left:24px;top:64px}.ymv .tvl .k{font-size:12px}.ymv.tv .bar{top:118px}.ymv .ly{bottom:150px}.ymv.tv .ly{bottom:170px}.ymv .tvr .clk{font-size:30px}.ymv .qr .q{width:64px;height:64px}}
@@ -249,7 +251,17 @@ export function openMv(ctx) {
   }
   async function tvUi() {
     const box = q('.tvx');
-    if (!tv) { box.innerHTML = ''; q('.tvbtn').innerHTML = ''; return; }
+    if (!tv) {
+      // 일반 MV (2026-11-12 · 대표님 제안 '처음부터 매장 TV 처럼'): 곡 제목 카드는 늘 왼쪽 위, QR 은 조작 막대가 숨으면 오른쪽 아래
+      //   매장용 문구 · 시계 · LIVE 는 매장 TV 모드에서만
+      q('.tvbtn').innerHTML = '';
+      const t = ctx.track(), url = t ? ctx.link(t) : '';
+      const svg = url ? await qrFor_(url) : '';
+      if (tv || ctx.track() !== t) return;   // 기다리는 사이 바뀌었으면 다음 호출이 그려요
+      box.innerHTML = t ? `<div class="nb"><div class="np"><div class="k">NOW PLAYING</div><b>${esc(t.title || '-')}</b><span>${esc(sub(t))}</span></div></div>
+        ${svg ? `<div class="nq qr"><div class="q" role="img" aria-label="이 곡 바로 듣기 QR">${svg}</div>QR 찍고 바로 듣기</div>` : ''}` : '';
+      return;
+    }
     const t = ctx.track(), st = ctx.station?.(), now = new Date();
     const hh = String(now.getHours()).padStart(2, '0'), mm = String(now.getMinutes()).padStart(2, '0');
     const url = t ? ctx.link(t) : '';
