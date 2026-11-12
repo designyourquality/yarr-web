@@ -333,6 +333,8 @@ ul.all button.on{color:#FF7A9A;border-color:rgba(255,122,154,.4)}
 .toast span{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(255,94,26,.2);border:1px solid rgba(255,94,26,.4);color:#FB923C;font-size:11px;flex-shrink:0}
 .modal{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.75);backdrop-filter:blur(8px)}
 .modal.on{display:flex}
+.fbk{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}.fbk button{font:inherit;font-size:13px;font-weight:700;color:#D4D4D8;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}.fbk button.on{color:#fff;border-color:#FB923C;background:rgba(251,146,60,.16)}
+.fbx{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:14px;color:#fff;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;margin:0 0 8px}textarea.fbx{min-height:130px;resize:vertical}
 .modal .box{position:relative;width:100%;max-width:440px;border-radius:26px;padding:26px;max-height:90vh;overflow-y:auto}
 .modal .x{position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.1);display:grid;place-items:center}
 .modal h3{margin:6px 0 10px;font-size:19px;font-weight:800}
@@ -633,7 +635,7 @@ html,body{background:var(--bg)}
 
 <footer>
   <p>YARR (야르) · 상호: 디와이큐 · 대표: 원대연 · 사업자등록번호: 734-15-02973 · 통신판매업 신고: 제2026-화성동탄-3868호 · 주소: 경기도 화성시 동탄구 동탄중심상가2길 26-21, 603-가39호 (반송동, 로드프라자) · 문의: <a href="mailto:contact@yarrmusic.com">contact@yarrmusic.com</a></p>
-  <p><a href="plans.html">요금제</a> · <a href="privacy.html">개인정보 처리방침</a> · <a href="terms.html">이용약관</a> · <a href="index.html">YARR 소개</a> · YARR의 곡은 모두 AI로 만든 곡이에요.</p>
+  <p><a href="plans.html">요금제</a> · <a href="privacy.html">개인정보 처리방침</a> · <a href="terms.html">이용약관</a> · <a href="index.html">YARR 소개</a> · <a href="#" data-modal="mFeedback">💬 의견 보내기</a> · YARR의 곡은 모두 AI로 만든 곡이에요.</p>
 </footer>
 
 <!-- 하단 플레이어 -->
@@ -660,6 +662,18 @@ html,body{background:var(--bg)}
 <div class="toast" id="toast" role="status"><span>✓</span><b id="toastMsg" style="font-weight:500"></b></div>
 
 <!-- 모달 -->
+<!-- 💬 의견 보내기 (2026-11-12 · 앱과 같은 의견함 · submit_feedback · 하루 5건) -->
+<div class="modal" id="mFeedback"><div class="box glass"><button class="x" data-close aria-label="닫기">✕</button>
+  <span class="kick" style="color:#FB923C">YARR 의견함</span><h3>💬 의견 보내기</h3>
+  <p class="soft" style="font-size:12.5px;margin:0 0 8px">버그 · 바라는 기능 · 곡이나 소리에 대한 의견을 알려 주세요. 운영팀이 모두 읽어요.</p>
+  <div class="fbk" id="fbKinds"><button data-k="BUG">🐞 버그</button><button data-k="IDEA" class="on">💡 개선 아이디어</button><button data-k="STORE">🏪 매장 이용</button><button data-k="OTHER">💬 기타</button></div>
+  <textarea class="fbx" id="fbMsg" maxlength="2000" placeholder="자유롭게 적어 주세요"></textarea>
+  <input class="fbx" id="fbMail" type="email" autocomplete="email" placeholder="답장 받을 이메일 (선택)">
+  <p class="soft" id="fbNote" style="font-size:12.5px;margin:0 0 10px;min-height:1em"></p>
+  <button class="btn" id="fbSend" style="width:100%;justify-content:center">보내기</button>
+  <p class="soft" style="font-size:11.5px;margin:10px 0 0">로그인한 계정으로 보내져요. 권리 침해 신고는 곡의 🚨 신고를 이용해 주세요. 메일 문의: <a href="mailto:contact@yarrmusic.com" style="color:#FB923C">contact@yarrmusic.com</a></p>
+</div></div>
+
 <div class="modal" id="mApp"><div class="box glass"><button class="x" data-close aria-label="닫기">✕</button>
   <span class="kick" style="color:#FB923C">YARR 앱</span><h3>앱에서는 이런 걸 더 할 수 있어요</h3>
   <div class="card"><b>차트에 반영되는 재생</b> · 좋아요 · 내 보관함</div>
@@ -1373,6 +1387,35 @@ html,body{background:var(--bg)}
   $('email').onkeydown = (e) => { if (e.key === 'Enter') $('sendCode').click(); };
   const logout = async () => { storeStop(); await sb?.auth.signOut(); storeReady = false; showStore('storeLogin'); oauthButtons(); };
   $('logout').onclick = logout; $('logout2').onclick = logout;
+
+  // ---------- 💬 의견 보내기 (2026-11-12): 앱 설정의 '의견 보내기'와 같은 의견함 (관리자 콘솔) ----------
+  let fbKind = 'IDEA';
+  $('fbKinds').onclick = (e) => { const b = e.target.closest('[data-k]'); if (!b) return; fbKind = b.dataset.k; $('fbKinds').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); $('fbMsg').placeholder = fbKind === 'BUG' ? '어떤 화면에서 무엇을 눌렀을 때 어떻게 됐는지 적어 주세요' : '자유롭게 적어 주세요'; };
+  const fbNote = (t, bad) => { $('fbNote').textContent = t || ''; $('fbNote').style.color = bad ? '#F87171' : ''; };
+  document.addEventListener('click', async (e) => {
+    if (!e.target.closest('[data-modal="mFeedback"]')) return;
+    e.preventDefault(); fbNote('');
+    try { await loadSb(); const { data: { session: s } } = await sb.auth.getSession(); if (s?.user?.email && !$('fbMail').value) $('fbMail').value = s.user.email; if (!s) fbNote('스튜디오 탭에서 로그인한 뒤 보낼 수 있어요. 로그인 없이 보내려면 아래 메일로 보내 주세요.'); } catch { /* 보낼 때 다시 확인해요 */ }
+  });
+  $('fbSend').onclick = async () => {
+    const msg = $('fbMsg').value.trim(), mail = $('fbMail').value.trim();
+    if (msg.length < 2) return fbNote('내용을 조금 더 적어 주세요.', true);
+    if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return fbNote('이메일 주소를 다시 확인해 주세요.', true);
+    $('fbSend').disabled = true; fbNote('보내는 중…');
+    try {
+      await loadSb();
+      const { data: { session: s } } = await sb.auth.getSession();
+      if (!s) { fbNote('스튜디오 탭에서 로그인한 뒤 보낼 수 있어요. 로그인 없이 보내려면 아래 메일로 보내 주세요.', true); return; }
+      const { error } = await sb.rpc('submit_feedback', { p_kind: fbKind, p_message: msg, p_email: mail || null, p_version: 'web', p_platform: 'web' });
+      if (error) {
+        const m = String(error.message || '');
+        fbNote(/TOO_MANY_FEEDBACK/.test(m) ? '오늘은 의견을 5건까지 보낼 수 있어요. 내일 다시 보내 주세요.' : /TOO_LONG/.test(m) ? '2,000자까지 적을 수 있어요.' : /BAD_EMAIL/.test(m) ? '이메일 주소를 다시 확인해 주세요.' : /TOO_SHORT/.test(m) ? '내용을 조금 더 적어 주세요.' : '보내지 못했어요. 잠시 후 다시 시도해 주세요.', true);
+        return;
+      }
+      $('fbMsg').value = ''; fbNote(''); $('mFeedback').classList.remove('on');
+      toast('의견을 보냈어요. 고맙습니다! 꼼꼼히 읽어 볼게요.');
+    } catch { fbNote('보내지 못했어요. 인터넷 연결을 확인해 주세요.', true); } finally { $('fbSend').disabled = false; }
+  };
 
   // ---------- 스튜디오 (따로 된 파일 · 처음 열 때만 불러와요) ----------
   let studioMod = null, pendingFork = null;
