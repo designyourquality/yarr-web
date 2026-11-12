@@ -18,15 +18,12 @@ RUN /opt/conda/bin/python -m pip install --no-cache-dir "faster-whisper==1.1.1" 
 RUN /opt/conda/bin/python -c "import torch; print('torch==' + torch.__version__.split('+')[0])" > /tmp/torch-pin.txt \
  && /opt/conda/bin/python -m pip install --no-cache-dir -c /tmp/torch-pin.txt "demucs==4.0.1" soundfile \
  && /opt/conda/bin/python -c "from demucs.pretrained import get_model; get_model('htdemucs')"
-# Lyric sync (2026-11-12): forced alignment with torchaudio MMS_FA (same torch pin)
-# The model download failed the first build (SSL "certificate has expired" with the image's old CA list),
-# so use certifi's fresh CA list and never fail the build on the download: align.py retries at run time
-# and falls back to whisper segments if the model still can't be fetched.
-RUN /opt/conda/bin/python -m pip install --no-cache-dir -c /tmp/torch-pin.txt "torchaudio==$(cut -d= -f3 /tmp/torch-pin.txt)" \
- && /opt/conda/bin/python -m pip install --no-cache-dir -U certifi \
- && (SSL_CERT_FILE="$(/opt/conda/bin/python -c 'import certifi; print(certifi.where())')" \
-     /opt/conda/bin/python -c "import torchaudio; torchaudio.pipelines.MMS_FA.get_model(with_star=False)" \
-     || echo "MMS_FA model download skipped (will retry at run time)")
+# Lyric sync (2026-11-12): forced alignment = MMS 300M forced aligner (Hugging Face safetensors, pinned commit) + torchaudio forced_align.
+# torchaudio's own MMS_FA download host (dl.fbaipublicfiles.com) failed with an expired SSL certificate, so the same MMS
+# aligner weights come from Hugging Face instead. Same torch pin; transformers only loads the model (no torch swap).
+RUN /opt/conda/bin/python -m pip install --no-cache-dir -c /tmp/torch-pin.txt "torchaudio==$(cut -d= -f3 /tmp/torch-pin.txt)" "transformers==4.46.3" \
+ && /opt/conda/bin/python -c "from huggingface_hub import snapshot_download; snapshot_download('MahmoudAshraf/mms-300m-1130-forced-aligner', revision='49402e9577b1158620820667c218cd494cc44486', local_dir='/opt/mms_fa', allow_patterns=['config.json', 'model.safetensors', 'vocab.json'])" \
+ && /opt/conda/bin/python -c "from transformers import Wav2Vec2ForCTC; Wav2Vec2ForCTC.from_pretrained('/opt/mms_fa', use_safetensors=True)"
 COPY gpu/ace-step/stems.py /app/yarr_stems.py
 COPY gpu/ace-step/vocal_check.py /app/yarr_vocal_check.py
 # Edit tools (2026-11-07): section timing (align.py · same whisper model) · mix/key/tempo uses ffmpeg in handler.py
