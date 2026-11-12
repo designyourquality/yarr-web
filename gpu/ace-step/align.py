@@ -122,6 +122,12 @@ def forced_lines(path: str, lines: list) -> dict:
         raise ValueError('음원이 너무 짧아요')
     peak = float(wav.abs().max()) or 1.0
     wav = wav / peak * 0.9
+    try:   # 이미지의 오래된 인증서 목록 대신 certifi (모델 받기가 'certificate has expired' 로 실패했어요 · 2026-11-12)
+        import os
+        import certifi
+        os.environ.setdefault('SSL_CERT_FILE', certifi.where())
+    except Exception:   # noqa: BLE001
+        pass
     bundle = torchaudio.pipelines.MMS_FA
     labels = bundle.get_labels(star=None)
     dic = {c: i for i, c in enumerate(labels)}
