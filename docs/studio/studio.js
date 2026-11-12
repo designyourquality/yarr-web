@@ -703,6 +703,8 @@ async function aiWrite(quiet) {
   try {
     const j = await call('lyrics', { topic, station: S.recipe.station, genre: S.recipe.genre, bridge: S.bridgeOn, lang: S.aiLang, form: S.gift ? 'long' : S.aiForm, recipe: S.recipe, vocal: S.tone, ...(S.gift ? { gift: giftAskOf(S.gift) } : {}), style: { talk: S.aiTalk, view: S.aiView, hook: S.aiHook, eng: S.aiLang !== 'en' && S.aiEng !== 'none' ? S.aiEng : false, pen: S.aiPen, heat: S.aiHeat }, ...(S.photo ? { image: { media: S.photo.media, data: S.photo.data } } : {}) }, 60000);
     S.ly = { v: (j.verse || []).join('\n'), c: (j.chorus || []).join('\n'), b: S.bridgeOn ? (j.bridge || []).join('\n') : S.ly.b };
+    // 풀 버전 가사(절 14줄 이상)는 4분에 맞춘 구조라 길이를 240초로 (2026-11-12 · 주제를 바꾸면 길이가 기본값으로 돌아갔어요)
+    if ((j.verse || []).length >= 14 && S.recipe.duration < 240) S.recipe.duration = 240;
     S.aiDraft = normLyrics(S.ly.v, S.ly.c, S.bridgeOn ? S.ly.b : '');
     // 🎁 선물곡은 '수진에게 · 결혼기념일' 대신 AI가 지은 진짜 노래 제목으로
     if (j.title && (S.gift || !S.title.trim() || S.title === defaultTitle(S.recipe.station))) S.title = String(j.title).slice(0, 60);
