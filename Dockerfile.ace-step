@@ -18,9 +18,15 @@ RUN /opt/conda/bin/python -m pip install --no-cache-dir "faster-whisper==1.1.1" 
 RUN /opt/conda/bin/python -c "import torch; print('torch==' + torch.__version__.split('+')[0])" > /tmp/torch-pin.txt \
  && /opt/conda/bin/python -m pip install --no-cache-dir -c /tmp/torch-pin.txt "demucs==4.0.1" soundfile \
  && /opt/conda/bin/python -c "from demucs.pretrained import get_model; get_model('htdemucs')"
-# Lyric sync (2026-11-12): forced alignment with torchaudio MMS_FA (same torch pin · model downloaded at build time)
+# Lyric sync (2026-11-12): forced alignment with torchaudio MMS_FA (same torch pin)
+# The model download failed the first build (SSL "certificate has expired" with the image's old CA list),
+# so use certifi's fresh CA list and never fail the build on the download: align.py retries at run time
+# and falls back to whisper segments if the model still can't be fetched.
 RUN /opt/conda/bin/python -m pip install --no-cache-dir -c /tmp/torch-pin.txt "torchaudio==$(cut -d= -f3 /tmp/torch-pin.txt)" \
- && /opt/conda/bin/python -c "import torchaudio; torchaudio.pipelines.MMS_FA.get_model(with_star=False)"
+ && /opt/conda/bin/python -m pip install --no-cache-dir -U certifi \
+ && (SSL_CERT_FILE="$(/opt/conda/bin/python -c 'import certifi; print(certifi.where())')" \
+     /opt/conda/bin/python -c "import torchaudio; torchaudio.pipelines.MMS_FA.get_model(with_star=False)" \
+     || echo "MMS_FA model download skipped (will retry at run time)")
 COPY gpu/ace-step/stems.py /app/yarr_stems.py
 COPY gpu/ace-step/vocal_check.py /app/yarr_vocal_check.py
 # Edit tools (2026-11-07): section timing (align.py · same whisper model) · mix/key/tempo uses ffmpeg in handler.py
