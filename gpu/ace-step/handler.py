@@ -261,14 +261,27 @@ def _src_file(inp: dict, tmp: str) -> str:
 
 def align(inp: dict, t0: float) -> dict:
     """구간 찾기 (2026-11-07): 노래 줄이 나오는 시간 → 서버가 1절 · 후렴 버튼 시간을 맞춰요 (align.py · /opt/conda)"""
+    # 2026-11-12: 'lines'(부르는 순서대로 가사 줄)를 주면 받아쓰기 대신 강제 정렬로 줄마다 [시작, 끝, 점수]를 돌려줘요
     lang = str(inp.get('vocal_language') or 'ko')
+    lines = inp.get('lines') if isinstance(inp.get('lines'), list) else None
     with tempfile.TemporaryDirectory() as tmp:
         src = _src_file(inp, tmp)
-        r = subprocess.run([VOCAL_PY, '/app/yarr_align.py', src, lang], capture_output=True, text=True, timeout=400)
+        cmd = [VOCAL_PY, '/app/yarr_align.py', src, lang]
+        if lines:
+            lp = os.path.join(tmp, 'lines.json')
+            with open(lp, 'w', encoding='utf-8') as f:
+                json.dump([str(x)[:200] for x in lines[:300]], f, ensure_ascii=False)
+            cmd.append(lp)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=500)
         if r.returncode != 0 or not r.stdout.strip():
             raise RuntimeError(f'구간 찾기 실패: {(r.stderr or r.stdout)[-300:]}')
         res = json.loads(r.stdout.strip().splitlines()[-1])
-    return {'segments': res.get('segments') or [], 'took': round(time.time() - t0, 1), 'task': 'align'}
+    out = {'segments': res.get('segments') or [], 'took': round(time.time() - t0, 1), 'task': 'align'}
+    if isinstance(res.get('lines'), list):
+        out.update(lines=res['lines'], vocals=bool(res.get('vocals')))
+    elif res.get('fa_error'):
+        out['fa_error'] = res['fa_error']
+    return out
 
 
 _RUBBER = None
