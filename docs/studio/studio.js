@@ -701,6 +701,7 @@ async function aiWrite(quiet) {
   const mine = hasLines() && normLyrics(S.ly.v, S.ly.c, S.bridgeOn ? S.ly.b : '') !== S.aiDraft;
   if (!quiet && mine && !confirm('지금 가사를 바꿀까요?\n적어 둔 가사가 AI가 쓴 가사로 바뀌어요.')) return;
   S.aiBusy = true; err(''); goBtn();
+  let again = false;
   const ai = root.querySelector('#mAi'); if (ai) ai.innerHTML = '<span class="spin"></span>';
   try {
     const j = await call('lyrics', { topic, station: S.recipe.station, genre: S.recipe.genre, bridge: S.bridgeOn, lang: S.aiLang, form: S.gift ? 'long' : S.aiForm, recipe: S.recipe, vocal: S.tone, ...(S.gift ? { gift: giftAskOf(S.gift) } : {}), style: { talk: S.aiTalk, view: S.aiView, hook: S.aiHook, eng: S.aiLang !== 'en' && S.aiEng !== 'none' ? S.aiEng : false, pen: S.aiPen, heat: S.aiHeat }, ...(S.photo ? { image: { media: S.photo.media, data: S.photo.data } } : {}) }, 60000);
@@ -712,7 +713,12 @@ async function aiWrite(quiet) {
     if (j.title && (S.gift || !S.title.trim() || S.title === defaultTitle(S.recipe.station))) S.title = String(j.title).slice(0, 60);
     S.consent = false;
     B.toast('AI가 가사를 썼어요 · 확인하고 [필수] 동의에 체크해 주세요');
-  } catch (x) { err(x.message); } finally { S.aiBusy = false; renderMake(); }
+  } catch (x) {
+    // 규칙에 안 맞게 나오면 아래 빨간 글씨만 보이고 다음 할 일을 몰랐어요 (2026-11-12) → 바로 다시 쓸지 물어요
+    if (x.code === 'LYRICS_AI_RETRY' && confirm('AI가 쓴 가사가 줄 수 · 길이 규칙에 맞지 않았어요.\n한 번 더 써 볼까요? (주제는 그대로예요)')) again = true;
+    else err(x.code === 'LYRICS_AI_RETRY' ? '가사가 규칙에 맞지 않게 나왔어요. [✨ 가사 쓰기] 를 한 번 더 눌러 주세요.' : x.message);
+  } finally { S.aiBusy = false; renderMake(); }
+  if (again) return aiWrite(true);
 }
 async function aiBridge() {
   if (!lines(S.ly.v).length || !lines(S.ly.c).length) return B.toast('절과 후렴을 먼저 채워 주세요');

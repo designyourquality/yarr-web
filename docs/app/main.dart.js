@@ -140479,7 +140479,7 @@ if(f!=null)h.n(0,"image",A.a1(["media",f.b,"data",f.a],j,j))
 h.n(0,"recipe",a0)
 h.n(0,"vocal",a3)
 s=3
-return A.e(p.jm("lyrics",h,60),$async$Di)
+return A.e(p.jm("lyrics",h,120),$async$Di)
 case 3:o=a5
 n=o.a
 m=o.b
