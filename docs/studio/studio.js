@@ -7,10 +7,10 @@ import {
   ADLIBS, NARR_POS, NARR_TONE, NARR_VOICE, NARR_HINT, LYRIC_HINT, errText, newRecipe, bpmOf, genreName, defaultTitle,
   lines, lyricLang, lyricsProblem, narrProblem, lineWarn, normLyrics, splitLyrics, quotaOf, makeLabel, diffDraft, applyRequest, voiceLabel, VOICE_TUNE_ROWS,
   STATION_GROUPS, stGroupOf, voicePicks, THEMES, THEME, OPENINGS, LY_PENS, LY_HEATS, LY_TALKS, LY_VIEWS, lyricStyleRequest, lyricRequest, sectionRequest, sectionStyleRequest, dailyPick,
-  VOICE_TUNE_CORE, GIFT_OCC, GIFT_WHO, GIFT_SOUNDS, giftSound, giftTheme, giftGenre, giftTo, giftStory, giftTitle, giftMemHints, giftTone, giftAskOf } from './studio-data.js?v=20261143';
+  VOICE_TUNE_CORE, GIFT_OCC, GIFT_WHO, GIFT_SOUNDS, giftSound, giftTheme, giftGenre, giftTo, giftStory, giftTitle, giftMemHints, giftTone, giftAskOf } from './studio-data.js?v=20261160';
 import { ComposeDraft, ChordSlot, composeBars, composeRes } from './seq-core.js?v=20261113';
 import { mountSequencer } from './seq-ui.js?v=20261115';
-import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261150';
+import { mountUpload, mountMine, ICONS } from './studio-upload.js?v=20261160';
 
 const V = '20261146';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
@@ -366,14 +366,14 @@ function aiTab() {
 }
 function ownTab() {
   const r = S.recipe, pr = lyricsProblem(S.ly.v, S.ly.c, S.bridgeOn ? S.ly.b : '');
-  const blockStat = (t) => { const L = lines(t); if (!L.length) return '비어 있어요'; if (L.length > 8) return `${L.length}줄 · 8줄까지`; const long = L.filter((l) => l.replace(/\s/g, '').length > lineWarn(t)).length; return long ? `${L.length}줄 · 긴 줄 ${long}개` : `${L.length}줄 · 좋아요`; };
+  const blockStat = (t, max = 8) => { const L = lines(t); if (!L.length) return '비어 있어요'; if (L.length > max) return `${L.length}줄 · ${max}줄까지`; const long = L.filter((l) => l.replace(/\s/g, '').length > lineWarn(t)).length; return long ? `${L.length}줄 · 긴 줄 ${long}개` : `${L.length}줄 · 좋아요`; };
   const hint = LYRIC_HINT[r.station] || ['예: 골목 끝 작은 가게에 불이 켜지면', '예: 오늘 밤 우리의 노래는 멈추지 않아'];
   return `<p class="st-note" style="margin-top:0">한 줄에 15자 안팎으로 짧게 끊어 쓸수록 발음이 또렷해요 · 절 4줄 + 후렴 4줄 추천</p>
-    <div class="st-q" style="margin-top:10px">절 (Verse) · 도입부<span class="r" id="mStV">${blockStat(S.ly.v)}</span></div><textarea class="st-ta" data-ly="v" maxlength="400" placeholder="${esc('예: ' + hint[0].replace(/^예: /, ''))}">${esc(S.ly.v)}</textarea>
+    <div class="st-q" style="margin-top:10px">절 (Verse) · 도입부<span class="r" id="mStV">${blockStat(S.ly.v, 16)}</span></div><textarea class="st-ta" data-ly="v" maxlength="800" placeholder="${esc('예: ' + hint[0].replace(/^예: /, ''))}">${esc(S.ly.v)}</textarea>
     <div class="st-q">후렴 (Chorus) · 하이라이트<span class="r" id="mStC">${blockStat(S.ly.c)}</span></div><textarea class="st-ta" data-ly="c" maxlength="400" placeholder="${esc('예: ' + hint[1].replace(/^예: /, ''))}">${esc(S.ly.c)}</textarea>
     ${S.bridgeOn ? `<div class="st-q">브릿지 (Bridge) · 분위기 전환<span class="r"><button class="seq-key" id="mAiBridge">브릿지만 AI로 쓰기</button></span></div><textarea class="st-ta" data-ly="b" maxlength="400" placeholder="예: 잠시 멈춰 서서 하늘을 봐">${esc(S.ly.b)}</textarea>` : ''}
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sub" id="mBridge" style="padding:8px 12px;font-size:12.5px">${S.bridgeOn ? '브릿지 빼기' : '브릿지 추가'}</button>${chips(ADLIBS, null, 'data-adlib')}</div>
-    <p class="st-note" id="mLyStat">전체 ${lines(S.ly.v).length + lines(S.ly.c).length + (S.bridgeOn ? lines(S.ly.b).length : 0)}줄 · 4~20줄까지 · 150초 이상이면 후렴을 한 번 더 불러요${/[0-9&%~]/.test(S.ly.v + S.ly.c + S.ly.b) ? '<br>숫자 · 기호는 야르가 한글 발음으로 바꿔 불러요 (예: 12시 → 열두 시). 직접 한글로 쓰면 더 정확해요.' : ''}</p>
+    <p class="st-note" id="mLyStat">전체 ${lines(S.ly.v).length + lines(S.ly.c).length + (S.bridgeOn ? lines(S.ly.b).length : 0)}줄 · 4~32줄까지 · 150초 이상이면 후렴을 한 번 더 불러요${/[0-9&%~]/.test(S.ly.v + S.ly.c + S.ly.b) ? '<br>숫자 · 기호는 야르가 한글 발음으로 바꿔 불러요 (예: 12시 → 열두 시). 직접 한글로 쓰면 더 정확해요.' : ''}</p>
     ${S.aiDraft != null ? `<p class="st-note">${aiExact() ? '✨ AI가 쓴 가사예요 · 그대로 만들면 검수 후 기준 충족 시 매장 BGM 편성 후보가 될 수 있어요' : S.narr.pos !== 'none' && normLyrics(S.ly.v, S.ly.c, S.bridgeOn ? S.ly.b : '') === S.aiDraft ? '✏️ 첫마디(나레이션)를 직접 써서, 직접 쓴 가사로 보고 매장 편성에서는 빠져요' : '✏️ AI 가사를 고쳤어요 · 직접 쓴 가사로 보고 차트 · 리스너용으로만 공개돼요 (매장 편성 제외)'}</p>` : ''}
     ${hasLines() && pr ? `<p class="st-err st-note">${esc(errText(pr))}</p>` : ''}
     <details class="st-narr" ${S.narr.pos !== 'none' ? 'open' : ''}><summary class="st-q" style="cursor:pointer">🎙 말하기 & 나레이션 (선택 · 실험)</summary>
@@ -582,7 +582,7 @@ function bindMake() {
     if (d.time) { r.time = d.time; return renderMake(); }
     if (d.dur) { r.duration = +d.dur; return renderMake(); }
     if (d.lang) { S.aiLang = d.lang; return renderMake(); }
-    if (d.lform) { S.aiForm = d.lform; return renderMake(); }
+    if (d.lform) { S.aiForm = d.lform; if (d.lform === 'full') S.recipe.duration = 240; return renderMake(); }
     if (d.tune) { const [k, v] = d.tune.split(':'); if (+v) S.tune[k] = +v; else delete S.tune[k]; return renderMake(); }
     if (d.adlib) { S.adlib = S.adlib.includes(d.adlib) ? S.adlib.filter((x) => x !== d.adlib) : [...S.adlib, d.adlib]; t.classList.toggle('on'); return; }
     if (d.npos) { S.narr.pos = d.npos; return renderMake(); }
@@ -662,7 +662,7 @@ function aiSheet() {
       <div style="font-size:17px;font-weight:800">✨ AI 작사</div>
       <p class="st-note" style="margin:4px 0 10px">어떤 이야기를 노래로 만들까요? 한 줄로 적으면 AI가 위에서 고른 주제 · 장르 · 목소리 · 곡 흐름에 맞춰 가사를 써요. 누를 때마다 다른 시점 · 다른 이야기로 써요.</p>
       <div class="chips">${chips([['ko', '한국어'], ['en', 'English'], ['ja', '日本語']], S.aiLang, 'data-lang')}</div>
-      <div class="chips" style="margin-top:6px">${chips([['short', '짧게 · 절 2줄'], ['basic', '기본 · 절 4줄'], ['long', '길게 · 1절 + 2절']], S.aiForm, 'data-lform')}</div>
+      <div class="chips" style="margin-top:6px">${chips([['short', '짧게 · 절 2줄'], ['basic', '기본 · 절 4줄'], ['long', '길게 · 1절 + 2절'], ['full', '풀 버전 · 프리코러스 · 4분']], S.aiForm, 'data-lform')}</div>
       <div class="chips" style="margin-top:6px">${chips(LY_PENS, S.aiPen, 'data-lpen')}</div>
       <div class="chips" style="margin-top:6px">${chips(LY_HEATS, S.aiHeat, 'data-lheat')}</div>
       <div class="chips" style="margin-top:6px">${chips(LY_TALKS, S.aiTalk, 'data-ltalk')}</div>
@@ -685,7 +685,7 @@ function aiSheet() {
       if (topic.length < 2 && !S.photo) return B.toast('어떤 이야기를 노래로 만들지 한 줄 적거나 사진을 붙여 주세요');
       w.remove(); S.story = topic; renderMake(); return aiWrite(false); // 고친 문장은 위 칸에도 그대로 (앱과 같아요)
     }
-    if (d.lang) S.aiLang = d.lang; else if (d.lform) S.aiForm = d.lform; else if (d.lpen) S.aiPen = d.lpen; else if (d.lheat) S.aiHeat = d.lheat;
+    if (d.lang) S.aiLang = d.lang; else if (d.lform) { S.aiForm = d.lform; if (d.lform === 'full') S.recipe.duration = 240; } else if (d.lpen) S.aiPen = d.lpen; else if (d.lheat) S.aiHeat = d.lheat;
     else if (d.ltalk) S.aiTalk = d.ltalk; else if (d.lview) S.aiView = d.lview; else if (d.lhook) S.aiHook = !S.aiHook; else if (d.leng) S.aiEng = S.aiEng === d.leng ? 'none' : d.leng; else return;
     topic = w.querySelector('#aiTopic')?.value ?? topic; draw();
   };
@@ -1305,7 +1305,7 @@ function editSheet() {
       } else {
         const req = text.replace(/\s+/g, ' ').trim(), title = String(S.title || st.title || '').trim();
         const n = lines(ly.v).length, st2 = lyricStyleRequest(text);
-        const j = await call('lyrics', { topic: (title ? `${title} · ${req}` : req).slice(0, 80), station: r.station, genre: r.genre, bridge: !!ly.b.trim(), lang: lang(), form: n >= 6 ? 'long' : n <= 2 ? 'short' : 'basic', recipe: r, vocal: cur.tone,
+        const j = await call('lyrics', { topic: (title ? `${title} · ${req}` : req).slice(0, 80), station: r.station, genre: r.genre, bridge: !!ly.b.trim(), lang: lang(), form: n >= 14 ? 'full' : n >= 6 ? 'long' : n <= 2 ? 'short' : 'basic', recipe: r, vocal: cur.tone,
           style: { ...(st2.pen ? { pen: st2.pen } : {}), ...(st2.heat ? { heat: st2.heat } : {}) } }, 60000);
         ly.v = (j.verse || []).join('\n'); ly.c = (j.chorus || []).join('\n'); ly.b = (j.bridge || []).join('\n'); aiLy = true; note = '가사를 새로 썼어요. 아래에서 고쳐도 돼요.';
       }
@@ -1337,7 +1337,7 @@ function editSheet() {
         ${recipePanel(base, cur, ch.length + (lyChanged ? 1 : 0), vocal)}
       </div>
       ${vocal ? `<details style="margin-top:12px" ${lyChanged ? 'open' : ''}><summary class="st-q" style="cursor:pointer">가사 · 나레이션도 고치기</summary>
-        <div class="st-q">절 (Verse)</div><textarea class="st-ta" data-el="v" maxlength="400">${esc(ly.v)}</textarea>
+        <div class="st-q">절 (Verse)</div><textarea class="st-ta" data-el="v" maxlength="800">${esc(ly.v)}</textarea>
         <div class="st-q">후렴 (Chorus)</div><textarea class="st-ta" data-el="c" maxlength="400">${esc(ly.c)}</textarea>
         <div class="st-q">브릿지 (Bridge) · 비워 두면 빼요</div><textarea class="st-ta" data-el="b" maxlength="400">${esc(ly.b)}</textarea>
         <div class="st-q">나레이션</div><div class="chips">${chips(NARR_POS, narr.pos, 'data-np')}</div>

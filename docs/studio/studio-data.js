@@ -38,7 +38,7 @@ export const LEADS = [['auto', '자동'], ['piano', '피아노'], ['guitar', '�
 export const FLOWS = [['auto', '자동'], ['steady', '잔잔하게 유지'], ['build', '점점 고조'], ['groove', '리듬감 있게'], ['drop', '잔잔하다 터지게'], ['dreamy', '몽환적으로'], ['catchy', '귀에 꽂히는 후크'], ['emotional', '감정 폭발'], ['cinematic', '영화처럼 웅장하게'], ['minimal', '미니멀하게'], ['calmdown', '점점 차분하게'], ['loop', '끊김 없이 반복용']];
 export const WEATHERS = [['none', '상관없음'], ['sunny', '☀️ 맑음'], ['rain', '🌧 비'], ['snow', '❄️ 눈'], ['cloudy', '☁️ 흐림']];
 export const TIMES = [['none', '상관없음'], ['morning', '아침'], ['afternoon', '오후'], ['evening', '저녁'], ['night', '밤'], ['fridaynight', '🌙 금요일 밤']];
-export const DURATIONS = [90, 120, 150, 180, 210]; // 2026-11-06 90 · 210초 추가 (서버 STUDIO_DURATIONS 와 같아요)
+export const DURATIONS = [90, 120, 150, 180, 210, 240]; // 2026-11-12 240초 (풀 버전) // 2026-11-06 90 · 210초 추가 (서버 STUDIO_DURATIONS 와 같아요)
 export const KNOBS = [['warmth', '따뜻함', '차가움', '따뜻함'], ['energy', '바쁨', '한가함', '바쁨'], ['texture', '빈티지', '깔끔함', '빈티지']];
 export const ENERGY_SHIFT = [-16, -8, 0, 8, 16];
 
@@ -163,7 +163,7 @@ export const ERR = {
   REPAINT_RANGE: '다시 만들 구간은 3초~90초로 골라 주세요.', REPAINT_SOURCE: '이 테이크 음원을 읽지 못했어요. 잠시 뒤 다시 해 주세요.', STEMS_SOURCE: '이 테이크 음원을 읽지 못했어요. 잠시 뒤 다시 해 주세요.',
   REPAINT_OFF: '이 기능은 잠시 쉬고 있어요. 곧 다시 열게요.', STEMS_OFF: '이 기능은 잠시 쉬고 있어요. 곧 다시 열게요.', STEMS_LIMIT: '보컬 · 반주 나누기는 하루 10번까지예요. 내일 다시 해 주세요.',
   LYRICS_CONSENT: '직접 쓴 가사라는 데 동의해야 만들 수 있어요.', LYRICS_BLOCKS: '절(Verse)과 후렴(Chorus)을 모두 써 주세요.',
-  LYRICS_LENGTH: '가사는 전체 4~20줄, 한 칸에 8줄까지 쓸 수 있어요.', LYRICS_LINE_LONG: '한 줄이 너무 길어요. 30자 안으로 줄을 나눠 주세요.',
+  LYRICS_LENGTH: '가사는 전체 4~32줄, 절 16줄 · 후렴 · 브릿지 8줄까지 쓸 수 있어요.', LYRICS_LINE_LONG: '한 줄이 너무 길어요. 30자 안으로 줄을 나눠 주세요.',
   LYRICS_SPAM: '발음할 수 없는 자음 · 모음이나 같은 글자 반복은 빼 주세요.', LYRICS_BLOCKED: '가수 · 그룹 이름이나 욕설은 가사에 넣을 수 없어요.',
   VOCAL_OFF: '보컬곡 만들기를 잠시 멈췄어요.', NARR_EMPTY: '나레이션을 넣으려면 말할 문장을 한 줄 이상 써 주세요.', NARR_LENGTH: '나레이션은 2줄까지 쓸 수 있어요.',
   COMPOSE_BAD: '직접 찍은 멜로디를 읽지 못했어요. 음표를 3개 이상 찍었는지 확인해 주세요.',
@@ -204,7 +204,8 @@ export function lyricsProblem(v, c, b) {
   const V = lines(v), C = lines(c), B = lines(b);
   if (!V.length || !C.length) return 'LYRICS_BLOCKS';
   const total = V.length + C.length + B.length;
-  if (total < 4 || total > 20 || V.length > 8 || C.length > 8 || B.length > 8) return 'LYRICS_LENGTH';
+  // 2026-11-12 풀 버전: 전체 32줄 · 절 16줄 · 후렴 · 브릿지 8줄 (서버와 같아요)
+  if (total < 4 || total > 32 || V.length > 16 || C.length > 8 || B.length > 8) return 'LYRICS_LENGTH';
   const all = [...V, ...C, ...B], max = lyricLang(all.join('\n')) === 'en' ? 60 : 30;
   if (all.some((l) => llen(l) > max)) return 'LYRICS_LINE_LONG';
   if (spam(all.join('\n'))) return 'LYRICS_SPAM';
