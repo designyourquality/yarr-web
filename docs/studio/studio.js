@@ -359,7 +359,7 @@ function aiTab() {
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="st-note" style="margin:0;flex:1">💡 한 줄만 적어도 돼요 · 누를 때마다 다른 시점 · 다른 이야기로 써요</span><span class="st-cnt" style="margin:0"><span id="mStoryN">${S.story.length}</span>/150</span></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-top:8px">
       <label class="btn sub" style="padding:8px 12px;font-size:12.5px">📷 사진 첨부<input type="file" accept="image/*" id="mPhoto" hidden></label>
-      <button class="btn" id="mAi" style="padding:8px 14px;font-size:13px">${S.aiDraft ? '✨ 다시 쓰기' : '✨ AI 작사'}</button>
+      <button class="btn" id="mAi" style="padding:8px 14px;font-size:13px">${S.aiDraft ? '✨ 다시 쓰기' : '✨ 가사 쓰기'}</button>
     </div>
     ${S.photo ? `<div style="display:flex;gap:10px;align-items:center;margin-top:10px"><img src="${S.photo.url}" style="width:56px;height:56px;object-fit:cover;border-radius:10px"><span class="st-note" style="margin:0;flex:1">이 사진의 분위기로 가사를 써요 · 사진은 저장하지 않아요</span><button class="seq-x" id="mPhotoX" title="사진 빼기">✕</button></div>` : ''}
     ${lyPreview()}`;
@@ -529,6 +529,8 @@ function bindMake() {
       return;
     }
     if (d.lytab) {
+      // 2026-11-12: 이미 'AI 작사' 탭인데 또 누르면(이야기를 적고 탭을 버튼처럼 누른 경우) 작사 창을 열어요
+      if (d.lytab === 'ai' && S.lyTab === 'ai' && t.closest('.seg')) return aiSheet();
       S.lyTab = d.lytab;
       if (d.lytab === 'gift' && !S.gift) { S.gq = S.gq || { step: 0, occ: null, who: null, name: '', from: '', mem: ['', '', ''], sound: null }; gqPreview(); }
       return renderMake();
