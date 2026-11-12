@@ -4,7 +4,7 @@ ACE-Step 가상환경과 섞이지 않게 이미지 기본 파이썬(/opt/conda)
   사용: python align.py <음원 경로> <ko|en|ja>  →  {"segments": [[시작초, 끝초, "받아 적은 글"], ...], "took": 초}
 
 가사 줄 맞추기 (2026-11-12 · 🎬 MV 가사 싱크): 받아쓰기(whisper base)는 노래를 거의 못 알아들어서 줄 시간이 엉망이었어요.
-가사를 이미 알고 있으니 '받아 적기' 대신 '이 글자가 몇 초에 나오는지'만 찾아요 (강제 정렬 · torchaudio MMS_FA).
+가사를 이미 알고 있으니 '받아 적기' 대신 '이 글자가 몇 초에 나오는지'만 찾아요 (강제 정렬 · MMS 300M forced aligner + torchaudio forced_align).
   1) Demucs 로 보컬만 분리 (반주가 섞이면 정확도가 떨어져요 · 실패하면 원곡 그대로)
   2) 가사를 로마자로 바꿔 (한글 자모 → 라틴 · 영어는 그대로 · 일본어 가나) 줄 사이에 '아무 소리' 칸(*)을 끼워 한 번에 맞춰요
   사용: python align.py <음원 경로> <ko|en|ja> <가사 줄 JSON 파일>
@@ -109,7 +109,6 @@ def _mix_16k(path: str):
 def forced_lines(path: str, lines: list) -> dict:
     """가사 줄(부르는 순서) → 줄마다 [시작, 끝, 점수]"""
     import torch
-    import torchaudio
     import torchaudio.functional as F
     roman = [romanize(str(x)) for x in lines]
     if sum(1 for r in roman if r) < 2:
@@ -122,26 +121,28 @@ def forced_lines(path: str, lines: list) -> dict:
         raise ValueError('음원이 너무 짧아요')
     peak = float(wav.abs().max()) or 1.0
     wav = wav / peak * 0.9
-    try:   # 이미지의 오래된 인증서 목록 대신 certifi (모델 받기가 'certificate has expired' 로 실패했어요 · 2026-11-12)
-        import os
-        import certifi
-        os.environ.setdefault('SSL_CERT_FILE', certifi.where())
-    except Exception:   # noqa: BLE001
-        pass
-    bundle = torchaudio.pipelines.MMS_FA
-    labels = bundle.get_labels(star=None)
-    dic = {c: i for i, c in enumerate(labels)}
-    star = len(labels)
+    # 정렬 모델: MMS 300M forced aligner (torchaudio MMS_FA 와 같은 MMS 계열 · Hugging Face safetensors · 빌드 때 /opt/mms_fa 에 받아 둬요).
+    # torchaudio 의 MMS_FA 는 받는 서버(dl.fbaipublicfiles.com) 인증서가 만료돼 받지 못했어요 (2026-11-12).
+    import json as _json
+    import os
+    from transformers import Wav2Vec2ForCTC
+    mdir = os.environ.get('YARR_MMS_FA', '/opt/mms_fa')
+    with open(os.path.join(mdir, 'vocab.json'), encoding='utf-8') as f:
+        vocab = _json.load(f)
+    dic = {c: i for c, i in vocab.items() if len(c) == 1}
+    star = len(vocab)
 
     def emit(dev):
-        model = bundle.get_model(with_star=False).to(dev).eval()
+        model = Wav2Vec2ForCTC.from_pretrained(mdir, use_safetensors=True).to(dev).eval()
         # 30초씩 (앞뒤 2초 겹쳐서 가장자리는 버려요) — 한 번에 넣으면 메모리가 곡 길이의 제곱으로 들어요
         sr, win, ctx, hop = 16000, 30, 2, 320
         outs = []
         with torch.inference_mode():
             for s in range(0, wav.numel(), win * sr):
                 a, b = max(0, s - ctx * sr), min(wav.numel(), s + (win + ctx) * sr)
-                e, _ = model(wav[a:b][None].to(dev))
+                x = wav[a:b]
+                x = (x - x.mean()) / torch.sqrt(x.var() + 1e-7)   # do_normalize (Wav2Vec2FeatureExtractor 와 같게)
+                e = model(x[None].to(dev)).logits
                 e = torch.log_softmax(e[0].float(), dim=-1).cpu()
                 lo = (s - a) // hop
                 hi = lo + min(win * sr, wav.numel() - s) // hop

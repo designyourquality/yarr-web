@@ -215,10 +215,48 @@ def clean_input(inp: dict) -> dict:
             and __import__('re').fullmatch(r'[A-G][#b]?(m| Major| Minor)?', inp['keyscale']) else ''}
 
 
-def encode_mp3(path: str, kbps: int = MP3_KBPS, master: bool = False) -> bytes:
+# 음량 맞추기 (2026-11-12 · '이번 곡은 소리가 작다'): 만든 곡을 들려주기 전에 -14 LUFS 쪽으로 '음량만' 옮겨요.
+# 압축 · 리미터 없이 볼륨만 바꿔서 곡의 강약(조용한 프리코러스 → 큰 마지막 후렴)은 그대로예요.
+# 올려도 가장 큰 순간이 -1 dBTP 를 넘지 않을 만큼만 올리고, 너무 크게 바꾸지 않게 ±6 dB 안에서만 움직여요.
+TARGET_LUFS, PEAK_CEIL = -14.0, -1.0
+
+
+def loudness(path: str, af: str = '') -> tuple[float, float] | None:
+    """(통합 음량 LUFS, 가장 큰 순간 dBTP) · 재지 못하면 None"""
+    chain = (af + ',' if af else '') + 'ebur128=peak=true'
+    r = subprocess.run(['ffmpeg', '-v', 'info', '-nostats', '-i', path, '-af', chain, '-f', 'null', '-'],
+                       capture_output=True, text=True)
+    tail = r.stderr[r.stderr.rfind('Summary:'):] if 'Summary:' in r.stderr else ''
+    import re
+    i = re.search(r'I:\s*(-?[\d.]+)\s*LUFS', tail)
+    pk = re.search(r'Peak:\s*(-?[\d.]+|-inf)\s*dBFS', tail)
+    if not i or not pk or pk.group(1) == '-inf':
+        return None
+    return float(i.group(1)), float(pk.group(1))
+
+
+def level_gain(path: str, af: str = '') -> float:
+    m = loudness(path, af)
+    if not m or m[0] < -60:
+        return 0.0
+    g = min(TARGET_LUFS - m[0], PEAK_CEIL - m[1])
+    g = max(-6.0, min(6.0, g))
+    return round(g, 2) if abs(g) >= 0.3 else 0.0
+
+
+def encode_mp3(path: str, kbps: int = MP3_KBPS, master: bool = False, level: bool = False) -> bytes:
     with tempfile.TemporaryDirectory() as tmp:
         mp3 = os.path.join(tmp, 'a.mp3')
-        af = ['-af', MASTER_AF] if master else []
+        chain = MASTER_AF if master else ''
+        g = 0.0
+        if level:
+            try:
+                g = level_gain(path, chain)
+            except Exception as e:   # noqa: BLE001 — 재지 못하면 그대로 내보내요
+                print(f'level skip: {e!r}'[:200])
+        if g:
+            chain = (chain + ',' if chain else '') + f'volume={g}dB'
+        af = ['-af', chain] if chain else []
         r = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', path, *af, '-codec:a', 'libmp3lame', '-b:a', f'{kbps}k', mp3],
                            capture_output=True, text=True)
         if r.returncode != 0:
@@ -428,7 +466,7 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
     if not result.success or not result.audios:
         raise RuntimeError(f'만들기 실패: {result.error or result.status_message}')
     a = result.audios[0]
-    data = encode_mp3(a['path'], master=p.get('master', False))
+    data = encode_mp3(a['path'], master=p.get('master', False), level=not p.get('task'))   # 새로 만든 곡만 (구간 다시 만들기는 원곡과 같은 음량이어야 해요)
     vc = None if p.get('instrumental') else vocal_check(a['path'], p.get('lyrics') or '', p.get('vocal_language') or 'ko')
     seed = (a.get('params') or {}).get('seed')
     sr = a.get('sample_rate') or 48000
