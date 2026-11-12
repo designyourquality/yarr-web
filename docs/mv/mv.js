@@ -138,6 +138,7 @@ const CSS = `
 .ymv .qr{flex:none;padding:8px;border-radius:12px;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.09);text-align:center;font-size:10.5px;font-weight:700}
 .ymv .nb{position:absolute;left:16px;top:62px;max-width:calc(100% - 32px);transition:top .25s}.ymv.hide-ui .nb{top:16px}.ymv .nb .np{background:rgba(0,0,0,.36)}
 .ymv .nq{position:absolute;right:16px;bottom:22px;opacity:0;pointer-events:none;transition:opacity .25s}.ymv.hide-ui .nq{opacity:1}
+.ymv .qr .dom{display:block;font-family:'DotGothic',monospace;font-size:10px;color:#ff9a5c;margin-top:2px;letter-spacing:.02em}
 .ymv .qr .q{width:84px;height:84px;background:#fff;border-radius:4px;padding:4px;margin:0 auto 4px}.ymv .qr .q svg{width:100%;height:100%;display:block}
 .ymv.tv .bar{bottom:auto;top:84px;left:50%;right:auto;transform:translateX(-50%)}
 @media (max-width:640px){.ymv .tvl{left:24px;top:64px}.ymv .tvl .k{font-size:12px}.ymv.tv .bar{top:118px}.ymv .ly{bottom:150px}.ymv.tv .ly{bottom:170px}.ymv .tvr .clk{font-size:30px}.ymv .qr .q{width:64px;height:64px}}
@@ -258,8 +259,8 @@ export function openMv(ctx) {
       const t = ctx.track(), url = t ? ctx.link(t) : '';
       const svg = url ? await qrFor_(url) : '';
       if (tv || ctx.track() !== t) return;   // 기다리는 사이 바뀌었으면 다음 호출이 그려요
-      box.innerHTML = t ? `<div class="nb"><div class="np"><div class="k">NOW PLAYING</div><b>${esc(t.title || '-')}</b><span>${esc(sub(t))}</span></div></div>
-        ${svg ? `<div class="nq qr"><div class="q" role="img" aria-label="이 곡 바로 듣기 QR">${svg}</div>QR 찍고 바로 듣기</div>` : ''}` : '';
+      box.innerHTML = t ? `<div class="nb"><div class="np"><div class="k">NOW PLAYING · YARR AI MUSIC</div><b>${esc(t.title || '-')}</b><span>${esc(sub(t))}</span></div></div>
+        ${svg ? `<div class="nq qr"><div class="q" role="img" aria-label="이 곡 바로 듣기 QR">${svg}</div>QR 찍고 바로 듣기<small class="dom">yarrmusic.com</small></div>` : ''}` : '';
       return;
     }
     const t = ctx.track(), st = ctx.station?.(), now = new Date();
@@ -269,8 +270,8 @@ export function openMv(ctx) {
     const dx = shift * 2;
     box.innerHTML = `<div class="tvl" style="transform:translate(${dx}px,${dx}px)"><div class="k">YARR STORE BGM · 매장 디스플레이</div><p>검수 통과 편성곡 · AI로 만든 음악</p></div>
       <div class="tvr" style="transform:translate(${-dx}px,${dx}px)"><div class="clk">${hh}:${mm}</div><div class="live">LIVE${st ? ` · ${esc(st.emoji || '')} ${esc(st.name)}` : ''}</div></div>
-      <div class="tvb" style="transform:translateX(${dx}px)"><div class="np"><div class="k">NOW PLAYING</div><b>${esc(t?.title || '-')}</b><span>${esc(sub(t))}${lufs != null ? ` · <span style="color:#6ee7a0">${lufs.toFixed(1)} LUFS</span>` : ''}</span></div>
-      ${svg ? `<div class="qr"><div class="q" role="img" aria-label="이 곡 바로 듣기 QR">${svg}</div>QR 찍고 바로 듣기</div>` : ''}</div>`;
+      <div class="tvb" style="transform:translateX(${dx}px)"><div class="np"><div class="k">NOW PLAYING · YARR AI MUSIC</div><b>${esc(t?.title || '-')}</b><span>${esc(sub(t))}${lufs != null ? ` · <span style="color:#6ee7a0">${lufs.toFixed(1)} LUFS</span>` : ''}</span></div>
+      ${svg ? `<div class="qr"><div class="q" role="img" aria-label="이 곡 바로 듣기 QR">${svg}</div>QR 찍고 바로 듣기<small class="dom">yarrmusic.com</small></div>` : ''}</div>`;
     q('.tvbtn').innerHTML = ctx.fav && ctx.canFav?.() !== false && t ? `<button data-a="fav">👍 매장 분위기 잘 맞음</button>` : '';
   }
   function poke() {
