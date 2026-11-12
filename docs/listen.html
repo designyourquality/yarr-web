@@ -333,6 +333,9 @@ ul.all button.on{color:#FF7A9A;border-color:rgba(255,122,154,.4)}
 .toast span{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:rgba(255,94,26,.2);border:1px solid rgba(255,94,26,.4);color:#FB923C;font-size:11px;flex-shrink:0}
 .modal{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.75);backdrop-filter:blur(8px)}
 .modal.on{display:flex}
+.srch{position:relative;margin:0 0 10px}.srch input{width:100%;box-sizing:border-box;font:inherit;font-size:14px;color:#fff;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:10px 40px 10px 16px;outline:none}.srch input:focus{border-color:#FB923C;background:rgba(251,146,60,.06)}.srch input::-webkit-search-cancel-button{display:none}
+.srch button{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:999px;border:0;background:rgba(255,255,255,.08);color:#D4D4D8;font-size:13px}.srch .hint{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.srch .hint button{position:static;transform:none;width:auto;height:auto;padding:6px 12px;font-size:12.5px;font-weight:600}
+.trk .bylyr{font-size:11px;color:#FDBA74;border:1px solid rgba(251,146,60,.35);border-radius:6px;padding:0 5px;margin-left:6px;font-weight:600}
 .fbk{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}.fbk button{font:inherit;font-size:13px;font-weight:700;color:#D4D4D8;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}.fbk button.on{color:#fff;border-color:#FB923C;background:rgba(251,146,60,.16)}
 .fbx{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:14px;color:#fff;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;margin:0 0 8px}textarea.fbx{min-height:130px;resize:vertical}
 .modal .box{position:relative;width:100%;max-width:440px;border-radius:26px;padding:26px;max-height:90vh;overflow-y:auto}
@@ -497,6 +500,7 @@ html,body{background:var(--bg)}
       <button data-f="store" class="sf">🏪 매장 재생 가능</button>
     </div>
   </div>
+  <div class="srch" role="search"><input id="q" type="search" enterkeyhint="search" autocomplete="off" maxlength="40" placeholder="🔍 노래 찾기 · 제목 · 가사 · 장르 · 분위기 · 크리에이터" aria-label="노래 찾기"><button id="qClear" hidden aria-label="검색 지우기">✕</button><div class="hint" id="qHint" hidden></div></div>
   <div class="list glass" id="chartList"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
   <div id="moreWrap" style="display:none;text-align:center;margin-top:14px"><button class="pill-btn" id="chartMore" style="padding:10px 22px">더 보기</button></div>
 
@@ -907,7 +911,7 @@ html,body{background:var(--bg)}
     return `<div class="trk" data-i="${i}" tabindex="0" role="button" aria-label="${esc(t.title)} 재생">
       <span class="no${no <= 3 && ranked ? ' top' : ''}">${no}${ranked ? moveHtml(t.move) : ''}</span>
       <span class="cover md ph" style="${coverCss(t)}">${coverEmo(t)}</span>
-      <span style="min-width:0"><b>${esc(t.title)}</b><span class="sub">${esc(t.artist)}${t.card ? '' : `${t.genre ? ' · ' + esc(t.genre) : ''} · ${kindOf(t)}`}</span>${cardHtml(t)}${waveHtml(t)}</span>
+      <span style="min-width:0"><b>${esc(t.title)}</b>${t.by === 'lyrics' ? '<span class="bylyr" title="가사에 찾는 말이 들어 있어요">가사</span>' : ''}<span class="sub">${esc(t.artist)}${t.card ? '' : `${t.genre ? ' · ' + esc(t.genre) : ''} · ${kindOf(t)}`}</span>${cardHtml(t)}${waveHtml(t)}</span>
       <span class="right"><a class="rpt" data-report href="${reportHref(t)}" title="권리 침해 신고 (운영팀 메일 · 24시간 안에 확인해요)" aria-label="권리 침해 신고">🚨</a><button class="emb" data-embed="${esc(t.id)}" title="블로그 · 노션 · 사이트에 넣는 미니 플레이어 코드 복사" aria-label="위젯 코드 복사">&lt;/&gt;</button>${t.card?.fork ? `<button class="fk" data-fork="${esc(t.id)}" title="이 곡의 세팅(장르 · 노브 · 목소리 · 멜로디)으로 내 버전 만들기 · 가사는 직접 써요">⚡ 변주</button>` : ''}${t.engine ? `<span class="eng">${esc(t.engine)}</span>` : ''}<span class="badge ${t.store ? 'store' : 'chart'}" title="${t.store ? '매장 BGM으로도 나와요' : '사람이 쓴 가사가 들어간 곡이라 매장 BGM에서는 빠지고, 차트 · 스테이션 듣기에만 나와요'}">${t.store ? '매장 가능' : '매장 제외'}</span></span>
     </div>`;
   }
@@ -927,18 +931,20 @@ html,body{background:var(--bg)}
   }
 
   // ---------- 차트 ----------
-  let chart = [], shown = [], filter = 'all', counts = {}, shared = null, chartDone = false;
+  let chart = [], shown = [], filter = 'all', counts = {}, shared = null, chartDone = false, query = '', found = [];
   function renderChart() {
-    loudFetch(chart.map((t) => t.id));   // 곡마다 음량 맞추기용 값 (한 번에 · 이미 받은 곡은 건너뛰어요)
-    shown = chart.filter((t) => filter === 'all' || (filter === 'vocal' && !t.instrumental) || (filter === 'inst' && t.instrumental) || (filter === 'store' && t.store));
+    const base = query ? found : chart;   // 🔍 찾는 중이면 찾은 곡으로 (2026-11-12)
+    loudFetch(base.map((t) => t.id));   // 곡마다 음량 맞추기용 값 (한 번에 · 이미 받은 곡은 건너뛰어요)
+    shown = base.filter((t) => filter === 'all' || (filter === 'vocal' && !t.instrumental) || (filter === 'inst' && t.instrumental) || (filter === 'store' && t.store));
     const el = $('chartList');
-    el.innerHTML = shown.length ? shown.map((t, i) => rowHtml(t, i, !shared)).join('') : '<div class="empty">조건에 맞는 곡이 없어요</div>';
+    el.innerHTML = shown.length ? shown.map((t, i) => rowHtml(t, i, !shared && !query)).join('') : `<div class="empty">${query ? `'${esc(query)}' 와 맞는 곡이 없어요. 다른 단어로 찾아보세요 (제목 · 가사 한 줄 · 장르 · 분위기 · 크리에이터)` : '조건에 맞는 곡이 없어요'}</div>`;
     bindRows(el, () => shown);
     // TOP 100 은 30곡씩 나눠 불러요 (2026-11-08 · 첫 화면을 빠르게) · 제목은 늘 TOP 100
     if (!shared) $('topN').textContent = '100';
-    $('moreWrap').style.display = !shared && !chartDone ? '' : 'none';
+    $('moreWrap').style.display = !shared && !chartDone && !query ? '' : 'none';
+    $('listSub').textContent = query ? `'${query}' 찾은 곡 ${found.length}곡` : '지난 24시간 재생 기준';
     $('chartMore').textContent = `${chart.length + 1}~${Math.min(100, chart.length + 30)}위 더 보기`;
-    document.querySelectorAll('#filters button').forEach((b) => { const n = b.dataset.f === 'all' ? chart.length : null; b.classList.toggle('on', b.dataset.f === filter); if (n != null) b.textContent = `전체 (${n})`; });
+    document.querySelectorAll('#filters button').forEach((b) => { const n = b.dataset.f === 'all' ? base.length : null; b.classList.toggle('on', b.dataset.f === filter); if (n != null) b.textContent = `전체 (${n})`; });
     markPlaying();
   }
   // 다음 30곡 (31~60 · 61~90 · 91~100)
@@ -958,6 +964,32 @@ html,body{background:var(--bg)}
     return added;
   }
   $('chartMore').onclick = () => loadMoreChart();
+
+  // ---------- 🔍 노래 찾기 (2026-11-12 · 앱 검색과 같은 범위 + 공개 가사) ----------
+  let qTimer = 0, qReq = 0;
+  const qHint = () => {
+    const raw = $('q').value.trim().replace(/^#/, '').replace(/\s/g, '').toLowerCase();
+    const st = raw ? STATIONS.find(([c, n]) => n.replace(/\s/g, '').toLowerCase().includes(raw) || c.slice(1).toLowerCase().replace(/_/g, '') === raw) : null;
+    $('qHint').hidden = !st;
+    if (st) $('qHint').innerHTML = `<button data-qst="${st[0]}">${st[3]} ${esc(st[1])} 스테이션 듣기</button>`;
+  };
+  async function runSearch(text) {
+    const q = text.trim().slice(0, 40);
+    $('qClear').hidden = !q;
+    if (!q || (q.length < 2 && !/[가-힣]/.test(q))) { if (query) { query = ''; found = []; renderChart(); } return; }
+    const my = ++qReq;
+    $('listSub').textContent = `'${q}' 찾는 중…`;
+    try {
+      const j = await api({ action: 'search', q });
+      if (my !== qReq) return;
+      query = j.q || q; found = j.tracks || []; filter = 'all';
+    } catch { if (my === qReq) toast('지금은 찾지 못했어요. 잠시 뒤 다시 해 주세요.'); return; }
+    renderChart();
+  }
+  $('q').addEventListener('input', () => { qHint(); clearTimeout(qTimer); qTimer = setTimeout(() => runSearch($('q').value), 400); });
+  $('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(qTimer); runSearch($('q').value); $('q').blur(); } if (e.key === 'Escape') $('qClear').click(); });
+  $('qClear').onclick = () => { $('q').value = ''; qHint(); clearTimeout(qTimer); qReq++; $('qClear').hidden = true; if (query) { query = ''; found = []; renderChart(); } };
+  $('qHint').onclick = (e) => { const b = e.target.closest('[data-qst]'); if (!b) return; loadStation(b.dataset.qst); document.querySelector('#stChips')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
   $('filters').onclick = (e) => { const b = e.target.closest('[data-f]'); if (b) { filter = b.dataset.f; renderChart(); } };
   function spotlight(t, label, podium = []) {
     if (!t) { $('spotWrap').innerHTML = ''; return; }
