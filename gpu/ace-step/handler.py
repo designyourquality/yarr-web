@@ -212,6 +212,8 @@ def clean_input(inp: dict) -> dict:
             'master': inp.get('master') is True,
             # 내 반주에 노래 얹기 (2026-11-14): 커버로 노래를 만든 뒤 목소리만 뽑아 원래 반주 위에 얹어요
             'sing': inp.get('sing') is True and src_bytes is not None and not instrumental,
+            # 보컬곡에 얹기 (2026-11-14): 원곡 목소리를 먼저 빼고(Demucs) 그 반주 위에 새 목소리 · 커버 가이드는 원곡 그대로(멜로디를 따라 불러요)
+            'strip': inp.get('strip') is True,
             # 조 고정 (실험 · 앞으로 직접 찍기 조 맞추기): 'C Major' · 'A Minor' · 'Am' 처럼 · 이상하면 무시
             'keyscale': str(inp['keyscale']) if isinstance(inp.get('keyscale'), str)
             and __import__('re').fullmatch(r'[A-G][#b]?(m| Major| Minor)?', inp['keyscale']) else ''}
@@ -435,6 +437,14 @@ def handler(job: dict) -> dict:
         )
     if p.get('sing'):
         p['src_path'] = src_path
+        p['base_path'] = src_path
+        if p.get('strip'):
+            r = subprocess.run([STEMS_PY, '/app/yarr_stems.py', src_path, src_dir], capture_output=True, text=True, timeout=600)
+            if r.returncode != 0:
+                shutil.rmtree(src_dir, ignore_errors=True)
+                raise RuntimeError(f'원곡 목소리 빼기 실패: {(r.stderr or r.stdout)[-300:]}')
+            os.replace(os.path.join(src_dir, 'backing.wav'), os.path.join(src_dir, 'base_backing.wav'))
+            p['base_path'] = os.path.join(src_dir, 'base_backing.wav')
         pr = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', src_path], capture_output=True, text=True)
         try:
             if float(pr.stdout.strip() or 0) > MAX_SECONDS + 5:
@@ -540,7 +550,7 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         raise RuntimeError(f'만들기 실패: {result.error or result.status_message}')
     a = result.audios[0]
     if p.get('sing') and p.get('src_path'):
-        mixed, p['sing_offset'] = sing_mix(a['path'], p['src_path'], out)
+        mixed, p['sing_offset'] = sing_mix(a['path'], p.get('base_path') or p['src_path'], out)
         a = {**a, 'path': mixed}
     data = encode_mp3(a['path'], master=p.get('master', False) and not p.get('sing'), level=not p.get('task'))   # 새로 만든 곡만 (구간 다시 만들기는 원곡과 같은 음량이어야 해요)
     vc = None if p.get('instrumental') else vocal_check(a['path'], p.get('lyrics') or '', p.get('vocal_language') or 'ko')
@@ -563,7 +573,7 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         'dit': p.get('dit') or DIT, 'shift': p.get('shift') or 1.0, 'steps': p.get('steps', 8), 'master': p.get('master', False),
         'keyscale': p.get('keyscale') or None,
         'vocal_check': vc,
-        'sing': p.get('sing', False), 'sing_offset': p.get('sing_offset'),
+        'sing': p.get('sing', False), 'sing_offset': p.get('sing_offset'), 'strip': p.get('strip', False),
     }
 
 
