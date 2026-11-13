@@ -10,9 +10,9 @@ WORKDIR /app
 RUN git clone https://github.com/ACE-Step/ACE-Step-1.5 /app && git checkout ca1e85fe9430179831e6bc6be790c332190a3866
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python UV_LINK_MODE=copy
 RUN uv python install 3.11 && uv sync --frozen --no-dev --python 3.11 && uv pip install --python /app/.venv/bin/python "runpod>=1.7" && rm -rf /root/.cache
-# Vocal check (2026-11-02): faster-whisper base (CPU int8) · small too (2026-11-13: lyric sync finds lines the singer skipped) in the image's own python (/opt/conda), NOT in the ACE venv,
+# Vocal check (2026-11-02): faster-whisper base (CPU int8) · small too (2026-11-13: lyric sync finds lines the singer skipped) · large-v3-turbo (2026-11-13 engine 4: far better Korean singing; GPU float16 when it loads, else CPU int8) in the image's own python (/opt/conda), NOT in the ACE venv,
 # so ACE-Step packages stay exactly as before. The handler calls it as a subprocess; if anything is missing it is skipped.
-RUN /opt/conda/bin/python -m pip install --no-cache-dir "faster-whisper==1.1.1" && /opt/conda/bin/python -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8', download_root='/opt/whisper'); WhisperModel('small', device='cpu', compute_type='int8', download_root='/opt/whisper')"
+RUN /opt/conda/bin/python -m pip install --no-cache-dir "faster-whisper==1.1.1" && /opt/conda/bin/python -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8', download_root='/opt/whisper'); WhisperModel('small', device='cpu', compute_type='int8', download_root='/opt/whisper'); WhisperModel('large-v3-turbo', device='cpu', compute_type='int8', download_root='/opt/whisper')"
 # Stems (2026-11-04): Demucs htdemucs in /opt/conda too (separate from the ACE venv). The constraint keeps the image's torch
 # version so pip never swaps torch; the model is downloaded at build time so the first request is fast.
 RUN /opt/conda/bin/python -c "import torch; print('torch==' + torch.__version__.split('+')[0])" > /tmp/torch-pin.txt \
