@@ -318,7 +318,7 @@ def align(inp: dict, t0: float) -> dict:
     if isinstance(res.get('lines'), list):
         out.update(lines=res['lines'], vocals=bool(res.get('vocals')))
         # 2026-11-13 engine 2: 가수가 건너뛴 줄은 [-1, -1, -1] (받아쓰기로 짝을 지어 찾아요)
-        out.update({k: res[k] for k in ('engine', 'matched', 'wm_error') if k in res})
+        out.update({k: res[k] for k in ('engine', 'matched', 'wm_error', 'heard') if k in res})
     elif res.get('fa_error'):
         out['fa_error'] = res['fa_error']
     return out

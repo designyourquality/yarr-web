@@ -17,7 +17,9 @@ ACE-Step 가상환경과 섞이지 않게 이미지 기본 파이썬(/opt/conda)
   3) 보컬을 whisper small 로 낱말 시간까지 받아 적고, 가사 줄과 '건너뛰기를 허용하는' 순서 맞추기(DP)로 짝을 지어요
   4) 짝이 맞은 줄: 강제 정렬 시간이 2.5초 안에서 맞으면 강제 정렬(더 정확) · 아니면 받아쓰기 시간
      받아쓰기가 충분히 알아들었는데(줄 절반 이상 짝) 짝이 없는 줄 = 부르지 않은 줄 → [-1, -1, -1] (서버가 화면에서 빼요)
-  출력에 "engine": 2 · "matched": 짝 지은 줄 수 를 더해요."""
+  출력에 "engine": 2 · "matched": 짝 지은 줄 수 를 더해요.
+실제로 부른 순서 (engine 3 · 같은 날): 가수가 후렴을 더 부르거나 절 순서를 바꾸면 가사 순서로 맞추는 것 자체가 틀려요.
+  5) 받아 적은 낱말을 처음부터 따라가며 지금 부르는 줄을 찾아 "heard": [[시작, 끝, 줄 번호, 닮은 정도], ...] 로 줘요 (서버가 이걸로 MV 구간을 만들어요)."""
 import json
 import re
 import subprocess
@@ -264,6 +266,48 @@ def match_lines(lines: list, words: list) -> list:
     return out
 
 
+def heard_lines(lines: list, words: list) -> list:
+    """실제로 부른 순서 (engine 3 · 2026-11-13): 받아 적은 낱말을 처음부터 따라가며 '지금 부르는 가사 줄'을 찾아요.
+    가사 순서와 상관없이 후렴을 몇 번 반복하든, 어떤 줄을 건너뛰든 그대로 따라가요.
+    → [[시작, 끝, 줄 번호(넣은 순서에서 그 글귀가 처음 나온 번호), 닮은 정도], ...] (시간 순)"""
+    from difflib import SequenceMatcher
+    uniq, seen = [], set()
+    for i, ln in enumerate(lines):
+        k = _key(ln)
+        if len(k) >= 2 and k not in seen:
+            seen.add(k)
+            uniq.append((k, i))
+    m = len(words)
+    if not uniq or not m:
+        return []
+    best = [0.0] * (m + 1)
+    ch = [None] * (m + 1)
+    for j in range(m - 1, -1, -1):
+        b, c, s = best[j + 1], None, ''
+        for k in range(j, min(m, j + 16)):
+            s += words[k][2]
+            for key, i in uniq:
+                # 줄 반쪽만으로 짝을 짓지 않게 (반쪽 두 번이 한 줄보다 점수가 높아지는 걸 막아요): 길이 80% 이상 · 닮음 0.7 이상
+                if len(s) > len(key) * 1.5 + 2 or len(s) < len(key) * 0.8:
+                    continue
+                r = SequenceMatcher(None, key, s, autojunk=False).ratio()
+                if r >= 0.7:
+                    v = r * len(key) + best[k + 1]
+                    if v > b:
+                        b, c = v, (k + 1, i, r)
+        best[j], ch[j] = b, c
+    out, j = [], 0
+    while j < m:
+        c = ch[j]
+        if c is None:
+            j += 1
+            continue
+        k, i, r = c
+        out.append([round(words[j][0], 2), round(words[k - 1][1], 2), i, round(r, 3)])
+        j = k
+    return out
+
+
 def merge(fa: list, wm: list) -> tuple:
     """강제 정렬 + 받아쓰기 짝 → 최종 줄 시간 · 짝 지은 수. 부르지 않은 줄은 [-1, -1, -1]"""
     n = len(wm)
@@ -320,9 +364,12 @@ def main() -> None:
             res = forced_lines(path, lines)
             wav = res.pop('_wav', None)
             try:   # 가수가 건너뛴 줄 찾기 (실패하면 강제 정렬 결과만)
-                wm = match_lines(lines, heard_words(wav.numpy() if wav is not None else None, lang))
+                # 받아쓰기는 원곡(반주 포함)으로: 보컬만 뽑은 소리보다 오히려 잘 알아들었어요 (2026-11-13 「오늘도 버텼다」 비교)
+                words = heard_words(_mix_16k(path).numpy(), lang)
+                wm = match_lines(lines, words)
                 res['lines'], res['matched'] = merge(res['lines'], wm)
-                res['engine'] = 2
+                res['heard'] = heard_lines(lines, words)[:600]   # engine 3: 실제로 부른 순서
+                res['engine'] = 3
             except Exception as e:   # noqa: BLE001
                 res['wm_error'] = repr(e)[:200]
         except Exception as e:   # noqa: BLE001 — 실패하면 아래 받아쓰기로
