@@ -10,8 +10,16 @@ ACE-Step 가상환경과 섞이지 않게 이미지 기본 파이썬(/opt/conda)
   사용: python align.py <음원 경로> <ko|en|ja> <가사 줄 JSON 파일>
         →  {"lines": [[시작초, 끝초, 점수] 또는 null, ...], "vocals": true|false, "took": 초}
            (줄 순서 = 넣은 순서 · 점수 0~1 · 글자가 하나도 없는 줄은 null)
-  강제 정렬이 실패하면 예전처럼 받아쓰기 결과(segments)를 돌려줘요."""
+  강제 정렬이 실패하면 예전처럼 받아쓰기 결과(segments)를 돌려줘요.
+
+가수가 건너뛴 줄 (2026-11-13 · engine 2): AI 가수가 가사를 다 부르지 않고 몇 줄을 건너뛰거나 순서를 바꾸면
+강제 정렬은 '모든 줄을 순서대로 불렀다'고 보고 맞추기 때문에 그 줄부터 뒤가 줄줄이 밀렸어요 (「오늘도 버텼다」: 1절 8줄 중 6줄만 부르고 바로 후렴).
+  3) 보컬을 whisper small 로 낱말 시간까지 받아 적고, 가사 줄과 '건너뛰기를 허용하는' 순서 맞추기(DP)로 짝을 지어요
+  4) 짝이 맞은 줄: 강제 정렬 시간이 2.5초 안에서 맞으면 강제 정렬(더 정확) · 아니면 받아쓰기 시간
+     받아쓰기가 충분히 알아들었는데(줄 절반 이상 짝) 짝이 없는 줄 = 부르지 않은 줄 → [-1, -1, -1] (서버가 화면에서 빼요)
+  출력에 "engine": 2 · "matched": 짝 지은 줄 수 를 더해요."""
 import json
+import re
 import subprocess
 import sys
 import time
@@ -186,7 +194,102 @@ def forced_lines(path: str, lines: list) -> dict:
     for i in range(len(lines)):
         g = got.get(i)
         out.append([round(g[0] * sec, 2), round(g[1] * sec, 2), round(g[2] / max(1, g[3]), 3)] if g else None)
-    return {'lines': out, 'vocals': vocals}
+    return {'lines': out, 'vocals': vocals, '_wav': wav}
+
+
+def _key(s: str) -> str:
+    """비교용: 괄호 속 애드리브를 빼고 글자(한글 · 가나 · 한자 · 영숫자)만"""
+    s = re.sub(r'\([^)]*\)', '', str(s))
+    return re.sub(r'[^0-9A-Za-z\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7a3]', '', s).lower()
+
+
+def heard_words(audio, lang: str) -> list:
+    """보컬(16kHz numpy) → 낱말마다 [시작, 끝, 글자] (whisper small · 없으면 base)"""
+    import os
+    from faster_whisper import WhisperModel
+    name = 'small' if os.path.isdir('/opt/whisper/models--Systran--faster-whisper-small') else 'base'
+    model = WhisperModel(name, device='cpu', compute_type='int8', download_root='/opt/whisper')
+    segs, _ = model.transcribe(audio, language=lang if lang in ('ko', 'en', 'ja') else None, beam_size=5,
+                               word_timestamps=True, condition_on_previous_text=False, vad_filter=False)
+    out = []
+    for sg in segs:
+        for w in (sg.words or []):
+            k = _key(w.word)
+            if k:
+                out.append([float(w.start), float(w.end), k])
+    return out[:3000]
+
+
+def match_lines(lines: list, words: list) -> list:
+    """가사 줄(부르는 순서) ↔ 받아 적은 낱말: 줄 · 낱말 건너뛰기를 허용하는 순서 맞추기.
+    줄마다 [시작, 끝, 닮은 정도] 또는 None (짝 없음)"""
+    from difflib import SequenceMatcher
+    L = [_key(x) for x in lines]
+    n, m = len(L), len(words)
+    if not n or not m:
+        return [None] * n
+    dp = [[0.0] * (m + 1) for _ in range(n + 1)]
+    ch = [[None] * (m + 1) for _ in range(n + 1)]
+    for i in range(n - 1, -1, -1):
+        li = L[i]
+        for j in range(m, -1, -1):
+            best, c = dp[i + 1][j], 0          # 0: 이 줄은 안 불렀어요
+            if j < m and dp[i][j + 1] > best:
+                best, c = dp[i][j + 1], 1      # 1: 이 낱말은 애드리브 · 잘못 들은 말
+            if li and j < m:
+                s = ''
+                for k in range(j, min(m, j + 16)):
+                    s += words[k][2]
+                    if len(s) > len(li) * 1.6 + 2:
+                        break
+                    if len(s) < len(li) * 0.5:
+                        continue
+                    r = SequenceMatcher(None, li, s, autojunk=False).ratio()
+                    if r >= 0.55:
+                        v = r * len(li) + dp[i + 1][k + 1]
+                        if v > best:
+                            best, c = v, (k + 1, r)
+            dp[i][j], ch[i][j] = best, c
+    out, i, j = [None] * n, 0, 0
+    while i < n and j <= m:
+        c = ch[i][j]
+        if c == 0 or c is None:
+            i += 1
+        elif c == 1:
+            j += 1
+        else:
+            k, r = c
+            out[i] = [round(words[j][0], 2), round(words[k - 1][1], 2), round(r, 3)]
+            i, j = i + 1, k
+    return out
+
+
+def merge(fa: list, wm: list) -> tuple:
+    """강제 정렬 + 받아쓰기 짝 → 최종 줄 시간 · 짝 지은 수. 부르지 않은 줄은 [-1, -1, -1]"""
+    n = len(wm)
+    hit = sum(1 for x in wm if x)
+    sure = n > 0 and hit >= max(2, n * 0.5)   # 받아쓰기를 믿을 만해요
+    out = []
+    for i in range(n):
+        f = fa[i] if i < len(fa) else None
+        w = wm[i]
+        if w:
+            out.append(f if f and f[2] >= 0.35 and abs(f[0] - w[0]) <= 2.5 else [w[0], w[1], round(max(0.5, w[2]), 3)])
+        elif f and f[2] >= 0.5:
+            out.append(f)
+        elif sure:
+            out.append([-1, -1, -1])
+        else:
+            out.append(f)
+    # 시간 순서가 거꾸로 가는 줄은 모름으로 (서버가 앞뒤 사이로 나눠요)
+    last = -1.0
+    for i, x in enumerate(out):
+        if x and x[0] >= 0:
+            if x[0] < last + 0.3:
+                out[i] = None
+            else:
+                last = x[0]
+    return out, hit
 
 
 def transcribe(path: str, lang: str) -> list:
@@ -213,7 +316,15 @@ def main() -> None:
         try:
             with open(sys.argv[3], encoding='utf-8') as f:
                 lines = json.load(f)
-            res = forced_lines(path, [str(x) for x in lines][:300])
+            lines = [str(x) for x in lines][:300]
+            res = forced_lines(path, lines)
+            wav = res.pop('_wav', None)
+            try:   # 가수가 건너뛴 줄 찾기 (실패하면 강제 정렬 결과만)
+                wm = match_lines(lines, heard_words(wav.numpy() if wav is not None else None, lang))
+                res['lines'], res['matched'] = merge(res['lines'], wm)
+                res['engine'] = 2
+            except Exception as e:   # noqa: BLE001
+                res['wm_error'] = repr(e)[:200]
         except Exception as e:   # noqa: BLE001 — 실패하면 아래 받아쓰기로
             res = {'fa_error': repr(e)[:200]}
     if 'lines' not in res:
