@@ -210,6 +210,8 @@ def clean_input(inp: dict) -> dict:
             'shift': float(inp['shift']) if isinstance(inp.get('shift'), (int, float)) and 1.0 <= inp['shift'] <= 5.0 else None,
             'steps': int(inp['steps']) if isinstance(inp.get('steps'), (int, float)) and 4 <= inp['steps'] <= 20 else 8,
             'master': inp.get('master') is True,
+            # 내 반주에 노래 얹기 (2026-11-14): 커버로 노래를 만든 뒤 목소리만 뽑아 원래 반주 위에 얹어요
+            'sing': inp.get('sing') is True and src_bytes is not None and not instrumental,
             # 조 고정 (실험 · 앞으로 직접 찍기 조 맞추기): 'C Major' · 'A Minor' · 'Am' 처럼 · 이상하면 무시
             'keyscale': str(inp['keyscale']) if isinstance(inp.get('keyscale'), str)
             and __import__('re').fullmatch(r'[A-G][#b]?(m| Major| Minor)?', inp['keyscale']) else ''}
@@ -431,6 +433,16 @@ def handler(job: dict) -> dict:
             # LM 이 곡 설명을 고쳐 쓰지 않게 (고쳐 쓰면 '여자 보컬' 같은 지시가 빠질 때가 있어요) · 구조 · 박자 계획은 그대로 LM 이 해요
             use_cot_caption=False,
         )
+    if p.get('sing'):
+        p['src_path'] = src_path
+        pr = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', src_path], capture_output=True, text=True)
+        try:
+            if float(pr.stdout.strip() or 0) > MAX_SECONDS + 5:
+                raise ValueError(f'노래를 얹을 반주는 {MAX_SECONDS}초까지예요')
+        except ValueError as e:
+            if '반주' in str(e):
+                shutil.rmtree(src_dir, ignore_errors=True)
+                raise
     config = GenerationConfig(batch_size=1, use_random_seed=p['seed'] < 0,
                               seeds=None if p['seed'] < 0 else [p['seed']], audio_format='wav')
     try:
@@ -462,13 +474,75 @@ def vocal_check(path: str, lyrics: str, lang: str) -> dict | None:
         return None
 
 
+def _pcm(path: str, sr: int = 8000):
+    import numpy as np
+    r = subprocess.run(['ffmpeg', '-v', 'error', '-i', path, '-ac', '1', '-ar', str(sr), '-t', '120', '-f', 'f32le', '-'], capture_output=True)
+    return np.frombuffer(r.stdout, dtype=np.float32)
+
+
+def _onset(x, sr: int = 8000, hop: int = 80):
+    """10ms 마다 소리 세기가 '올라간 만큼' (박자 · 타격 위치) → 두 소리의 박자를 맞대 보는 데 써요"""
+    import numpy as np
+    n = len(x) // hop
+    if n < 10:
+        return np.zeros(1)
+    e = np.sqrt((x[: n * hop].reshape(n, hop) ** 2).mean(1) + 1e-9)
+    d = np.maximum(0, np.diff(np.log(e)))
+    return (d - d.mean()) / (d.std() + 1e-9)
+
+
+def sing_offset(gen_backing: str, orig: str, max_lag: float = 2.0) -> float:
+    """새로 만든 반주가 원래 반주보다 몇 초 늦는지 (+ 면 늦어요) · 박자 위치끼리 맞대서 찾아요"""
+    import numpy as np
+    a, b = _onset(_pcm(gen_backing)), _onset(_pcm(orig))
+    n = min(len(a), len(b))
+    if n < 300:
+        return 0.0
+    a, b = a[:n], b[:n]
+    L = int(max_lag * 100)
+    best, lag = -1e9, 0
+    for k in range(-L, L + 1):
+        v = float(np.dot(a[max(0, k): n + min(0, k)], b[max(0, -k): n - max(0, k)]))
+        if v > best:
+            best, lag = v, k
+    return lag / 100.0
+
+
+def sing_mix(gen_wav: str, src_path: str, out: str) -> tuple[str, float]:
+    """내 반주에 노래 얹기 (2026-11-14 · 유저 원곡을 그대로 들려줘요):
+    1) 커버로 만든 곡에서 Demucs 로 목소리만 · 2) 새 반주와 원래 반주의 박자를 맞대서 어긋난 만큼 목소리를 옮기고
+    3) 목소리를 다듬어(저음 잡음 컷 · 가벼운 압축) 원래 반주 위에 얹어요 → 반주는 100% 원곡"""
+    d = tempfile.mkdtemp(dir=out)
+    r = subprocess.run([STEMS_PY, '/app/yarr_stems.py', gen_wav, d], capture_output=True, text=True, timeout=600)
+    if r.returncode != 0:
+        raise RuntimeError(f'목소리 뽑기 실패: {(r.stderr or r.stdout)[-300:]}')
+    voc, back = os.path.join(d, 'vocals.wav'), os.path.join(d, 'backing.wav')
+    off = sing_offset(back, src_path)
+    orig = os.path.join(d, 'orig.wav')
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', src_path, '-ac', '2', '-ar', '48000', orig], check=True)
+    # 새 반주가 off 초 늦으면 목소리도 그만큼 늦게 들어있어요 → 앞을 잘라 당겨요 (빠르면 앞에 빈 소리를 넣어요)
+    shift = f'atrim=start={off:.3f},asetpts=PTS-STARTPTS' if off > 0 else f'adelay={int(-off * 1000)}|{int(-off * 1000)}'
+    vchain = f'[1:a]aresample=48000,{shift},highpass=f=90,acompressor=threshold=-20dB:ratio=2.5:attack=10:release=200:makeup=1.5,volume=1.1[v]'
+    mixed = os.path.join(d, 'mix.wav')
+    r = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', orig, '-i', voc, '-filter_complex',
+                        f'{vchain};[0:a][v]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[o]', '-map', '[o]', mixed],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f'얹기 실패: {r.stderr[:200]}')
+    print(f'sing offset {off:+.2f}s', flush=True)
+    return mixed, off
+
+
 def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) -> dict:
     from acestep.inference import generate_music
     result = generate_music(dit, llm, params, config, save_dir=out)
     if not result.success or not result.audios:
         raise RuntimeError(f'만들기 실패: {result.error or result.status_message}')
     a = result.audios[0]
-    data = encode_mp3(a['path'], master=p.get('master', False), level=not p.get('task'))   # 새로 만든 곡만 (구간 다시 만들기는 원곡과 같은 음량이어야 해요)
+    if p.get('sing') and p.get('src_path'):
+        mixed, p['sing_offset'] = sing_mix(a['path'], p['src_path'], out)
+        a = {**a, 'path': mixed}
+    data = encode_mp3(a['path'], master=p.get('master', False) and not p.get('sing'), level=not p.get('task'))   # 새로 만든 곡만 (구간 다시 만들기는 원곡과 같은 음량이어야 해요)
     vc = None if p.get('instrumental') else vocal_check(a['path'], p.get('lyrics') or '', p.get('vocal_language') or 'ko')
     seed = (a.get('params') or {}).get('seed')
     sr = a.get('sample_rate') or 48000
@@ -489,6 +563,7 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         'dit': p.get('dit') or DIT, 'shift': p.get('shift') or 1.0, 'steps': p.get('steps', 8), 'master': p.get('master', False),
         'keyscale': p.get('keyscale') or None,
         'vocal_check': vc,
+        'sing': p.get('sing', False), 'sing_offset': p.get('sing_offset'),
     }
 
 
