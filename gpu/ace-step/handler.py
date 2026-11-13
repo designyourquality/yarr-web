@@ -310,7 +310,7 @@ def align(inp: dict, t0: float) -> dict:
             with open(lp, 'w', encoding='utf-8') as f:
                 json.dump([str(x)[:200] for x in lines[:300]], f, ensure_ascii=False)
             cmd.append(lp)
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=500)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)   # engine 4: 받아쓰기 두 번 (원곡 · 보컬)
         if r.returncode != 0 or not r.stdout.strip():
             raise RuntimeError(f'구간 찾기 실패: {(r.stderr or r.stdout)[-300:]}')
         res = json.loads(r.stdout.strip().splitlines()[-1])
@@ -318,7 +318,7 @@ def align(inp: dict, t0: float) -> dict:
     if isinstance(res.get('lines'), list):
         out.update(lines=res['lines'], vocals=bool(res.get('vocals')))
         # 2026-11-13 engine 2: 가수가 건너뛴 줄은 [-1, -1, -1] (받아쓰기로 짝을 지어 찾아요)
-        out.update({k: res[k] for k in ('engine', 'matched', 'wm_error', 'heard') if k in res})
+        out.update({k: res[k] for k in ('engine', 'matched', 'wm_error', 'heard', 'whisper', 'vocal_heard_error') if k in res})
     elif res.get('fa_error'):
         out['fa_error'] = res['fa_error']
     return out

@@ -205,14 +205,44 @@ def _key(s: str) -> str:
     return re.sub(r'[^0-9A-Za-z\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7a3]', '', s).lower()
 
 
-def heard_words(audio, lang: str) -> list:
-    """보컬(16kHz numpy) → 낱말마다 [시작, 끝, 글자] (whisper small · 없으면 base)"""
+_WHISPER = {}
+
+
+def _whisper(cpu_only: bool = False):
+    """받아쓰기 모델 (2026-11-13 engine 4): large-v3-turbo 가 있으면 그걸로 (한국어 노래를 small 보다 훨씬 잘 알아들어요).
+    GPU 가 되면 GPU(float16) · 안 되면 CPU(int8) · turbo 가 없으면 small → base"""
     import os
     from faster_whisper import WhisperModel
-    name = 'small' if os.path.isdir('/opt/whisper/models--Systran--faster-whisper-small') else 'base'
-    model = WhisperModel(name, device='cpu', compute_type='int8', download_root='/opt/whisper')
-    segs, _ = model.transcribe(audio, language=lang if lang in ('ko', 'en', 'ja') else None, beam_size=5,
-                               word_timestamps=True, condition_on_previous_text=False, vad_filter=False)
+    if 'm' in _WHISPER and not (cpu_only and _WHISPER['m'][2] != 'cpu'):
+        return _WHISPER['m']
+    names = [n for n, d in (('large-v3-turbo', 'models--mobiuslabsgmbh--faster-whisper-large-v3-turbo'),
+                            ('small', 'models--Systran--faster-whisper-small'), ('base', 'models--Systran--faster-whisper-base'))
+             if os.path.isdir(f'/opt/whisper/{d}')] or ['base']
+    last = None
+    for name in names:
+        for dev, ct in ((('cuda', 'float16'),) if not cpu_only else ()) + (('cpu', 'int8'),):
+            try:
+                m = WhisperModel(name, device=dev, compute_type=ct, download_root='/opt/whisper')
+                _WHISPER['m'] = (m, name, dev)
+                return _WHISPER['m']
+            except Exception as e:   # noqa: BLE001
+                last = e
+    raise RuntimeError(f'whisper load failed: {last!r}')
+
+
+def heard_words(audio, lang: str) -> list:
+    """소리(16kHz numpy) → 낱말마다 [시작, 끝, 글자]"""
+    def run(model):
+        segs, _ = model.transcribe(audio, language=lang if lang in ('ko', 'en', 'ja') else None, beam_size=5,
+                                   word_timestamps=True, condition_on_previous_text=False, vad_filter=False)
+        return list(segs)
+    try:
+        segs = run(_whisper()[0])
+    except Exception:   # noqa: BLE001 — GPU 라이브러리(cuDNN 등)가 없으면 받아 적는 중에 실패해요 → CPU 로
+        if _whisper()[2] == 'cpu':
+            raise
+        _WHISPER.clear()
+        segs = run(_whisper(cpu_only=True)[0])
     out = []
     for sg in segs:
         for w in (sg.words or []):
@@ -308,6 +338,23 @@ def heard_lines(lines: list, words: list) -> list:
     return out
 
 
+def union_heard(*runs: list) -> list:
+    """여러 번 받아 적은 결과(원곡 · 보컬만)를 합쳐요 (2026-11-13 engine 4): 한쪽이 놓친 줄을 다른 쪽이 찾아요.
+    시간이 절반 넘게 겹치는 둘은 닮음이 높은 쪽만 남겨요"""
+    items = sorted((x for r in runs for x in (r or [])), key=lambda x: (-x[3], x[0]))
+    keep = []
+    for x in items:
+        clash = False
+        for y in keep:
+            ov = min(x[1], y[1]) - max(x[0], y[0])
+            if ov > 0.5 * min(x[1] - x[0], y[1] - y[0]):
+                clash = True
+                break
+        if not clash:
+            keep.append(x)
+    return sorted(keep, key=lambda x: x[0])
+
+
 def merge(fa: list, wm: list) -> tuple:
     """강제 정렬 + 받아쓰기 짝 → 최종 줄 시간 · 짝 지은 수. 부르지 않은 줄은 [-1, -1, -1]"""
     n = len(wm)
@@ -364,12 +411,20 @@ def main() -> None:
             res = forced_lines(path, lines)
             wav = res.pop('_wav', None)
             try:   # 가수가 건너뛴 줄 찾기 (실패하면 강제 정렬 결과만)
-                # 받아쓰기는 원곡(반주 포함)으로: 보컬만 뽑은 소리보다 오히려 잘 알아들었어요 (2026-11-13 「오늘도 버텼다」 비교)
+                # 받아쓰기는 원곡(반주 포함)으로 먼저: small 로는 보컬만 뽑은 소리보다 오히려 잘 알아들었어요 (2026-11-13 「오늘도 버텼다」 비교)
                 words = heard_words(_mix_16k(path).numpy(), lang)
                 wm = match_lines(lines, words)
                 res['lines'], res['matched'] = merge(res['lines'], wm)
-                res['heard'] = heard_lines(lines, words)[:600]   # engine 3: 실제로 부른 순서
-                res['engine'] = 3
+                heard = heard_lines(lines, words)
+                # engine 4: 보컬만 뽑은 소리로 한 번 더 받아 적어 합쳐요 (반주가 큰 구간에서 놓친 줄 · 「오늘도 버텼다」 절 뒷부분 8줄)
+                if wav is not None and res.get('vocals'):
+                    try:
+                        heard = union_heard(heard, heard_lines(lines, heard_words(wav.numpy(), lang)))
+                    except Exception as e:   # noqa: BLE001
+                        res['vocal_heard_error'] = repr(e)[:200]
+                res['heard'] = heard[:600]   # 실제로 부른 순서
+                res['whisper'] = _whisper()[1] + '/' + _whisper()[2]
+                res['engine'] = 4
             except Exception as e:   # noqa: BLE001
                 res['wm_error'] = repr(e)[:200]
         except Exception as e:   # noqa: BLE001 — 실패하면 아래 받아쓰기로
