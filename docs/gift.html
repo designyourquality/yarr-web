@@ -220,7 +220,7 @@ body.has-scn{background:var(--bg)}
   au.addEventListener('play', () => { document.body.classList.add('playing'); setIcon(true); });
   au.addEventListener('pause', () => { document.body.classList.remove('playing'); setIcon(false); });
   au.addEventListener('ended', () => { document.body.classList.remove('playing'); setIcon(false); showEnd(); });
-  // 끝까지(90%) 들었을 때만 답가 카드를 띄워요 · 처음부터 버튼을 보여 주지 않아요
+  // 60초 · 90% · 곡 끝 중 먼저 오는 때 답가 카드를 띄워요 · 처음부터 버튼을 보여 주지 않아요
   let endShown = false;
   function showEnd() {
     if (endShown || !gift) return;
@@ -229,18 +229,19 @@ body.has-scn{background:var(--bg)}
     $('endH').textContent = who ? `${who}님의 마음이 전해졌나요?` : '마음이 전해졌나요?';
     $('replyL').textContent = who ? `${who}님께 답가 보내기` : '답가 보내기';
     document.body.classList.add('done');
-    setTimeout(() => $('endc').scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+    if (au.ended || au.paused) setTimeout(() => $('endc').scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);   // 듣는 중엔 화면을 끌어내리지 않아요
   }
   $('reply').addEventListener('click', () => {
-    // 이름은 주소에 싣지 않고 같은 사이트 저장소로 앱(/app)에 넘겨요 (앱 저장소 형식 · 30분 안에만 써요)
-    try { localStorage.setItem('flutter.yarr_gift_reply', JSON.stringify(JSON.stringify({ to: (gift.from || '').slice(0, 12), from: (gift.to || '').slice(0, 12), at: Date.now() }))); } catch (_) {}
+    // 이름 · 받은 선물 열쇠(ref: 답가 추적 · 096)는 주소에 싣지 않고 같은 사이트 저장소로 앱(/app)에 넘겨요 (30분 안 · 한 번 쓰면 지워요)
+    try { localStorage.setItem('flutter.yarr_gift_reply', JSON.stringify(JSON.stringify({ to: (gift.from || '').slice(0, 12), from: (gift.to || '').slice(0, 12), ref: token, at: Date.now() }))); } catch (_) {}
     location.href = 'https://yarrmusic.com/app/?gift=reply';
   });
   $('again').addEventListener('click', () => { au.currentTime = 0; au.play().catch(() => {}); });
   au.addEventListener('loadedmetadata', () => { $('dur').textContent = mmss(au.duration); });
   au.addEventListener('timeupdate', () => {
     if (!au.duration) return;
-    if (au.currentTime / au.duration > 0.9) showEnd();
+    // 60초(첫 후렴 뒤쯤) 또는 90%가 지나면 답가 카드를 띄워요 (후렴에서 감동받고 닫는 분도 볼 수 있게)
+    if (au.currentTime >= 60 || au.currentTime / au.duration > 0.9) showEnd();
     $('seek').value = String(Math.round((au.currentTime / au.duration) * 1000));
     $('cur').textContent = mmss(au.currentTime);
     if (scenes) scene(Math.min(5, Math.floor((au.currentTime / au.duration) * 6)));
