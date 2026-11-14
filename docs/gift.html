@@ -94,6 +94,13 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .bad .env,.bad .player{display:none}.bad .err{display:block}
 .load .env h1,.load .env .cta{opacity:.4;pointer-events:none}
 @media (prefers-reduced-motion:reduce){.box,.lp{animation:none}.arm{transition:none}}
+/* 💌 끝까지 들으면 답가 카드 (2026-11-14) */
+.endc{display:none;margin-top:22px;padding:20px 18px;border-radius:18px;background:linear-gradient(160deg,rgba(255,107,36,.18),rgba(27,27,31,.95) 60%);border:1px solid rgba(255,154,92,.35);text-align:center;animation:rise .6s ease-out both}
+.done .endc{display:block}
+.endc h3{font-size:19px;font-weight:900;line-height:1.35;word-break:keep-all}
+.endc p{margin-top:6px;font-size:13px;color:var(--soft);line-height:1.5;word-break:keep-all}
+.endc .cta{margin-top:16px;width:100%}
+.endc .again{margin-top:12px;font-size:13px;color:var(--soft);text-decoration:underline;text-underline-offset:3px}
 /* 🎬 AI 장면 6컷 (2026-11-11 · 보낸 사람이 넣었을 때만): 노래 진행에 맞춰 천천히 바뀌는 배경 */
 .scn{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
 .scn i{position:absolute;inset:-4%;background:center/cover no-repeat;opacity:0;transition:opacity 1.6s ease;animation:scnKb 24s ease-in-out infinite alternate}
@@ -131,6 +138,12 @@ body.has-scn{background:var(--bg)}
     </div>
     <div class="note" id="note" hidden><p id="msg"></p><div class="sig" id="sig"></div></div>
     <div class="lyr" id="lyr" hidden><h3>LYRICS</h3><div class="scroll" id="lyrics"></div></div>
+    <div class="endc" id="endc" aria-live="polite">
+      <h3 id="endH">마음이 전해졌나요?</h3>
+      <p id="endP">이번엔 내가 노래로 답해 볼까요? 세 가지만 답하면 AI가 답가를 만들어요.</p>
+      <button class="cta" id="reply"><span aria-hidden="true">💌</span><span id="replyL">답가 보내기</span></button>
+      <br><button class="again" id="again">한 번 더 듣기</button>
+    </div>
     <div class="foot">
       AI가 작곡하고 노래한 곡이에요 · 이 링크를 받은 사람만 들을 수 있어요<br>
       <a href="https://yarrmusic.com/listen.html?tab=studio&amp;gift=1" rel="noopener">나도 노래 선물하기 →</a>
@@ -206,10 +219,28 @@ body.has-scn{background:var(--bg)}
 
   au.addEventListener('play', () => { document.body.classList.add('playing'); setIcon(true); });
   au.addEventListener('pause', () => { document.body.classList.remove('playing'); setIcon(false); });
-  au.addEventListener('ended', () => { document.body.classList.remove('playing'); setIcon(false); });
+  au.addEventListener('ended', () => { document.body.classList.remove('playing'); setIcon(false); showEnd(); });
+  // 끝까지(90%) 들었을 때만 답가 카드를 띄워요 · 처음부터 버튼을 보여 주지 않아요
+  let endShown = false;
+  function showEnd() {
+    if (endShown || !gift) return;
+    endShown = true;
+    const who = (gift.from || '').trim();
+    $('endH').textContent = who ? `${who}님의 마음이 전해졌나요?` : '마음이 전해졌나요?';
+    $('replyL').textContent = who ? `${who}님께 답가 보내기` : '답가 보내기';
+    document.body.classList.add('done');
+    setTimeout(() => $('endc').scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+  }
+  $('reply').addEventListener('click', () => {
+    // 이름은 주소에 싣지 않고 같은 사이트 저장소로 앱(/app)에 넘겨요 (앱 저장소 형식 · 30분 안에만 써요)
+    try { localStorage.setItem('flutter.yarr_gift_reply', JSON.stringify(JSON.stringify({ to: (gift.from || '').slice(0, 12), from: (gift.to || '').slice(0, 12), at: Date.now() }))); } catch (_) {}
+    location.href = 'https://yarrmusic.com/app/?gift=reply';
+  });
+  $('again').addEventListener('click', () => { au.currentTime = 0; au.play().catch(() => {}); });
   au.addEventListener('loadedmetadata', () => { $('dur').textContent = mmss(au.duration); });
   au.addEventListener('timeupdate', () => {
     if (!au.duration) return;
+    if (au.currentTime / au.duration > 0.9) showEnd();
     $('seek').value = String(Math.round((au.currentTime / au.duration) * 1000));
     $('cur').textContent = mmss(au.currentTime);
     if (scenes) scene(Math.min(5, Math.floor((au.currentTime / au.duration) * 6)));
