@@ -880,7 +880,7 @@ function renderResult() {
       <div class="st-q">곡 제목</div><input class="st-in" id="rTitle" maxlength="60" value="${esc(S.title || st.title || '')}">
       ${other && !vocal ? `<label class="st-check"><input type="checkbox" id="rDonate" ${S.donate ? 'checked' : ''}><span><b>고르지 않은 버전은 야르 스테이션 곡으로 기부할게요</b><br><span class="st-note" style="margin:0">검수 후 YARR Originals 이름으로 스테이션에 공개되고 매장 편성 후보가 돼요. 내 곡 · 정산에는 포함되지 않아요. 체크하지 않으면 지워져요.</span></span></label>` : ''}
       <label class="st-check"><input type="checkbox" id="rPublic" ${S.recipePublic ? 'checked' : ''}><span><b>⚡ 레시피 공개</b><br><span class="st-note" style="margin:0">다른 사람이 이 곡의 세팅(장르 · 노브 · 목소리 · 멜로디)으로 변주할 수 있어요. 가사 · 곡 설명 원문은 공개되지 않고, 변주곡이 올라오면 원곡으로 표시되며 수익의 30%가 나에게 와요.</span></span></label>
-      <label class="st-check"><input type="checkbox" id="rReg" ${S.notRegistered ? 'checked' : ''}><span><b>[필수] 이 곡은 음악 저작권 단체(음저협 등)에 등록하지 않았고, 저는 그 단체 회원이 아니에요</b><br><span class="st-note" style="margin:0">YARR 는 저작권 단체와 사용 계약이 없어서 등록된 곡은 차트 · 스테이션 · 매장에서 틀 수 없어요. 나중에 등록하려면 먼저 알려 주세요. 곡을 비공개로 돌려요.</span></span></label>
+      <label class="st-check"><input type="checkbox" id="rReg" ${S.notRegistered ? 'checked' : ''}><span><b>[필수] 이 곡은 음악 저작권 단체(음저협 등)에 등록하지 않았고, 작사 · 작곡 · 편곡한 사람 모두 그 단체 회원이 아니에요</b><br><span class="st-note" style="margin:0">YARR 는 저작권 단체와 사용 계약이 없어서 등록된 곡은 차트 · 스테이션 · 매장에서 틀 수 없어요. 나중에 등록하려면 먼저 알려 주세요. 곡을 비공개로 돌려요. 사실과 다르게 확인해 YARR 에 손해가 생기면 올린 분이 배상해야 해요.</span></span></label>
       <button class="btn st-go" data-r="pick" ${S.busy || keep < 60 || !S.notRegistered ? 'disabled' : ''}>이 테이크로 올리기</button>
     </div>`}
   </div>`;

@@ -85,7 +85,7 @@ export function mountUpload(el, { sb, B, call, onDone }) {
         <p class="st-note">${esc(storeNote())}</p>
         <p class="st-note">사실과 다르게 확인하면 정산이 보류되고 곡이 내려갈 수 있어요.</p>
         <div class="st-q">03 · 확인</div>
-        <label class="st-check"><input type="checkbox" id="uKomca" ${F.notKomca ? 'checked' : ''}><span><b>[필수] 이 곡은 음악 저작권 단체(음저협 등)에 등록하지 않았고, 저는 그 단체 회원이 아니에요</b><br><span class="st-note" style="margin:0">YARR 는 저작권 단체와 사용 계약이 없어서 등록된 곡은 차트 · 스테이션 · 매장에서 틀 수 없어요. 나중에 등록하려면 먼저 알려 주세요. 곡을 비공개로 돌려요.</span></span></label>
+        <label class="st-check"><input type="checkbox" id="uKomca" ${F.notKomca ? 'checked' : ''}><span><b>[필수] 이 곡은 음악 저작권 단체(음저협 등)에 등록하지 않았고, 작사 · 작곡 · 편곡한 사람 모두 그 단체 회원이 아니에요</b><br><span class="st-note" style="margin:0">YARR 는 저작권 단체와 사용 계약이 없어서 등록된 곡은 차트 · 스테이션 · 매장에서 틀 수 없어요. 나중에 등록하려면 먼저 알려 주세요. 곡을 비공개로 돌려요. 사실과 다르게 확인해 YARR 에 손해가 생기면 올린 분이 배상해야 해요.</span></span></label>
         <label class="st-check"><input type="checkbox" id="uRights" ${F.rights ? 'checked' : ''}><span><b>이 곡의 상업 이용 권리가 있고, 타인의 권리를 침해하지 않음을 확인합니다. 위반 시 정산이 보류되고 곡이 내려가요.</b><br><span class="st-note" style="margin:0;color:#FDBA74">유료 플랜 구독 중 만든 정식 생성본만 가능하며, 무료 플랜 생성분과 다른 사람 곡 리믹스(Remix)는 등록할 수 없어요.</span></span></label>
         <button class="btn st-go" id="uGo" ${F.busy ? 'disabled' : ''}>${F.busy ? '<span class="spin"></span> ' + esc(F.step || '올리는 중…') : '검수 시작 · 올리기'}</button>
         <p class="st-note ${F.msg.startsWith('✓') ? '' : 'st-err'}" id="uMsg">${esc(F.msg)}</p>
