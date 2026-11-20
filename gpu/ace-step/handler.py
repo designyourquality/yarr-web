@@ -53,7 +53,11 @@ LANGS = {'ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'pt', 'it', 'ru', 'unknown'}
 _DIT = None
 _LLM = None
 _DITS: dict = {}
-DIT_CHOICES = {'acestep-v15-turbo', 'acestep-v15-turbo-shift3', 'acestep-v15-xl-turbo'}
+DIT_CHOICES = {'acestep-v15-turbo', 'acestep-v15-turbo-shift3', 'acestep-v15-xl-turbo',
+               # 엔진 상위 버전 실험 (2026-11-20): sft 는 50단계 + CFG(guidance) · 공식 표 '품질 매우 높음(XL sft)'
+               'acestep-v15-sft', 'acestep-v15-xl-sft'}
+LM_CHOICES = {'acestep-5Hz-lm-1.7B', 'acestep-5Hz-lm-4B'}
+_LMS: dict = {}
 MASTER_AF = 'equalizer=f=4500:t=q:w=0.8:g=-2,equalizer=f=220:t=q:w=0.9:g=1.5,acompressor=threshold=-18dB:ratio=2:attack=20:release=250:makeup=1'
 
 
@@ -154,6 +158,30 @@ def get_dit(name: str | None):
     return h
 
 
+def get_lm(name: str | None):
+    """요청마다 다른 작곡 모델(LM) · 4B 는 공식 '작곡 · 멜로디 따라 하기 강함' (2026-11-20 실험용)
+    24GB GPU 에서는 기본(1.7B) + 4B + XL 을 같이 올리면 모자라서 48GB 일 때만 받아요"""
+    _, llm = load_models()
+    if not name or name == LM:
+        return llm
+    if name in _LMS:
+        return _LMS[name]
+    import torch
+    if torch.cuda.get_device_properties(0).total_memory < 40 * 1024 ** 3:
+        raise RuntimeError('LAB_NEEDS_48GB: 큰 작곡 모델은 48GB 작업자에서만 돌려요')
+    from acestep.llm_inference import LLMHandler
+    from acestep.model_downloader import ensure_lm_model
+    ok, msg = ensure_lm_model(name, checkpoints_dir=__import__('pathlib').Path(CKPT), token=os.environ.get('HF_TOKEN') or None, prefer_source='huggingface')
+    if not ok:
+        raise RuntimeError(f'{name} 받기 실패: {msg}')
+    h = LLMHandler()
+    status, ok = h.initialize(checkpoint_dir=CKPT, lm_model_path=name, backend='pt', device='cuda')
+    if not ok:
+        raise RuntimeError(f'{name} 준비 실패: {status}')
+    _LMS[name] = h
+    return h
+
+
 def clean_input(inp: dict) -> dict:
     """요청 값 확인 (서버 함수가 조립한 값만 와요 · 그래도 한 번 더 막아요)"""
     if not isinstance(inp, dict):
@@ -208,7 +236,11 @@ def clean_input(inp: dict) -> dict:
             'task': task, 'repaint_start': float(rs) if task else None, 'repaint_end': float(re_) if task else None,
             'dit': str(inp['dit']) if inp.get('dit') in DIT_CHOICES else None,
             'shift': float(inp['shift']) if isinstance(inp.get('shift'), (int, float)) and 1.0 <= inp['shift'] <= 5.0 else None,
-            'steps': int(inp['steps']) if isinstance(inp.get('steps'), (int, float)) and 4 <= inp['steps'] <= 20 else 8,
+            # sft 계열은 50단계 (turbo 는 8) · 2026-11-20 상한 64
+            'steps': int(inp['steps']) if isinstance(inp.get('steps'), (int, float)) and 4 <= inp['steps'] <= 64
+            else (50 if str(inp.get('dit', '')).endswith('sft') else 8),
+            'guidance': float(inp['guidance']) if isinstance(inp.get('guidance'), (int, float)) and 1.0 <= inp['guidance'] <= 15.0 else None,
+            'lm': str(inp['lm']) if inp.get('lm') in LM_CHOICES else None,
             'master': inp.get('master') is True,
             # 내 반주에 노래 얹기 (2026-11-14): 커버로 노래를 만든 뒤 목소리만 뽑아 원래 반주 위에 얹어요
             'sing': inp.get('sing') is True and src_bytes is not None and not instrumental,
@@ -401,10 +433,11 @@ def handler(job: dict) -> dict:
     if isinstance(job.get('input'), dict) and job['input'].get('task') == 'mix':
         return mix(job['input'], t0)
     p = clean_input(job.get('input'))
-    _, llm = load_models()
+    llm = get_lm(p.get('lm'))
     dit = get_dit(p['dit'])
     from acestep.inference import GenerationConfig, GenerationParams
-    tune = {'inference_steps': p['steps'], **({'shift': p['shift']} if p['shift'] else {})}
+    tune = {'inference_steps': p['steps'], **({'shift': p['shift']} if p['shift'] else {}),
+            **({'guidance_scale': p['guidance']} if p.get('guidance') and str(p.get('dit') or '').endswith(('sft', 'base')) else {})}
 
     cover = p['src_bytes'] is not None
     src_dir = tempfile.mkdtemp() if cover else None
@@ -589,7 +622,7 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         'repaint': [p['repaint_start'], p['repaint_end']] if p.get('task') == 'repaint' else None,
         'cover_strength': p['cover_strength'] if cover else None,
         'guide': p.get('guide', False),
-        'dit': p.get('dit') or DIT, 'shift': p.get('shift') or 1.0, 'steps': p.get('steps', 8), 'master': p.get('master', False),
+        'dit': p.get('dit') or DIT, 'shift': p.get('shift') or 1.0, 'steps': p.get('steps', 8), 'master': p.get('master', False), 'lm': p.get('lm') or LM, 'guidance': p.get('guidance'),
         'keyscale': p.get('keyscale') or None,
         'vocal_check': vc,
         'sing': p.get('sing', False), 'sing_offset': p.get('sing_offset'), 'strip': p.get('strip', False),
