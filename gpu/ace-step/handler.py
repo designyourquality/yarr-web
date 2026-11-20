@@ -433,6 +433,11 @@ def handler(job: dict) -> dict:
     if isinstance(job.get('input'), dict) and job['input'].get('task') == 'mix':
         return mix(job['input'], t0)
     p = clean_input(job.get('input'))
+    try:   # 메모리 실측 (2026-11-20 · XL 로 바꾸기 전 24GB 에서 얹기 · 다시 만들기 · 직접 찍기 여유 확인)
+        import torch
+        torch.cuda.reset_peak_memory_stats()
+    except Exception:  # noqa: BLE001
+        pass
     llm = get_lm(p.get('lm'))
     dit = get_dit(p['dit'])
     from acestep.inference import GenerationConfig, GenerationParams
@@ -589,6 +594,17 @@ def sing_mix(gen_wav: str, src_path: str, out: str) -> tuple[str, float]:
     return mixed, off
 
 
+def _vram() -> dict:
+    """GPU 전체 메모리 · 이번 작업 최고 사용량 (GB)"""
+    try:
+        import torch
+        return {'gpu_gb': round(torch.cuda.get_device_properties(0).total_memory / 1024 ** 3, 1),
+                'vram_peak_gb': round(torch.cuda.max_memory_allocated() / 1024 ** 3, 2),
+                'gpu_name': torch.cuda.get_device_name(0)}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) -> dict:
     from acestep.inference import generate_music
     result = generate_music(dit, llm, params, config, save_dir=out)
@@ -625,6 +641,7 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         'dit': p.get('dit') or DIT, 'shift': p.get('shift') or 1.0, 'steps': p.get('steps', 8), 'master': p.get('master', False), 'lm': p.get('lm') or LM, 'guidance': p.get('guidance'),
         'keyscale': p.get('keyscale') or None,
         'vocal_check': vc,
+        **_vram(),
         'sing': p.get('sing', False), 'sing_offset': p.get('sing_offset'), 'strip': p.get('strip', False),
     }
 
