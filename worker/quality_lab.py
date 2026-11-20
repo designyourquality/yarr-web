@@ -321,10 +321,78 @@ def call(method: str, path: str, body: dict | None = None) -> dict:
         return json.loads(r.read())
 
 
+XL = 'acestep-v15-xl-turbo'
+
+
+def wait_all(jobs: list[dict], minutes: int = 30) -> None:
+    deadline = time.time() + minutes * 60
+    pending = [j for j in jobs if j.get('id')]
+    while pending and time.time() < deadline:
+        time.sleep(10)
+        for j in list(pending):
+            st = call('GET', f"status/{j['id']}")
+            s = st.get('status')
+            if s == 'COMPLETED':
+                o = st.get('output') or {}
+                j['audio'] = o.get('audio_b64', '')
+                j['result'] = {k: o.get(k) for k in ('seconds', 'took', 'task', 'dit', 'gpu_gb', 'gpu_name', 'vram_peak_gb', 'sing', 'strip')}
+                print('완성', j['key'], j['result'], flush=True)
+                pending.remove(j)
+            elif s in ('FAILED', 'CANCELLED', 'TIMED_OUT'):
+                j['result'] = {'status': s, 'error': str(st.get('error'))[:400]}
+                print('실패', j['key'], j['result'], flush=True)
+                pending.remove(j)
+
+
+def mem_lab() -> None:
+    """2026-11-20 XL turbo 메모리 확인: 일반 · 직접 찍기(가이드) · 얹기 · 보컬곡에 얹기(strip) · 구간 다시 만들기 · 2번씩
+    결과: 메모리.json (작업마다 GPU 크기 · 최고 사용량 · 성공/실패) + mp3"""
+    tune = {'shift': 3.0, 'master': True, 'dit': XL}
+    inst = {'caption': 'korean pop rock, electric guitar, bass, drums, 120 bpm, bright and uplifting', 'instrumental': True,
+            'vocal_language': 'unknown', 'bpm': 120, 'duration': 90, 'seed': 11, **tune}
+    vocal = {'caption': NADO_CAPTION, 'lyrics': NADO_LYRICS, 'instrumental': False, 'vocal_language': 'ko', 'bpm': 120,
+             'duration': 120, 'seed': 12, **tune}
+    first = [{'key': f'x1 일반 연주곡 #{i}', 'input': {**inst, 'seed': 11 + i}} for i in (1, 2)] + \
+            [{'key': f'x2 일반 보컬곡 #{i}', 'input': {**vocal, 'seed': 12 + i}} for i in (1, 2)] + \
+            [{'key': f'x3 직접 찍기(가이드) #{i}', 'input': {'caption': POP, 'lyrics': POP_LYRICS, 'instrumental': False, 'vocal_language': 'ko',
+                                                       'bpm': 100, 'duration': 90, 'seed': 20 + i, 'guide': guide.DEMO, 'cover_strength': 0.35,
+                                                       'guide_melody': 'gaps', 'guide_lowpass': True, **tune}} for i in (1, 2)]
+    for j in first:
+        j['id'] = call('POST', 'run', {'input': j['input']}).get('id')
+    wait_all(first)
+    inst_b64 = next((j['audio'] for j in first if j['key'].startswith('x1') and j.get('audio')), '')
+    voc_b64 = next((j['audio'] for j in first if j['key'].startswith('x2') and j.get('audio')), '')
+    second = []
+    if inst_b64:
+        second += [{'key': f'x4 내 반주에 노래 얹기 #{i}', 'input': {**vocal, 'duration': 90, 'seed': 30 + i, 'src_audio_b64': inst_b64,
+                                                              'cover_strength': 0.75, 'sing': True}} for i in (1, 2)]
+    if voc_b64:
+        second += [{'key': f'x5 보컬곡에 얹기(strip) #{i}', 'input': {**vocal, 'seed': 40 + i, 'src_audio_b64': voc_b64,
+                                                                'cover_strength': 0.75, 'sing': True, 'strip': True}} for i in (1, 2)]
+        second += [{'key': f'x6 구간 다시 만들기 #{i}', 'input': {**vocal, 'seed': 50 + i, 'src_audio_b64': voc_b64, 'task': 'repaint',
+                                                           'repaint_start': 30.0, 'repaint_end': 60.0}} for i in (1, 2)]
+    for j in second:
+        j['id'] = call('POST', 'run', {'input': j['input']}).get('id')
+    wait_all(second)
+    rows = {}
+    for n, j in enumerate(first + second):
+        if j.get('audio'):
+            with open(os.path.join(OUT, f"{j['key'].split()[0]}_{n:02d}.mp3"), 'wb') as f:
+                f.write(base64.b64decode(j['audio']))
+        rows[j['key']] = j.get('result', {'status': 'TIMEOUT'})
+    with open(os.path.join(OUT, '메모리.json'), 'w', encoding='utf-8') as f:
+        json.dump(rows, f, ensure_ascii=False, indent=1)
+    ok = sum(1 for r in rows.values() if r.get('task'))
+    print(f'완성 {ok}/{len(rows)}')
+
+
 def main() -> None:
     if not KEY:
         sys.exit('RUNPOD_API_KEY 가 없어요')
     os.makedirs(OUT, exist_ok=True)
+    if ONLY == 'x':
+        mem_lab()
+        return
     jobs = engine_plan() if ONLY == 'e' else persona_plan() if ONLY == 'p' else retest_plan() if ONLY == 'r' else knob_plan() if ONLY == 'k' else voice_plan() if ONLY == 'v' else [j for j in plan() if ONLY in ('', 'all') or j['key'].startswith(ONLY)]
     rnd = random.Random(int(time.time()))
     if ONLY in ('p', 'r'):
