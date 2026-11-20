@@ -120,42 +120,74 @@ def load_models():
     return dit, llm
 
 
-def _drop_extra_dits(keep: str | None = None) -> None:
-    """24GB GPU 에서는 기본 모델 + XL 을 같이 올리면 메모리가 모자라요 (2026-11-01 음질 실험 · 커버 3곡 CUDA OOM)
-    → 기본 모델 말고 올려 둔 모델은 내려요 (48GB 이상이면 그대로 둬요)"""
+_ON_GPU: dict = {}
+
+
+def _small_gpu() -> bool:
+    """24GB 급(4090 등)이면 True · 48GB 이상은 모델을 모두 GPU 에 둬요"""
     import torch
-    if torch.cuda.get_device_properties(0).total_memory >= 40 * 1024 ** 3:
-        return
-    dropped = False
-    for k in [k for k in _DITS if k not in (DIT, keep)]:
-        del _DITS[k]
-        dropped = True
-    if dropped:
-        import gc
+    return torch.cuda.get_device_properties(0).total_memory < 40 * 1024 ** 3
+
+
+def _move(h, dev: str) -> None:
+    """한 엔진(DiT · 소리 변환기 · 글 이해 모델)을 통째로 GPU ↔ CPU 로 옮겨요 (다시 불러오는 것보다 훨씬 빨라요)"""
+    for attr in ('model', 'vae', 'text_encoder'):
+        m = getattr(h, attr, None)
+        if m is not None and hasattr(m, 'to'):
+            m.to(dev)
+    if getattr(h, 'silence_latent', None) is not None:
+        h.silence_latent = h.silence_latent.to(dev)
+
+
+def _park_all(except_name: str | None = None) -> None:
+    """24GB GPU: 지금 쓸 엔진 말고는 전부 CPU 로 (2026-11-20 메모리 실험: XL + 기본 엔진을 같이 올리면 편집 기능이 모두 메모리 부족)"""
+    import gc
+    import torch
+    moved = False
+    for k, h in _DITS.items():
+        if k != except_name and _ON_GPU.get(k, True):
+            _move(h, 'cpu')
+            _ON_GPU[k] = False
+            moved = True
+    if moved:
         gc.collect()
         torch.cuda.empty_cache()
 
 
 def get_dit(name: str | None):
-    """요청마다 다른 DiT (음질 실험) · 한 번 올린 모델은 같은 작업자에 남겨 둬요 (24GB GPU 는 하나만)"""
+    """요청마다 다른 DiT · 한 번 올린 모델은 같은 작업자에 남겨 둬요
+    24GB GPU 는 '지금 쓰는 엔진 하나만 GPU' (나머지는 CPU 메모리에 대기 · 옮기는 데 몇 초)"""
     dit, _ = load_models()
-    if not name or name == DIT:
-        _drop_extra_dits()
-        return dit
-    if name in _DITS:
-        return _DITS[name]
-    _drop_extra_dits(keep=name)
-    from acestep.handler import AceStepHandler
-    from acestep.model_downloader import ensure_dit_model
-    ok, msg = ensure_dit_model(name, checkpoints_dir=__import__('pathlib').Path(CKPT), token=os.environ.get('HF_TOKEN') or None, prefer_source='huggingface')
-    if not ok:
-        raise RuntimeError(f'{name} 받기 실패: {msg}')
-    h = AceStepHandler()
-    status, ok = h.initialize_service(project_root=os.path.dirname(CKPT), config_path=name, device='cuda')
-    if not ok:
-        raise RuntimeError(f'{name} 준비 실패: {status}')
-    _DITS[name] = h
+    name = name if name and name != DIT else DIT
+    small = _small_gpu()
+    if name not in _DITS:
+        if small:
+            _park_all()
+            for k in [k for k in _DITS if k != DIT]:   # 추가 엔진은 하나만 (CPU 메모리도 아껴요)
+                del _DITS[k]
+                _ON_GPU.pop(k, None)
+        from acestep.handler import AceStepHandler
+        from acestep.model_downloader import ensure_dit_model
+        ok, msg = ensure_dit_model(name, checkpoints_dir=__import__('pathlib').Path(CKPT), token=os.environ.get('HF_TOKEN') or None, prefer_source='huggingface')
+        if not ok:
+            raise RuntimeError(f'{name} 받기 실패: {msg}')
+        h = AceStepHandler()
+        status, ok = h.initialize_service(project_root=os.path.dirname(CKPT), config_path=name, device='cuda')
+        if not ok:
+            raise RuntimeError(f'{name} 준비 실패: {status}')
+        _DITS[name] = h
+        _ON_GPU[name] = True
+    h = _DITS[name]
+    if small:
+        _park_all(except_name=name)
+        if not _ON_GPU.get(name, True):
+            _move(h, 'cuda')
+            _ON_GPU[name] = True
     return h
+
+
+def _is_oom(e: Exception) -> bool:
+    return 'out of memory' in str(e).lower()
 
 
 def get_lm(name: str | None):
@@ -479,6 +511,8 @@ def handler(job: dict) -> dict:
         p['src_path'] = src_path
         p['base_path'] = src_path
         if p.get('strip'):
+            if _small_gpu():   # 목소리 빼기(Demucs)는 따로 된 프로그램이라 엔진을 잠시 CPU 로 비켜 줘요
+                _park_all()
             r = subprocess.run([STEMS_PY, '/app/yarr_stems.py', src_path, src_dir], capture_output=True, text=True, timeout=600)
             if r.returncode != 0:
                 shutil.rmtree(src_dir, ignore_errors=True)
@@ -496,8 +530,21 @@ def handler(job: dict) -> dict:
     config = GenerationConfig(batch_size=1, use_random_seed=p['seed'] < 0,
                               seeds=None if p['seed'] < 0 else [p['seed']], audio_format='wav')
     try:
-        with tempfile.TemporaryDirectory() as out:
-            return _run(dit, llm, params, config, out, p, t0, cover)
+        dit = get_dit(p['dit'])   # 목소리 빼기 동안 비켜 뒀으면 다시 GPU 로
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                return _run(dit, llm, params, config, out, p, t0, cover)
+        except RuntimeError as e:
+            # 안전장치 (2026-11-20): 상위 엔진이 메모리 부족이면 같은 작업 안에서 기본 엔진으로 한 번 더 (실패로 뜨지 않게)
+            if not (_is_oom(e) and p.get('dit') and p['dit'] != DIT):
+                raise
+            print(f"{p['dit']} 메모리 부족 → 기본 엔진으로 다시", flush=True)
+            import torch
+            torch.cuda.empty_cache()
+            p['dit_fallback'], p['dit'] = p['dit'], None
+            dit = get_dit(None)
+            with tempfile.TemporaryDirectory() as out:
+                return _run(dit, llm, params, config, out, p, t0, cover)
     finally:
         if src_dir:
             shutil.rmtree(src_dir, ignore_errors=True)
@@ -641,6 +688,7 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         'dit': p.get('dit') or DIT, 'shift': p.get('shift') or 1.0, 'steps': p.get('steps', 8), 'master': p.get('master', False), 'lm': p.get('lm') or LM, 'guidance': p.get('guidance'),
         'keyscale': p.get('keyscale') or None,
         'vocal_check': vc,
+        **({'dit_fallback': p['dit_fallback']} if p.get('dit_fallback') else {}),
         **_vram(),
         'sing': p.get('sing', False), 'sing_offset': p.get('sing_offset'), 'strip': p.get('strip', False),
     }
