@@ -214,6 +214,8 @@ def clean_input(inp: dict) -> dict:
             'sing': inp.get('sing') is True and src_bytes is not None and not instrumental,
             # 보컬곡에 얹기 (2026-11-14): 원곡 목소리를 먼저 빼고(Demucs) 그 반주 위에 새 목소리 · 커버 가이드는 원곡 그대로(멜로디를 따라 불러요)
             'strip': inp.get('strip') is True,
+            # 운영팀 곡만 (2026-11-20): Audiobox 완성도(CE) 참고 점수
+            'aesthetics': inp.get('aesthetics') is True,
             # 조 고정 (실험 · 앞으로 직접 찍기 조 맞추기): 'C Major' · 'A Minor' · 'Am' 처럼 · 이상하면 무시
             'keyscale': str(inp['keyscale']) if isinstance(inp.get('keyscale'), str)
             and __import__('re').fullmatch(r'[A-G][#b]?(m| Major| Minor)?', inp['keyscale']) else ''}
@@ -467,21 +469,32 @@ VOCAL_CHECK = os.environ.get('VOCAL_CHECK', '1') == '1'
 VOCAL_PY = os.environ.get('VOCAL_CHECK_PY', '/opt/conda/bin/python')
 
 
-def vocal_check(path: str, lyrics: str, lang: str) -> dict | None:
-    """목소리가 실제로 들어갔는지 (2026-11-02 · ACE 가 가끔 반주만 만들어요) → vocal_check.py (따로 된 파이썬에서)
-    {'match': 넣은 가사 중 들린 비율, 'chars': 받아 적은 글자 수, ...} · 못 하면 None (서버는 그냥 완성으로 봐요)"""
-    if not VOCAL_CHECK or not lyrics or not os.path.exists(VOCAL_PY):
+def vocal_check(path: str, lyrics: str, lang: str, ce: bool = False) -> dict | None:
+    """곡 품질 확인 (2026-11-20 v2) → vocal_check.py (따로 된 파이썬에서)
+    보컬곡: {'match': 줄 맞음 비율, 'mean', 'verdict': green|yellow|red, 'worst': [낮은 두 줄 + 시간], 'chars', 'qc': 사고 검사}
+    연주곡: {'qc': 사고 검사} · ce=True(운영팀 곡)면 'ce' (Audiobox 즐거움) · 못 하면 None (서버는 그냥 완성으로 봐요)"""
+    if not VOCAL_CHECK or not os.path.exists(VOCAL_PY):
         return None
+    lyr = None
     try:
-        with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as fh:
-            fh.write(lyrics)
-        r = subprocess.run([VOCAL_PY, '/app/yarr_vocal_check.py', path, fh.name, lang], capture_output=True, text=True, timeout=120)
-        os.unlink(fh.name)
+        if lyrics:
+            with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as fh:
+                fh.write(lyrics)
+            lyr = fh.name
+        cmd = [VOCAL_PY, '/app/yarr_vocal_check.py', path, lyr or '-', lang] + (['--ce'] if ce else [])
+        env = {**os.environ, 'HF_HOME': '/opt/hf_ab', 'HF_HUB_OFFLINE': '1'}
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300, env=env)
         line = (r.stdout or '').strip().splitlines()[-1] if r.stdout.strip() else 'null'
         return json.loads(line)
     except Exception as e:  # noqa: BLE001  확인을 못 해도 곡은 그대로 돌려줘요
         print(f'vocal check skipped: {str(e)[:120]}', flush=True)
         return None
+    finally:
+        if lyr:
+            try:
+                os.unlink(lyr)
+            except OSError:
+                pass
 
 
 def _pcm(path: str, sr: int = 8000):
@@ -553,7 +566,13 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         mixed, p['sing_offset'] = sing_mix(a['path'], p.get('base_path') or p['src_path'], out)
         a = {**a, 'path': mixed}
     data = encode_mp3(a['path'], master=p.get('master', False) and not p.get('sing'), level=not p.get('task'))   # 새로 만든 곡만 (구간 다시 만들기는 원곡과 같은 음량이어야 해요)
-    vc = None if p.get('instrumental') else vocal_check(a['path'], p.get('lyrics') or '', p.get('vocal_language') or 'ko')
+    # 품질 확인은 사람이 실제로 듣는 mp3 로 (찢어짐 · 먹먹함 검사가 음량 맞춘 결과와 같아야 해요)
+    with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as fh:
+        fh.write(data)
+    try:
+        vc = vocal_check(fh.name, '' if p.get('instrumental') else (p.get('lyrics') or ''), p.get('vocal_language') or 'ko', ce=p.get('aesthetics', False))
+    finally:
+        os.unlink(fh.name)
     seed = (a.get('params') or {}).get('seed')
     sr = a.get('sample_rate') or 48000
     t = a.get('tensor')
