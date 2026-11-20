@@ -33,7 +33,7 @@ KEY = os.environ.get('RUNPOD_API_KEY', '')
 SECONDS = int(os.environ.get('LAB_SECONDS', '120'))
 OUT = os.environ.get('LAB_OUT', 'quality_lab_out')
 SEED = 1031
-ONLY = os.environ.get('LAB_ONLY', 'all').strip()   # all · t (글로 만든 곡만) · c (직접 찍기만) · v (목소리 노브 7곡) · k (노브 확인 18곡) · p (보컬 페르소나 24종 × 2 = 48클립) · r (페르소나 재실험 8종 × 2 = 16클립)
+ONLY = os.environ.get('LAB_ONLY', 'all').strip()   # e (엔진 상위 버전 10곡 · 2026-11-20) · all · t (글로 만든 곡만) · c (직접 찍기만) · v (목소리 노브 7곡) · k (노브 확인 18곡) · p (보컬 페르소나 24종 × 2 = 48클립) · r (페르소나 재실험 8종 × 2 = 16클립)
 
 TEXTURE = 'natural human vocal, breathy, acoustic warmth, studio condenser mic'
 # 2026-11-01 '오후3시' 와 같은 곡 설명 · 가사 (모델에 보낸 모양 그대로)
@@ -266,6 +266,53 @@ def retest_plan() -> list[dict]:
     return jobs
 
 
+# 2026-11-20 엔진 상위 버전 블라인드: 「나도 그랬어요」 록 · 같은 가사 · 시드 2개 × 설정 5개 = 10곡
+NADO_CAPTION = ('korean pop rock, punchy live drums, crunchy electric guitar, driving bass, 120 bpm, bright and uplifting chorus, '
+                'bright clear female vocal, natural human vocal, breathy, acoustic warmth, studio condenser mic, clear korean pronunciation')
+NADO_LYRICS = """[Verse]
+알람은 분명히 맞춰 놨는데
+눈 떠 보니 해가 중천이야
+세수는 고양이처럼 대충 하고
+가방 메고 현관을 박차고 나가
+
+[Pre-Chorus]
+정류장엔 버스 뒷모습만 보여
+숨은 턱까지 차오르는데
+누가 뒤에서 살짝 웃으며 말해
+괜찮아요 나도 그랬어요
+
+[Chorus]
+나도 그랬어요 똑같았어요
+늦은 아침도 지나고 나면 웃어요
+나도 그랬어요 혼자 아니에요
+오늘 하루는 같이 뛰어요
+
+[Bridge]
+조금 늦어도 도착하면 돼요
+우리 내일은 오분만 일찍 만나요
+
+[Chorus]
+나도 그랬어요 똑같았어요
+늦은 아침도 지나고 나면 웃어요
+나도 그랬어요 혼자 아니에요
+오늘 하루는 같이 뛰어요
+
+[Outro]"""
+
+
+def engine_plan() -> list[dict]:
+    base = {'caption': NADO_CAPTION, 'lyrics': NADO_LYRICS, 'instrumental': False, 'vocal_language': 'ko', 'bpm': 120,
+            'duration': SECONDS, 'shift': 3.0, 'master': True}
+    sets = [
+        ('e1 지금 그대로 (2B turbo · 작곡 1.7B)', {}),
+        ('e2 XL turbo (4B)', {'dit': 'acestep-v15-xl-turbo'}),
+        ('e3 XL sft (4B · 50단계 · CFG 7)', {'dit': 'acestep-v15-xl-sft', 'steps': 50, 'guidance': 7.0}),
+        ('e4 XL sft + 작곡 4B', {'dit': 'acestep-v15-xl-sft', 'steps': 50, 'guidance': 7.0, 'lm': 'acestep-5Hz-lm-4B'}),
+        ('e5 지금 + 작곡 4B', {'lm': 'acestep-5Hz-lm-4B'}),
+    ]
+    return [{'key': f'{k} · 시드 {seed}', 'input': {**base, **extra, 'seed': seed}} for k, extra in sets for seed in (7, 77)]
+
+
 def call(method: str, path: str, body: dict | None = None) -> dict:
     req = urllib.request.Request(f'https://api.runpod.ai/v2/{ENDPOINT}/{path}', method=method,
                                  data=None if body is None else json.dumps(body).encode(),
@@ -278,7 +325,7 @@ def main() -> None:
     if not KEY:
         sys.exit('RUNPOD_API_KEY 가 없어요')
     os.makedirs(OUT, exist_ok=True)
-    jobs = persona_plan() if ONLY == 'p' else retest_plan() if ONLY == 'r' else knob_plan() if ONLY == 'k' else voice_plan() if ONLY == 'v' else [j for j in plan() if ONLY in ('', 'all') or j['key'].startswith(ONLY)]
+    jobs = engine_plan() if ONLY == 'e' else persona_plan() if ONLY == 'p' else retest_plan() if ONLY == 'r' else knob_plan() if ONLY == 'k' else voice_plan() if ONLY == 'v' else [j for j in plan() if ONLY in ('', 'all') or j['key'].startswith(ONLY)]
     rnd = random.Random(int(time.time()))
     if ONLY in ('p', 'r'):
         # 카테고리 폴더 안에서 번호를 섞어요 (여자/여자_07.mp3) · 폴더마다 고를 목록(목록.txt)을 같이 넣어요
@@ -321,9 +368,14 @@ def main() -> None:
                 o = st.get('output') or {}
                 with open(os.path.join(OUT, j['file'] + '.mp3'), 'wb') as f:
                     f.write(base64.b64decode(o.get('audio_b64', '')))
-                j['result'] = {k: o.get(k) for k in ('seconds', 'took', 'task', 'dit', 'shift', 'steps', 'master', 'keyscale')}
+                j['result'] = {k: o.get(k) for k in ('seconds', 'took', 'task', 'dit', 'shift', 'steps', 'master', 'keyscale', 'lm', 'guidance', 'vocal_check')}
                 print('완성', j['file'], j['result'], flush=True)
                 pending.remove(j)
+            elif s in ('FAILED', 'CANCELLED', 'TIMED_OUT') and 'LAB_NEEDS_48GB' in str(st.get('error')) and j.get('retry', 0) < 4:
+                # 24GB 작업자에 걸리면 다시 보내요 (큰 작곡 모델은 48GB 에서만)
+                j['retry'] = j.get('retry', 0) + 1
+                j['id'] = call('POST', 'run', {'input': j['input']}).get('id')
+                print('다시 보냄 (48GB 필요)', j['file'], j['id'], flush=True)
             elif s in ('FAILED', 'CANCELLED', 'TIMED_OUT'):
                 j['result'] = {'status': s, 'error': str(st.get('error'))[:500]}
                 print('실패', j['file'], st.get('error'), flush=True)
