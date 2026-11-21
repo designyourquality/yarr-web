@@ -580,12 +580,15 @@ def _repaint_guard(r: dict, dit, llm, params, p: dict, t0: float, src_path: str 
         ov = vocal_check(src_path, p.get('lyrics') or '', p.get('vocal_language') or 'ko', seg=(p['repaint_start'], p['repaint_end']))
         orig = float(((ov or {}).get('seg') or {}).get('score') or -1)
         check['orig'] = orig
-        if orig >= _seg(best):
+        # 원본 구간이 원래 또렷했을 때만 원본을 지켜요 (2026-11-21 알림 꺼: 원본도 흐린 드롭 구간이면 편곡을 바꾸려는 것 → 새 판을 줘요)
+        if orig >= SEG_OK and orig >= _seg(best):
             best = {**best, 'repaint_kept': True}
     best['repaint_check'] = check
     best['took'] = round(time.time() - t0, 1)
     return best
 
+
+SEG_OK = 0.60   # vocal_check.py 의 SEG_OK 와 같아요
 
 VOCAL_CHECK = os.environ.get('VOCAL_CHECK', '1') == '1'
 VOCAL_PY = os.environ.get('VOCAL_CHECK_PY', '/opt/conda/bin/python')
