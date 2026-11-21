@@ -533,7 +533,7 @@ def handler(job: dict) -> dict:
         dit = get_dit(p['dit'])   # 목소리 빼기 동안 비켜 뒀으면 다시 GPU 로
         try:
             with tempfile.TemporaryDirectory() as out:
-                return _run(dit, llm, params, config, out, p, t0, cover)
+                return _repaint_guard(_run(dit, llm, params, config, out, p, t0, cover), dit, llm, params, p, t0, src_path)
         except RuntimeError as e:
             # 안전장치 (2026-11-20): 상위 엔진이 메모리 부족이면 같은 작업 안에서 기본 엔진으로 한 번 더 (실패로 뜨지 않게)
             if not (_is_oom(e) and p.get('dit') and p['dit'] != DIT):
@@ -544,17 +544,54 @@ def handler(job: dict) -> dict:
             p['dit_fallback'], p['dit'] = p['dit'], None
             dit = get_dit(None)
             with tempfile.TemporaryDirectory() as out:
-                return _run(dit, llm, params, config, out, p, t0, cover)
+                return _repaint_guard(_run(dit, llm, params, config, out, p, t0, cover), get_dit(None), llm, params, p, t0, src_path)
     finally:
         if src_dir:
             shutil.rmtree(src_dir, ignore_errors=True)
+
+
+def _seg(r: dict | None) -> float:
+    sg = ((r or {}).get('vocal_check') or {}).get('seg') or {}
+    return float(sg.get('score') if sg.get('score') is not None else -1)
+
+
+def _repaint_guard(r: dict, dit, llm, params, p: dict, t0: float, src_path: str | None) -> dict:
+    """구간 다시 만들기 확인 (2026-11-21 · 스위치 온에서 고친 구간 가사가 뒤섞였어요):
+    새로 부른 구간의 가사 순서가 어긋나면(seg.ok False) 다른 씨앗으로 한 번 더 · 둘 중 나은 쪽
+    그래도 어긋나면 원본 구간 점수와 비교해서 원본이 더 나으면 repaint_kept=True (서버가 원본을 그대로 둬요)"""
+    if p.get('task') != 'repaint' or p.get('instrumental'):
+        return r
+    sg = ((r.get('vocal_check') or {}).get('seg') or {})
+    if not sg or sg.get('ok') is not False:
+        return r
+    from acestep.inference import GenerationConfig
+    tries = [_seg(r)]
+    best = r
+    try:
+        with tempfile.TemporaryDirectory() as out:
+            r2 = _run(dit, llm, params, GenerationConfig(batch_size=1, use_random_seed=True, seeds=None, audio_format='wav'), out, p, t0, False)
+        tries.append(_seg(r2))
+        if _seg(r2) > _seg(best):
+            best = r2
+    except Exception as e:  # noqa: BLE001  두 번째가 실패하면 첫 번째로
+        print(f'repaint retry skipped: {str(e)[:120]}', flush=True)
+    check = {'tries': tries, 'ok': _seg(best) >= 0 and bool(((best.get('vocal_check') or {}).get('seg') or {}).get('ok'))}
+    if not check['ok'] and src_path:
+        ov = vocal_check(src_path, p.get('lyrics') or '', p.get('vocal_language') or 'ko', seg=(p['repaint_start'], p['repaint_end']))
+        orig = float(((ov or {}).get('seg') or {}).get('score') or -1)
+        check['orig'] = orig
+        if orig >= _seg(best):
+            best = {**best, 'repaint_kept': True}
+    best['repaint_check'] = check
+    best['took'] = round(time.time() - t0, 1)
+    return best
 
 
 VOCAL_CHECK = os.environ.get('VOCAL_CHECK', '1') == '1'
 VOCAL_PY = os.environ.get('VOCAL_CHECK_PY', '/opt/conda/bin/python')
 
 
-def vocal_check(path: str, lyrics: str, lang: str, ce: bool = False) -> dict | None:
+def vocal_check(path: str, lyrics: str, lang: str, ce: bool = False, seg: tuple[float, float] | None = None) -> dict | None:
     """곡 품질 확인 (2026-11-20 v2) → vocal_check.py (따로 된 파이썬에서)
     보컬곡: {'match': 줄 맞음 비율, 'mean', 'verdict': green|yellow|red, 'worst': [낮은 두 줄 + 시간], 'chars', 'qc': 사고 검사}
     연주곡: {'qc': 사고 검사} · ce=True(운영팀 곡)면 'ce' (Audiobox 즐거움) · 못 하면 None (서버는 그냥 완성으로 봐요)"""
@@ -566,7 +603,7 @@ def vocal_check(path: str, lyrics: str, lang: str, ce: bool = False) -> dict | N
             with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as fh:
                 fh.write(lyrics)
             lyr = fh.name
-        cmd = [VOCAL_PY, '/app/yarr_vocal_check.py', path, lyr or '-', lang] + (['--ce'] if ce else [])
+        cmd = [VOCAL_PY, '/app/yarr_vocal_check.py', path, lyr or '-', lang] + (['--ce'] if ce else []) + (['--seg', str(seg[0]), str(seg[1])] if seg and lyr else [])
         env = {**os.environ, 'HF_HOME': '/opt/hf_ab', 'HF_HUB_OFFLINE': '1'}
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=300, env=env)
         line = (r.stdout or '').strip().splitlines()[-1] if r.stdout.strip() else 'null'
@@ -666,7 +703,8 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
     with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as fh:
         fh.write(data)
     try:
-        vc = vocal_check(fh.name, '' if p.get('instrumental') else (p.get('lyrics') or ''), p.get('vocal_language') or 'ko', ce=p.get('aesthetics', False))
+        vc = vocal_check(fh.name, '' if p.get('instrumental') else (p.get('lyrics') or ''), p.get('vocal_language') or 'ko', ce=p.get('aesthetics', False),
+                         seg=(p['repaint_start'], p['repaint_end']) if p.get('task') == 'repaint' else None)
     finally:
         os.unlink(fh.name)
     seed = (a.get('params') or {}).get('seed')
