@@ -1,9 +1,17 @@
-# YARR 보컬곡 전체 점검 (읽기 전용 · DB 에 쓰지 않아요 · GPU 안 씀)
+# YARR 보컬곡 점검 (읽기 전용 · DB 에 쓰지 않아요 · GPU 안 씀)
 # 공개 곡 중 가사 있는 곡을 받아 품질 v2 (발음 🟢🟡🔴 · 약한 줄 · 사고) 검사 → Artifacts 'vocal-audit'
+# 다시 검사: model=medium (더 정확 · 느림), only=제목|제목 (그 곡만)
 # 필요: SUPABASE_URL · SUPABASE_SECRET_KEY (자동 검수와 같은 값)
 name: YARR 보컬곡 점검
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      model:
+        description: '받아쓰기 모델 (small · medium)'
+        default: small
+      only:
+        description: '이 제목만 검사 (| 로 구분 · 비우면 전체)'
+        default: ''
 jobs:
   audit:
     runs-on: ubuntu-24.04
@@ -15,6 +23,8 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      YARR_WHISPER_MODEL: ${{ inputs.model || 'small' }}
+      AUDIT_ONLY: ${{ inputs.only }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -28,7 +38,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: /opt/whisper
-          key: whisper-small-opt-v1
+          key: whisper-${{ inputs.model || 'small' }}-opt-v1
       - name: 점검
         run: python worker/vocal_audit.py ${{ matrix.shard }} 6
       - uses: actions/upload-artifact@v4
