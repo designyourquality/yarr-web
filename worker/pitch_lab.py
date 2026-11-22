@@ -39,7 +39,7 @@ def fetch(c, spec):
 SCALES = {'major': [0, 2, 4, 5, 7, 9, 11], 'minor': [0, 2, 3, 5, 7, 8, 10]}
 
 
-def analyse(wav: str) -> dict:
+def analyse(wav: str, acc: str | None = None) -> dict:
     import librosa
     y, sr = librosa.load(wav, sr=16000, mono=True)
     hop = 160  # 10ms
@@ -87,8 +87,23 @@ def analyse(wav: str) -> dict:
             if best is None or inside > best[0]:
                 best = (inside, root, name)
     outscale = 1 - best[0] / (pcs.sum() or 1)
-    # 갑작스런 반음 처짐: 안정 음 안에서 0.8~1.3 반음 떨어졌다가 머무는 순간 (프레임 중앙값 필터)
-    return {'voiced_s': round(v.size * 0.01, 1), 'tune_cents': round(tune * 100), 'notes': len(segs),
+    # 반주와 부딪힘: 안정 음(200ms+)의 음이름이 그 순간 반주 크로마에서 약하고, 반음 옆이 강하면 '충돌'
+    clash_t, clash_n, clash_at = 0, 0, []
+    if acc:
+        ya, _ = librosa.load(acc, sr=16000, mono=True)
+        ch = librosa.feature.chroma_cqt(y=ya, sr=sr, hop_length=hop * 4)  # 40ms
+        for sgm in segs:
+            if len(sgm) < 20:
+                continue
+            a0, a1 = sgm[0] // 4, max(sgm[0] // 4 + 1, sgm[-1] // 4)
+            c = ch[:, a0:a1].mean(axis=1)
+            c = c / (c.max() + 1e-9)
+            pc = int(round(float(np.median(m[sgm])))) % 12
+            if c[pc] < 0.25 and max(c[(pc + 1) % 12], c[(pc - 1) % 12]) > 0.7:
+                clash_t += len(sgm)
+                clash_n += 1
+                clash_at.append(round(sgm[0] * 0.01, 1))
+    return {'clash': round(clash_t / tot, 3), 'clash_per_min': round(clash_n / dur_min, 2), 'clash_at': clash_at[:12],'voiced_s': round(v.size * 0.01, 1), 'tune_cents': round(tune * 100), 'notes': len(segs),
             'drift_per_min': round(drift / dur_min, 2), 'offkey': round(offkey, 3), 'outscale': round(float(outscale), 3),
             'wobble': round(float(np.median(wob)) if wob else 0, 3),
             'key': ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][best[1]] + ' ' + best[2]}
@@ -110,15 +125,15 @@ def main() -> None:
                 subprocess.run([sys.executable, '-m', 'demucs', '--two-stems=vocals', '-n', 'htdemucs', '-o', tmp, src],
                                check=True, capture_output=True)
                 voc = os.path.join(tmp, 'htdemucs', 'a', 'vocals.wav')
-                rec.update(analyse(voc))
+                rec.update(analyse(voc, os.path.join(tmp, 'htdemucs', 'a', 'no_vocals.wav')))
         except Exception as e:  # noqa: BLE001
             rec['error'] = str(e)[:200]
         print(f"[{rec['label']}] {rec.get('title', spec)[:24]:<24} drift/분 {rec.get('drift_per_min')} · offkey {rec.get('offkey')} · "
-              f"outscale {rec.get('outscale')} · wobble {rec.get('wobble')} · 튜닝 {rec.get('tune_cents')}c · {rec.get('key')} {rec.get('error', '')}", flush=True)
+              f"outscale {rec.get('outscale')} · 충돌 {rec.get('clash')} ({rec.get('clash_per_min')}/분 @{rec.get('clash_at')}) · wobble {rec.get('wobble')} · 튜닝 {rec.get('tune_cents')}c · {rec.get('key')} {rec.get('error', '')}", flush=True)
         out.append(rec)
     os.makedirs('pitch_out', exist_ok=True)
     json.dump(out, open('pitch_out/pitch.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
-    for k in ('drift_per_min', 'offkey', 'outscale', 'wobble'):
+    for k in ('drift_per_min', 'offkey', 'outscale', 'wobble', 'clash', 'clash_per_min'):
         b = [r[k] for r in out if r['label'] == '이상' and k in r]
         g = [r[k] for r in out if r['label'] == '괜찮음' and k in r]
         if b and g:
