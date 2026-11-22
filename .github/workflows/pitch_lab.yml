@@ -1,0 +1,32 @@
+# YARR 음정 실험 (읽기 전용 · DB 에 쓰지 않아요 · GPU 안 씀)
+# 대표님이 귀로 고른 '이상/괜찮음' 테이크로 음정 지표를 비교 → Artifacts 'pitch-lab'
+name: YARR 음정 실험
+on:
+  workflow_dispatch:
+    inputs:
+      set:
+        description: 'b:<batch>:<take> | g:<batch>:<take> (b=이상 · g=괜찮음)'
+        required: true
+jobs:
+  lab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      PITCH_SET: ${{ inputs.set }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install supabase requests numpy librosa soundfile demucs torch torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
+      - run: command -v ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q ffmpeg)
+      - name: 음정 비교
+        run: python worker/pitch_lab.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pitch-lab
+          path: pitch_out/
+          retention-days: 14
