@@ -79,10 +79,10 @@ def load_whisper():
     from faster_whisper import WhisperModel
     if os.environ.get('YARR_WHISPER_DEVICE') == 'cuda':
         try:
-            return WhisperModel('small', device='cuda', compute_type='float16', download_root='/opt/whisper')
+            return WhisperModel(os.environ.get('YARR_WHISPER_MODEL', 'small'), device='cuda', compute_type='float16', download_root='/opt/whisper')
         except Exception:  # noqa: BLE001
             pass
-    return WhisperModel('small', device='cpu', compute_type='int8', cpu_threads=max(1, min(16, os.cpu_count() or 4)),
+    return WhisperModel(os.environ.get('YARR_WHISPER_MODEL', 'small'), device='cpu', compute_type='int8', cpu_threads=max(1, min(16, os.cpu_count() or 4)),
                         download_root='/opt/whisper')
 
 

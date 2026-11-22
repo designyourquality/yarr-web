@@ -66,8 +66,11 @@ def main() -> None:
             break
         start += 500
     rows = [r for r in rows if len((r.get('lyrics') or '').strip()) > 20]
+    only = [t.strip() for t in os.environ.get('AUDIT_ONLY', '').split('|') if t.strip()]
+    if only:  # 다시 검사할 곡 제목만 (| 로 구분)
+        rows = [r for r in rows if r['title'] in only]
     mine = [r for i, r in enumerate(rows) if i % shards == shard]
-    print(f'보컬곡 {len(rows)}곡 중 이 조각 {len(mine)}곡', flush=True)
+    print(f"모델 {os.environ.get('YARR_WHISPER_MODEL', 'small')} · 보컬곡 {len(rows)}곡" f' 중 이 조각 {len(mine)}곡', flush=True)
     out = []
     for n, r in enumerate(mine, 1):
         t0 = time.time()
