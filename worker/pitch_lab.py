@@ -39,7 +39,7 @@ def fetch(c, spec):
 SCALES = {'major': [0, 2, 4, 5, 7, 9, 11], 'minor': [0, 2, 3, 5, 7, 8, 10]}
 
 
-def analyse(wav: str, acc: str | None = None) -> dict:
+def analyse(wav: str, acc: str | None = None, mix: str | None = None) -> dict:
     import librosa
     y, sr = librosa.load(wav, sr=16000, mono=True)
     hop = 160  # 10ms
@@ -103,7 +103,24 @@ def analyse(wav: str, acc: str | None = None) -> dict:
                 clash_t += len(sgm)
                 clash_n += 1
                 clash_at.append(round(sgm[0] * 0.01, 1))
-    return {'clash': round(clash_t / tot, 3), 'clash_per_min': round(clash_n / dur_min, 2), 'clash_at': clash_at[:12],'voiced_s': round(v.size * 0.01, 1), 'tune_cents': round(tune * 100), 'notes': len(segs),
+    # 다이내믹: 목소리 0.5초 RMS(dB) · 노래하는 구간만 → 폭(p90-p10) · 쌓임(뒤 1/3 - 앞 1/3)
+    win = sr // 2
+    rms = np.array([np.sqrt(np.mean(y[i:i + win] ** 2) + 1e-12) for i in range(0, len(y) - win, win)])
+    db = 20 * np.log10(rms + 1e-9)
+    sung = db[db > db.max() - 30]
+    k3 = max(1, len(sung) // 3)
+    voc_range = float(np.percentile(sung, 90) - np.percentile(sung, 10)) if sung.size > 10 else 0.0
+    voc_build = float(np.median(sung[-k3:]) - np.median(sung[:k3])) if sung.size > 10 else 0.0
+    mix_range = None
+    if mix:
+        ym, _ = librosa.load(mix, sr=16000, mono=True)
+        w3 = sr * 3
+        st = np.array([np.sqrt(np.mean(ym[i:i + w3] ** 2) + 1e-12) for i in range(0, len(ym) - w3, sr)])
+        sdb = 20 * np.log10(st + 1e-9)
+        sdb = sdb[sdb > sdb.max() - 25]
+        mix_range = round(float(np.percentile(sdb, 95) - np.percentile(sdb, 10)), 1) if sdb.size > 10 else None
+    return {'voc_range_db': round(voc_range, 1), 'voc_build_db': round(voc_build, 1), 'mix_range_db': mix_range,
+            'clash': round(clash_t / tot, 3), 'clash_per_min': round(clash_n / dur_min, 2), 'clash_at': clash_at[:12],'voiced_s': round(v.size * 0.01, 1), 'tune_cents': round(tune * 100), 'notes': len(segs),
             'drift_per_min': round(drift / dur_min, 2), 'offkey': round(offkey, 3), 'outscale': round(float(outscale), 3),
             'wobble': round(float(np.median(wob)) if wob else 0, 3),
             'key': ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][best[1]] + ' ' + best[2]}
@@ -125,15 +142,19 @@ def main() -> None:
                 subprocess.run([sys.executable, '-m', 'demucs', '--two-stems=vocals', '-n', 'htdemucs', '-o', tmp, src],
                                check=True, capture_output=True)
                 voc = os.path.join(tmp, 'htdemucs', 'a', 'vocals.wav')
-                rec.update(analyse(voc, os.path.join(tmp, 'htdemucs', 'a', 'no_vocals.wav')))
+                rec.update(analyse(voc, os.path.join(tmp, 'htdemucs', 'a', 'no_vocals.wav'), src))
         except Exception as e:  # noqa: BLE001
             rec['error'] = str(e)[:200]
-        print(f"[{rec['label']}] {rec.get('title', spec)[:24]:<24} drift/분 {rec.get('drift_per_min')} · offkey {rec.get('offkey')} · "
+        print(f"[{rec['label']}] {rec.get('title', spec)[:24]:<24} 목소리폭 {rec.get('voc_range_db')}dB · 쌓임 {rec.get('voc_build_db')}dB · 곡폭 {rec.get('mix_range_db')}dB · drift/분 {rec.get('drift_per_min')} · offkey {rec.get('offkey')} · "
               f"outscale {rec.get('outscale')} · 충돌 {rec.get('clash')} ({rec.get('clash_per_min')}/분 @{rec.get('clash_at')}) · wobble {rec.get('wobble')} · 튜닝 {rec.get('tune_cents')}c · {rec.get('key')} {rec.get('error', '')}", flush=True)
         out.append(rec)
+    rs = [r for r in out if 'voc_range_db' in r]
+    if rs:
+        print(f"== 다이내믹 전체 {len(rs)}곡: 목소리폭 평균 {np.mean([r['voc_range_db'] for r in rs]):.1f}dB · 쌓임 평균 {np.mean([r['voc_build_db'] for r in rs]):.1f}dB · "
+              f"곡폭 평균 {np.mean([r['mix_range_db'] for r in rs if r.get('mix_range_db') is not None] or [0]):.1f}dB", flush=True)
     os.makedirs('pitch_out', exist_ok=True)
     json.dump(out, open('pitch_out/pitch.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
-    for k in ('drift_per_min', 'offkey', 'outscale', 'wobble', 'clash', 'clash_per_min'):
+    for k in ('drift_per_min', 'offkey', 'outscale', 'wobble', 'clash', 'clash_per_min', 'voc_range_db', 'voc_build_db'):
         b = [r[k] for r in out if r['label'] == '이상' and k in r]
         g = [r[k] for r in out if r['label'] == '괜찮음' and k in r]
         if b and g:
