@@ -1,0 +1,32 @@
+# YARR 끝음 처짐 실험 (읽기 전용 · DB 에 쓰지 않아요 · GPU 안 씀)
+# 대표님이 귀로 짚은 '끝음 처짐' 테이크(b)와 괜찮은 테이크(g)로 문구 끝 검출기를 맞춰요 → Artifacts 'drop-lab'
+name: YARR 끝음 처짐 실험
+on:
+  workflow_dispatch:
+    inputs:
+      set:
+        description: 'b:<batch>:<take>@초,초 | g:<batch>:<take> (b=이상 · g=괜찮음)'
+        required: true
+jobs:
+  lab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      DROP_SET: ${{ inputs.set }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install supabase requests numpy librosa soundfile demucs torch torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
+      - run: command -v ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q ffmpeg)
+      - name: 끝음 처짐 비교
+        run: python worker/drop_lab.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: drop-lab
+          path: drop.json
+          if-no-files-found: ignore
