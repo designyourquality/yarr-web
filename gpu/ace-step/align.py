@@ -315,6 +315,9 @@ def heard_lines(lines: list, words: list) -> list:
     for j in range(m - 1, -1, -1):
         b, c, s = best[j + 1], None, ''
         for k in range(j, min(m, j + 16)):
+            # 낱말 사이가 3초 넘게 비면 한 줄로 묶지 않아요 (2026-11-14 「야르르」: 간주 앞 잡음 한 낱말 111초 + 138초 후렴 → 31초짜리 한 줄)
+            if k > j and words[k][0] - words[k - 1][1] > 3.0:
+                break
             s += words[k][2]
             for key, i in uniq:
                 # 줄 반쪽만으로 짝을 짓지 않게 (반쪽 두 번이 한 줄보다 점수가 높아지는 걸 막아요): 길이 80% 이상 · 닮음 0.7 이상

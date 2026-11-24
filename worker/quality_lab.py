@@ -335,7 +335,11 @@ def wait_all(jobs: list[dict], minutes: int = 30) -> None:
             if s == 'COMPLETED':
                 o = st.get('output') or {}
                 j['audio'] = o.get('audio_b64', '')
+<<<<<<< Updated upstream
                 j['result'] = {k: o.get(k) for k in ('seconds', 'took', 'task', 'dit', 'gpu_gb', 'gpu_name', 'vram_peak_gb', 'sing', 'strip', 'dit_fallback')}
+=======
+                j['result'] = {k: o.get(k) for k in ('seconds', 'took', 'task', 'dit', 'gpu_gb', 'gpu_name', 'vram_peak_gb', 'sing', 'strip')}
+>>>>>>> Stashed changes
                 print('완성', j['key'], j['result'], flush=True)
                 pending.remove(j)
             elif s in ('FAILED', 'CANCELLED', 'TIMED_OUT'):
@@ -353,7 +357,11 @@ def mem_lab() -> None:
     vocal = {'caption': NADO_CAPTION, 'lyrics': NADO_LYRICS, 'instrumental': False, 'vocal_language': 'ko', 'bpm': 120,
              'duration': 120, 'seed': 12, **tune}
     first = [{'key': f'x1 일반 연주곡 #{i}', 'input': {**inst, 'seed': 11 + i}} for i in (1, 2)] + \
+<<<<<<< Updated upstream
             [{'key': f'x2 일반 보컬곡 {sec}초', 'input': {**vocal, 'seed': 12 + sec, 'duration': sec}} for sec in (180, 240)] + \
+=======
+            [{'key': f'x2 일반 보컬곡 #{i}', 'input': {**vocal, 'seed': 12 + i}} for i in (1, 2)] + \
+>>>>>>> Stashed changes
             [{'key': f'x3 직접 찍기(가이드) #{i}', 'input': {'caption': POP, 'lyrics': POP_LYRICS, 'instrumental': False, 'vocal_language': 'ko',
                                                        'bpm': 100, 'duration': 90, 'seed': 20 + i, 'guide': guide.DEMO, 'cover_strength': 0.35,
                                                        'guide_melody': 'gaps', 'guide_lowpass': True, **tune}} for i in (1, 2)]
@@ -361,7 +369,11 @@ def mem_lab() -> None:
         j['id'] = call('POST', 'run', {'input': j['input']}).get('id')
     wait_all(first)
     inst_b64 = next((j['audio'] for j in first if j['key'].startswith('x1') and j.get('audio')), '')
+<<<<<<< Updated upstream
     voc_b64 = next((j['audio'] for j in first if j['key'].startswith('x2') and j.get('audio') and len(j['audio']) < 7_000_000), '')
+=======
+    voc_b64 = next((j['audio'] for j in first if j['key'].startswith('x2') and j.get('audio')), '')
+>>>>>>> Stashed changes
     second = []
     if inst_b64:
         second += [{'key': f'x4 내 반주에 노래 얹기 #{i}', 'input': {**vocal, 'duration': 90, 'seed': 30 + i, 'src_audio_b64': inst_b64,

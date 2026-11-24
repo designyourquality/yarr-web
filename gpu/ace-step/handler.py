@@ -53,7 +53,11 @@ LANGS = {'ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'pt', 'it', 'ru', 'unknown'}
 _DIT = None
 _LLM = None
 _DITS: dict = {}
-DIT_CHOICES = {'acestep-v15-turbo', 'acestep-v15-turbo-shift3', 'acestep-v15-xl-turbo'}
+DIT_CHOICES = {'acestep-v15-turbo', 'acestep-v15-turbo-shift3', 'acestep-v15-xl-turbo',
+               # 엔진 상위 버전 실험 (2026-11-20): sft 는 50단계 + CFG(guidance) · 공식 표 '품질 매우 높음(XL sft)'
+               'acestep-v15-sft', 'acestep-v15-xl-sft'}
+LM_CHOICES = {'acestep-5Hz-lm-1.7B', 'acestep-5Hz-lm-4B'}
+_LMS: dict = {}
 MASTER_AF = 'equalizer=f=4500:t=q:w=0.8:g=-2,equalizer=f=220:t=q:w=0.9:g=1.5,acompressor=threshold=-18dB:ratio=2:attack=20:release=250:makeup=1'
 
 
@@ -154,6 +158,30 @@ def get_dit(name: str | None):
     return h
 
 
+def get_lm(name: str | None):
+    """요청마다 다른 작곡 모델(LM) · 4B 는 공식 '작곡 · 멜로디 따라 하기 강함' (2026-11-20 실험용)
+    24GB GPU 에서는 기본(1.7B) + 4B + XL 을 같이 올리면 모자라서 48GB 일 때만 받아요"""
+    _, llm = load_models()
+    if not name or name == LM:
+        return llm
+    if name in _LMS:
+        return _LMS[name]
+    import torch
+    if torch.cuda.get_device_properties(0).total_memory < 40 * 1024 ** 3:
+        raise RuntimeError('LAB_NEEDS_48GB: 큰 작곡 모델은 48GB 작업자에서만 돌려요')
+    from acestep.llm_inference import LLMHandler
+    from acestep.model_downloader import ensure_lm_model
+    ok, msg = ensure_lm_model(name, checkpoints_dir=__import__('pathlib').Path(CKPT), token=os.environ.get('HF_TOKEN') or None, prefer_source='huggingface')
+    if not ok:
+        raise RuntimeError(f'{name} 받기 실패: {msg}')
+    h = LLMHandler()
+    status, ok = h.initialize(checkpoint_dir=CKPT, lm_model_path=name, backend='pt', device='cuda')
+    if not ok:
+        raise RuntimeError(f'{name} 준비 실패: {status}')
+    _LMS[name] = h
+    return h
+
+
 def clean_input(inp: dict) -> dict:
     """요청 값 확인 (서버 함수가 조립한 값만 와요 · 그래도 한 번 더 막아요)"""
     if not isinstance(inp, dict):
@@ -208,8 +236,18 @@ def clean_input(inp: dict) -> dict:
             'task': task, 'repaint_start': float(rs) if task else None, 'repaint_end': float(re_) if task else None,
             'dit': str(inp['dit']) if inp.get('dit') in DIT_CHOICES else None,
             'shift': float(inp['shift']) if isinstance(inp.get('shift'), (int, float)) and 1.0 <= inp['shift'] <= 5.0 else None,
-            'steps': int(inp['steps']) if isinstance(inp.get('steps'), (int, float)) and 4 <= inp['steps'] <= 20 else 8,
+            # sft 계열은 50단계 (turbo 는 8) · 2026-11-20 상한 64
+            'steps': int(inp['steps']) if isinstance(inp.get('steps'), (int, float)) and 4 <= inp['steps'] <= 64
+            else (50 if str(inp.get('dit', '')).endswith('sft') else 8),
+            'guidance': float(inp['guidance']) if isinstance(inp.get('guidance'), (int, float)) and 1.0 <= inp['guidance'] <= 15.0 else None,
+            'lm': str(inp['lm']) if inp.get('lm') in LM_CHOICES else None,
             'master': inp.get('master') is True,
+            # 내 반주에 노래 얹기 (2026-11-14): 커버로 노래를 만든 뒤 목소리만 뽑아 원래 반주 위에 얹어요
+            'sing': inp.get('sing') is True and src_bytes is not None and not instrumental,
+            # 보컬곡에 얹기 (2026-11-14): 원곡 목소리를 먼저 빼고(Demucs) 그 반주 위에 새 목소리 · 커버 가이드는 원곡 그대로(멜로디를 따라 불러요)
+            'strip': inp.get('strip') is True,
+            # 운영팀 곡만 (2026-11-20): Audiobox 완성도(CE) 참고 점수
+            'aesthetics': inp.get('aesthetics') is True,
             # 조 고정 (실험 · 앞으로 직접 찍기 조 맞추기): 'C Major' · 'A Minor' · 'Am' 처럼 · 이상하면 무시
             'keyscale': str(inp['keyscale']) if isinstance(inp.get('keyscale'), str)
             and __import__('re').fullmatch(r'[A-G][#b]?(m| Major| Minor)?', inp['keyscale']) else ''}
@@ -395,10 +433,16 @@ def handler(job: dict) -> dict:
     if isinstance(job.get('input'), dict) and job['input'].get('task') == 'mix':
         return mix(job['input'], t0)
     p = clean_input(job.get('input'))
-    _, llm = load_models()
+    try:   # 메모리 실측 (2026-11-20 · XL 로 바꾸기 전 24GB 에서 얹기 · 다시 만들기 · 직접 찍기 여유 확인)
+        import torch
+        torch.cuda.reset_peak_memory_stats()
+    except Exception:  # noqa: BLE001
+        pass
+    llm = get_lm(p.get('lm'))
     dit = get_dit(p['dit'])
     from acestep.inference import GenerationConfig, GenerationParams
-    tune = {'inference_steps': p['steps'], **({'shift': p['shift']} if p['shift'] else {})}
+    tune = {'inference_steps': p['steps'], **({'shift': p['shift']} if p['shift'] else {}),
+            **({'guidance_scale': p['guidance']} if p.get('guidance') and str(p.get('dit') or '').endswith(('sft', 'base')) else {})}
 
     cover = p['src_bytes'] is not None
     src_dir = tempfile.mkdtemp() if cover else None
@@ -431,6 +475,24 @@ def handler(job: dict) -> dict:
             # LM 이 곡 설명을 고쳐 쓰지 않게 (고쳐 쓰면 '여자 보컬' 같은 지시가 빠질 때가 있어요) · 구조 · 박자 계획은 그대로 LM 이 해요
             use_cot_caption=False,
         )
+    if p.get('sing'):
+        p['src_path'] = src_path
+        p['base_path'] = src_path
+        if p.get('strip'):
+            r = subprocess.run([STEMS_PY, '/app/yarr_stems.py', src_path, src_dir], capture_output=True, text=True, timeout=600)
+            if r.returncode != 0:
+                shutil.rmtree(src_dir, ignore_errors=True)
+                raise RuntimeError(f'원곡 목소리 빼기 실패: {(r.stderr or r.stdout)[-300:]}')
+            os.replace(os.path.join(src_dir, 'backing.wav'), os.path.join(src_dir, 'base_backing.wav'))
+            p['base_path'] = os.path.join(src_dir, 'base_backing.wav')
+        pr = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', src_path], capture_output=True, text=True)
+        try:
+            if float(pr.stdout.strip() or 0) > MAX_SECONDS + 5:
+                raise ValueError(f'노래를 얹을 반주는 {MAX_SECONDS}초까지예요')
+        except ValueError as e:
+            if '반주' in str(e):
+                shutil.rmtree(src_dir, ignore_errors=True)
+                raise
     config = GenerationConfig(batch_size=1, use_random_seed=p['seed'] < 0,
                               seeds=None if p['seed'] < 0 else [p['seed']], audio_format='wav')
     try:
@@ -445,21 +507,102 @@ VOCAL_CHECK = os.environ.get('VOCAL_CHECK', '1') == '1'
 VOCAL_PY = os.environ.get('VOCAL_CHECK_PY', '/opt/conda/bin/python')
 
 
-def vocal_check(path: str, lyrics: str, lang: str) -> dict | None:
-    """목소리가 실제로 들어갔는지 (2026-11-02 · ACE 가 가끔 반주만 만들어요) → vocal_check.py (따로 된 파이썬에서)
-    {'match': 넣은 가사 중 들린 비율, 'chars': 받아 적은 글자 수, ...} · 못 하면 None (서버는 그냥 완성으로 봐요)"""
-    if not VOCAL_CHECK or not lyrics or not os.path.exists(VOCAL_PY):
+def vocal_check(path: str, lyrics: str, lang: str, ce: bool = False) -> dict | None:
+    """곡 품질 확인 (2026-11-20 v2) → vocal_check.py (따로 된 파이썬에서)
+    보컬곡: {'match': 줄 맞음 비율, 'mean', 'verdict': green|yellow|red, 'worst': [낮은 두 줄 + 시간], 'chars', 'qc': 사고 검사}
+    연주곡: {'qc': 사고 검사} · ce=True(운영팀 곡)면 'ce' (Audiobox 즐거움) · 못 하면 None (서버는 그냥 완성으로 봐요)"""
+    if not VOCAL_CHECK or not os.path.exists(VOCAL_PY):
         return None
+    lyr = None
     try:
-        with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as fh:
-            fh.write(lyrics)
-        r = subprocess.run([VOCAL_PY, '/app/yarr_vocal_check.py', path, fh.name, lang], capture_output=True, text=True, timeout=120)
-        os.unlink(fh.name)
+        if lyrics:
+            with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as fh:
+                fh.write(lyrics)
+            lyr = fh.name
+        cmd = [VOCAL_PY, '/app/yarr_vocal_check.py', path, lyr or '-', lang] + (['--ce'] if ce else [])
+        env = {**os.environ, 'HF_HOME': '/opt/hf_ab', 'HF_HUB_OFFLINE': '1'}
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300, env=env)
         line = (r.stdout or '').strip().splitlines()[-1] if r.stdout.strip() else 'null'
         return json.loads(line)
     except Exception as e:  # noqa: BLE001  확인을 못 해도 곡은 그대로 돌려줘요
         print(f'vocal check skipped: {str(e)[:120]}', flush=True)
         return None
+    finally:
+        if lyr:
+            try:
+                os.unlink(lyr)
+            except OSError:
+                pass
+
+
+def _pcm(path: str, sr: int = 8000):
+    import numpy as np
+    r = subprocess.run(['ffmpeg', '-v', 'error', '-i', path, '-ac', '1', '-ar', str(sr), '-t', '120', '-f', 'f32le', '-'], capture_output=True)
+    return np.frombuffer(r.stdout, dtype=np.float32)
+
+
+def _onset(x, sr: int = 8000, hop: int = 80):
+    """10ms 마다 소리 세기가 '올라간 만큼' (박자 · 타격 위치) → 두 소리의 박자를 맞대 보는 데 써요"""
+    import numpy as np
+    n = len(x) // hop
+    if n < 10:
+        return np.zeros(1)
+    e = np.sqrt((x[: n * hop].reshape(n, hop) ** 2).mean(1) + 1e-9)
+    d = np.maximum(0, np.diff(np.log(e)))
+    return (d - d.mean()) / (d.std() + 1e-9)
+
+
+def sing_offset(gen_backing: str, orig: str, max_lag: float = 2.0) -> float:
+    """새로 만든 반주가 원래 반주보다 몇 초 늦는지 (+ 면 늦어요) · 박자 위치끼리 맞대서 찾아요"""
+    import numpy as np
+    a, b = _onset(_pcm(gen_backing)), _onset(_pcm(orig))
+    n = min(len(a), len(b))
+    if n < 300:
+        return 0.0
+    a, b = a[:n], b[:n]
+    L = int(max_lag * 100)
+    best, lag = -1e9, 0
+    for k in range(-L, L + 1):
+        v = float(np.dot(a[max(0, k): n + min(0, k)], b[max(0, -k): n - max(0, k)]))
+        if v > best:
+            best, lag = v, k
+    return lag / 100.0
+
+
+def sing_mix(gen_wav: str, src_path: str, out: str) -> tuple[str, float]:
+    """내 반주에 노래 얹기 (2026-11-14 · 유저 원곡을 그대로 들려줘요):
+    1) 커버로 만든 곡에서 Demucs 로 목소리만 · 2) 새 반주와 원래 반주의 박자를 맞대서 어긋난 만큼 목소리를 옮기고
+    3) 목소리를 다듬어(저음 잡음 컷 · 가벼운 압축) 원래 반주 위에 얹어요 → 반주는 100% 원곡"""
+    d = tempfile.mkdtemp(dir=out)
+    r = subprocess.run([STEMS_PY, '/app/yarr_stems.py', gen_wav, d], capture_output=True, text=True, timeout=600)
+    if r.returncode != 0:
+        raise RuntimeError(f'목소리 뽑기 실패: {(r.stderr or r.stdout)[-300:]}')
+    voc, back = os.path.join(d, 'vocals.wav'), os.path.join(d, 'backing.wav')
+    off = sing_offset(back, src_path)
+    orig = os.path.join(d, 'orig.wav')
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', src_path, '-ac', '2', '-ar', '48000', orig], check=True)
+    # 새 반주가 off 초 늦으면 목소리도 그만큼 늦게 들어있어요 → 앞을 잘라 당겨요 (빠르면 앞에 빈 소리를 넣어요)
+    shift = f'atrim=start={off:.3f},asetpts=PTS-STARTPTS' if off > 0 else f'adelay={int(-off * 1000)}|{int(-off * 1000)}'
+    vchain = f'[1:a]aresample=48000,{shift},highpass=f=90,acompressor=threshold=-20dB:ratio=2.5:attack=10:release=200:makeup=1.5,volume=1.1[v]'
+    mixed = os.path.join(d, 'mix.wav')
+    r = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', orig, '-i', voc, '-filter_complex',
+                        f'{vchain};[0:a][v]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[o]', '-map', '[o]', mixed],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f'얹기 실패: {r.stderr[:200]}')
+    print(f'sing offset {off:+.2f}s', flush=True)
+    return mixed, off
+
+
+def _vram() -> dict:
+    """GPU 전체 메모리 · 이번 작업 최고 사용량 (GB)"""
+    try:
+        import torch
+        return {'gpu_gb': round(torch.cuda.get_device_properties(0).total_memory / 1024 ** 3, 1),
+                'vram_peak_gb': round(torch.cuda.max_memory_allocated() / 1024 ** 3, 2),
+                'gpu_name': torch.cuda.get_device_name(0)}
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) -> dict:
@@ -468,8 +611,17 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
     if not result.success or not result.audios:
         raise RuntimeError(f'만들기 실패: {result.error or result.status_message}')
     a = result.audios[0]
-    data = encode_mp3(a['path'], master=p.get('master', False), level=not p.get('task'))   # 새로 만든 곡만 (구간 다시 만들기는 원곡과 같은 음량이어야 해요)
-    vc = None if p.get('instrumental') else vocal_check(a['path'], p.get('lyrics') or '', p.get('vocal_language') or 'ko')
+    if p.get('sing') and p.get('src_path'):
+        mixed, p['sing_offset'] = sing_mix(a['path'], p.get('base_path') or p['src_path'], out)
+        a = {**a, 'path': mixed}
+    data = encode_mp3(a['path'], master=p.get('master', False) and not p.get('sing'), level=not p.get('task'))   # 새로 만든 곡만 (구간 다시 만들기는 원곡과 같은 음량이어야 해요)
+    # 품질 확인은 사람이 실제로 듣는 mp3 로 (찢어짐 · 먹먹함 검사가 음량 맞춘 결과와 같아야 해요)
+    with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as fh:
+        fh.write(data)
+    try:
+        vc = vocal_check(fh.name, '' if p.get('instrumental') else (p.get('lyrics') or ''), p.get('vocal_language') or 'ko', ce=p.get('aesthetics', False))
+    finally:
+        os.unlink(fh.name)
     seed = (a.get('params') or {}).get('seed')
     sr = a.get('sample_rate') or 48000
     t = a.get('tensor')
@@ -486,9 +638,11 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         'repaint': [p['repaint_start'], p['repaint_end']] if p.get('task') == 'repaint' else None,
         'cover_strength': p['cover_strength'] if cover else None,
         'guide': p.get('guide', False),
-        'dit': p.get('dit') or DIT, 'shift': p.get('shift') or 1.0, 'steps': p.get('steps', 8), 'master': p.get('master', False),
+        'dit': p.get('dit') or DIT, 'shift': p.get('shift') or 1.0, 'steps': p.get('steps', 8), 'master': p.get('master', False), 'lm': p.get('lm') or LM, 'guidance': p.get('guidance'),
         'keyscale': p.get('keyscale') or None,
         'vocal_check': vc,
+        **_vram(),
+        'sing': p.get('sing', False), 'sing_offset': p.get('sing_offset'), 'strip': p.get('strip', False),
     }
 
 
