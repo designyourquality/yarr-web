@@ -1,0 +1,39 @@
+# YARR 곡별 공유 페이지 (docs/s/<곡 id>.html) 만들기
+# 카톡 등에 https://yarrmusic.com/s/<곡 id> 를 보내면 곡 제목 · 커버가 미리보기로 떠요.
+# 30분마다 새 공개 곡 페이지를 만들고, 바뀐 게 있을 때만 main 에 올려요.
+name: YARR 공유 페이지
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7,37 * * * *'
+permissions:
+  contents: write
+concurrency:
+  group: yarr-share-pages
+  cancel-in-progress: false
+jobs:
+  pages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -q 'supabase>=2.10,<3'
+      - name: 공유 페이지 만들기
+        run: python worker/share_pages.py
+      - name: 바뀐 것만 올리기
+        run: |
+          git add docs/s
+          if git diff --cached --quiet; then echo '바뀐 페이지 없음'; exit 0; fi
+          git config user.name 'yarr-bot'
+          git config user.email 'yarr-bot@users.noreply.github.com'
+          git commit -q -m 'share pages: update'
+          for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0; sleep 5; done
+          exit 1
