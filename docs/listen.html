@@ -948,7 +948,8 @@ html,body{background:var(--bg)}
     // TOP 100 은 30곡씩 나눠 불러요 (2026-11-08 · 첫 화면을 빠르게) · 제목은 늘 TOP 100
     if (!shared) $('topN').textContent = '100';
     $('moreWrap').style.display = !shared && !chartDone && !query ? '' : 'none';
-    $('listSub').textContent = query ? `'${query}' 찾은 곡 ${found.length}곡` : '지난 24시간 재생 기준';
+    // 공유된 곡 화면은 제목 줄을 '이어서 듣기'로 바꿔서 listSub 가 없어요 → 없으면 건너뛰어요 (2026-11-26)
+    if ($('listSub')) $('listSub').textContent = query ? `'${query}' 찾은 곡 ${found.length}곡` : '지난 24시간 재생 기준';
     $('chartMore').textContent = `${chart.length + 1}~${Math.min(100, chart.length + 30)}위 더 보기`;
     document.querySelectorAll('#filters button').forEach((b) => { const n = b.dataset.f === 'all' ? base.length : null; b.classList.toggle('on', b.dataset.f === filter); if (n != null) b.textContent = `전체 (${n})`; });
     markPlaying();
@@ -984,7 +985,7 @@ html,body{background:var(--bg)}
     $('qClear').hidden = !q;
     if (!q || (q.length < 2 && !/[가-힣]/.test(q))) { if (query) { query = ''; found = []; renderChart(); } return; }
     const my = ++qReq;
-    $('listSub').textContent = `'${q}' 찾는 중…`;
+    if ($('listSub')) $('listSub').textContent = `'${q}' 찾는 중…`;
     try {
       const j = await api({ action: 'search', q });
       if (my !== qReq) return;
