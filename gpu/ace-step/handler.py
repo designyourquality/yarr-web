@@ -278,6 +278,8 @@ def clean_input(inp: dict) -> dict:
             'sing': inp.get('sing') is True and src_bytes is not None and not instrumental,
             # 보컬곡에 얹기 (2026-11-14): 원곡 목소리를 먼저 빼고(Demucs) 그 반주 위에 새 목소리 · 커버 가이드는 원곡 그대로(멜로디를 따라 불러요)
             'strip': inp.get('strip') is True,
+            # 고음 점수 (2026-11-25 · 발라드 고음 곡): 'f' | 'm' 이 오면 목소리를 뽑아 꼭대기 음 · 버틴 시간 · 삑사리 · 음량을 재요
+            'high': inp['high_score'] if inp.get('high_score') in ('f', 'm') and not instrumental else None,
             # 운영팀 곡만 (2026-11-20): Audiobox 완성도(CE) 참고 점수
             'aesthetics': inp.get('aesthetics') is True,
             # 조 고정 (실험 · 앞으로 직접 찍기 조 맞추기): 'C Major' · 'A Minor' · 'Am' 처럼 · 이상하면 무시
@@ -484,6 +486,7 @@ def handler(job: dict) -> dict:
         with open(src_path, 'wb') as f:
             f.write(p['src_bytes'])
     if p.get('task') == 'repaint':
+        p['src_path'] = src_path   # 끝나고 고친 구간만 이 원본에 끼워 넣어요 (2026-11-25 · yarr_splice)
         # 구간 다시 만들기: 원본 테이크의 앞뒤를 그대로 두고 고른 구간만 새로 (가사 · 곡 설명은 원본 그대로)
         params = GenerationParams(
             task_type='repaint', src_audio=src_path, repainting_start=p['repaint_start'], repainting_end=p['repaint_end'],
@@ -622,6 +625,25 @@ def vocal_check(path: str, lyrics: str, lang: str, ce: bool = False, seg: tuple[
                 pass
 
 
+def high_note(path: str, sex: str, tmp: str) -> dict | None:
+    """고음 점수 (2026-11-25) → yarr_high_note.py · 사람이 듣는 mp3 에서 목소리만 뽑아(Demucs) 재요
+    {'score': 0~100, 'top': 'F#5', 'hold': 초, 'cracks': 횟수, 'lift_db', 'parts': {...}} · 못 재면 None (곡은 그대로 돌려줘요)"""
+    try:
+        if _small_gpu():   # 목소리 빼기(Demucs)는 따로 된 프로그램이라 엔진을 잠시 CPU 로 비켜 줘요 (다음 작업 때 get_dit 가 다시 올려요)
+            _park_all()
+        d = tempfile.mkdtemp(dir=tmp)
+        r = subprocess.run([STEMS_PY, '/app/yarr_stems.py', path, d], capture_output=True, text=True, timeout=600)
+        if r.returncode != 0:
+            raise RuntimeError((r.stderr or r.stdout)[-200:])
+        import yarr_high_note
+        res = yarr_high_note.check(os.path.join(d, 'vocals.wav'), sex)
+        print(f'high note {res}'[:300], flush=True)
+        return res
+    except Exception as e:  # noqa: BLE001
+        print(f'high note skipped: {str(e)[:160]}', flush=True)
+        return None
+
+
 def _pcm(path: str, sr: int = 8000):
     import numpy as np
     r = subprocess.run(['ffmpeg', '-v', 'error', '-i', path, '-ac', '1', '-ar', str(sr), '-t', '120', '-f', 'f32le', '-'], capture_output=True)
@@ -701,6 +723,17 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
     if p.get('sing') and p.get('src_path'):
         mixed, p['sing_offset'] = sing_mix(a['path'], p.get('base_path') or p['src_path'], out)
         a = {**a, 'path': mixed}
+    if p.get('task') == 'repaint' and p.get('src_path'):
+        # 구간 끼워 넣기 (2026-11-25): 모델은 곡 전체를 다시 내놓아서 할 때마다 전체 음량이 줄고 강약이 눌렸어요
+        # → 새 곡에서는 고른 구간만 가져와 음량을 원본에 맞추고 짧게 겹쳐 원본에 끼워 넣어요 (구간 밖은 원본 그대로)
+        try:
+            import yarr_splice
+            spliced = os.path.join(out, 'splice.wav')
+            p['splice'] = yarr_splice.splice(p['src_path'], a['path'], p['repaint_start'], p['repaint_end'], spliced)
+            a = {**a, 'path': spliced}
+            print(f"splice {p['splice']}", flush=True)
+        except Exception as e:   # noqa: BLE001 — 끼워 넣지 못하면 예전처럼 새 곡 전체를 돌려줘요
+            print(f'splice skip: {e!r}'[:200], flush=True)
     data = encode_mp3(a['path'], master=p.get('master', False) and not p.get('sing'), level=not p.get('task'))   # 새로 만든 곡만 (구간 다시 만들기는 원곡과 같은 음량이어야 해요)
     # 품질 확인은 사람이 실제로 듣는 mp3 로 (찢어짐 · 먹먹함 검사가 음량 맞춘 결과와 같아야 해요)
     with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as fh:
@@ -708,6 +741,7 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
     try:
         vc = vocal_check(fh.name, '' if p.get('instrumental') else (p.get('lyrics') or ''), p.get('vocal_language') or 'ko', ce=p.get('aesthetics', False),
                          seg=(p['repaint_start'], p['repaint_end']) if p.get('task') == 'repaint' else None)
+        hn = high_note(fh.name, p['high'], out) if p.get('high') and not p.get('task') else None   # 새로 만든 곡만
     finally:
         os.unlink(fh.name)
     seed = (a.get('params') or {}).get('seed')
@@ -724,11 +758,13 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         'model': f'ace-step-1.5:{DIT}+{LM}',
         'task': p.get('task') or ('cover' if cover else 'text2music'),
         'repaint': [p['repaint_start'], p['repaint_end']] if p.get('task') == 'repaint' else None,
+        'splice': p.get('splice'),
         'cover_strength': p['cover_strength'] if cover else None,
         'guide': p.get('guide', False),
         'dit': p.get('dit') or DIT, 'shift': p.get('shift') or 1.0, 'steps': p.get('steps', 8), 'master': p.get('master', False), 'lm': p.get('lm') or LM, 'guidance': p.get('guidance'),
         'keyscale': p.get('keyscale') or None,
         'vocal_check': vc,
+        'high_note': hn,
         **({'dit_fallback': p['dit_fallback']} if p.get('dit_fallback') else {}),
         **_vram(),
         'sing': p.get('sing', False), 'sing_offset': p.get('sing_offset'), 'strip': p.get('strip', False),

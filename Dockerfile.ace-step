@@ -35,6 +35,10 @@ COPY gpu/ace-step/vocal_check.py /app/yarr_vocal_check.py
 COPY gpu/ace-step/quality_check.py /app/yarr_quality_check.py
 # Edit tools (2026-11-07): section timing (align.py · same whisper model) · mix/key/tempo uses ffmpeg in handler.py
 COPY gpu/ace-step/align.py /app/yarr_align.py
+# Repaint splice (2026-11-25): only the re-sung section goes back into the original take (ffmpeg + numpy, nothing new to install)
+COPY gpu/ace-step/splice.py /app/yarr_splice.py
+# High-note score (2026-11-25): top note / hold / cracks / lift on the Demucs vocal stem (ffmpeg + numpy). Only runs when the request asks (high_score)
+COPY gpu/ace-step/high_note.py /app/yarr_high_note.py
 COPY gpu/ace-step/handler.py /app/yarr_handler.py
 COPY worker/guide.py /app/yarr_guide.py
 ENV ACE_CKPT=/tmp/ace_ckpt HF_HOME=/tmp/hf PYTHONUNBUFFERED=1 TOKENIZERS_PARALLELISM=false
