@@ -728,13 +728,22 @@ def _run(dit, llm, params, config, out: str, p: dict, t0: float, cover: bool) ->
         # → 새 곡에서는 고른 구간만 가져와 음량을 원본에 맞추고 짧게 겹쳐 원본에 끼워 넣어요 (구간 밖은 원본 그대로)
         try:
             import yarr_splice
+            gen = a['path']
+            # 끝 처리(EQ · 컴프레서)는 한 번만 (2026-11-25 실측: 끼워 넣은 뒤 곡 전체에 다시 걸어서 구간 밖이 1~3dB 줄고 강약이 눌렸어요)
+            # 원본은 만들 때 이미 끝 처리를 거쳤어요 → 새 구간만 같은 처리를 한 뒤에 끼워 넣고, 끼운 뒤에는 다시 걸지 않아요
+            mastered = bool(p.get('master', False) and not p.get('sing'))
+            if mastered:
+                gen = os.path.join(out, 'gen_master.wav')
+                r = subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', a['path'], '-af', MASTER_AF, '-c:a', 'pcm_s24le', gen], capture_output=True, text=True)
+                if r.returncode != 0:
+                    raise RuntimeError(f'끝 처리 실패: {r.stderr[:160]}')
             spliced = os.path.join(out, 'splice.wav')
-            p['splice'] = yarr_splice.splice(p['src_path'], a['path'], p['repaint_start'], p['repaint_end'], spliced)
+            p['splice'] = {**yarr_splice.splice(p['src_path'], gen, p['repaint_start'], p['repaint_end'], spliced), 'mastered': mastered}
             a = {**a, 'path': spliced}
             print(f"splice {p['splice']}", flush=True)
         except Exception as e:   # noqa: BLE001 — 끼워 넣지 못하면 예전처럼 새 곡 전체를 돌려줘요
             print(f'splice skip: {e!r}'[:200], flush=True)
-    data = encode_mp3(a['path'], master=p.get('master', False) and not p.get('sing'), level=not p.get('task'))   # 새로 만든 곡만 (구간 다시 만들기는 원곡과 같은 음량이어야 해요)
+    data = encode_mp3(a['path'], master=p.get('master', False) and not p.get('sing') and not p.get('splice'), level=not p.get('task'))   # 새로 만든 곡만 (구간 다시 만들기는 원곡과 같은 음량이어야 해요)
     # 품질 확인은 사람이 실제로 듣는 mp3 로 (찢어짐 · 먹먹함 검사가 음량 맞춘 결과와 같아야 해요)
     with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as fh:
         fh.write(data)
