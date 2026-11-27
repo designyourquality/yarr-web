@@ -498,7 +498,7 @@ html,body{background:var(--bg)}
   </div>
 
   <div class="listhead">
-    <h2 class="sec" id="listTitle">TOP <span id="topN">100</span> <small id="listSub">지난 24시간 재생 기준</small> <a class="rule" href="chart.html" title="차트를 어떻게 세는지 공개해요">집계 기준</a><span class="rgn" id="rgn" role="group" aria-label="차트 나라"></span></h2>
+    <h2 class="sec" id="listTitle">TOP <span id="topN">100</span> <small id="listSub">지난 7일 재생 기준</small> <a class="rule" href="chart.html" title="차트를 어떻게 세는지 공개해요">집계 기준</a><span class="rgn" id="rgn" role="group" aria-label="차트 나라"></span></h2>
     <div class="filters" id="filters">
       <button data-f="all" class="on">전체</button>
       <button data-f="vocal">🎙️ 보컬곡</button>
@@ -949,7 +949,7 @@ html,body{background:var(--bg)}
     if (!shared) $('topN').textContent = '100';
     $('moreWrap').style.display = !shared && !chartDone && !query ? '' : 'none';
     // 공유된 곡 화면은 제목 줄을 '이어서 듣기'로 바꿔서 listSub 가 없어요 → 없으면 건너뛰어요 (2026-11-26)
-    if ($('listSub')) $('listSub').textContent = query ? `'${query}' 찾은 곡 ${found.length}곡` : '지난 24시간 재생 기준';
+    if ($('listSub')) $('listSub').textContent = query ? `'${query}' 찾은 곡 ${found.length}곡` : '지난 7일 재생 기준';
     $('chartMore').textContent = `${chart.length + 1}~${Math.min(100, chart.length + 30)}위 더 보기`;
     document.querySelectorAll('#filters button').forEach((b) => { const n = b.dataset.f === 'all' ? base.length : null; b.classList.toggle('on', b.dataset.f === filter); if (n != null) b.textContent = `전체 (${n})`; });
     markPlaying();
