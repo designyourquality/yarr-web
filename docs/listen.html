@@ -449,6 +449,11 @@ html,body{background:var(--bg)}
 .appnudge .btn{flex:none;white-space:nowrap;justify-content:center}
 @media (hover:none) and (pointer:coarse){.appnudge{display:flex}}
 @media (max-width:520px){.appnudge{flex-direction:column;align-items:stretch}}
+.nudge{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:14px 0 0;padding:12px 16px;border-radius:14px;border:1px solid rgba(251,146,60,.35);background:linear-gradient(135deg,rgba(255,94,26,.12),rgba(255,140,0,.04));font-size:13.5px;line-height:1.5}
+.nudge b{color:#FDBA74}.nudge .btn{padding:9px 16px;font-size:13px;white-space:nowrap}
+.nudge.xmas{margin:0 0 14px;border-color:rgba(74,222,128,.35);background:linear-gradient(135deg,rgba(220,38,38,.16),rgba(22,163,74,.10))}.nudge.xmas b{color:#FDE68A}
+.endcard{position:fixed;left:50%;bottom:104px;z-index:61;transform:translate(-50%,12px);opacity:0;pointer-events:none;transition:all .3s;width:min(92vw,420px);box-sizing:border-box;padding:16px 18px;border-radius:18px;border:1px solid rgba(255,94,26,.45);background:rgba(20,22,34,.97);box-shadow:0 20px 40px rgba(0,0,0,.5)}
+.endcard.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}.endcard .x{position:absolute;right:10px;top:8px;background:none;border:0;color:#A1A1AA;font-size:16px;cursor:pointer}
 </style>
 </head>
 <body class="paused">
@@ -475,6 +480,7 @@ html,body{background:var(--bg)}
 </header>
 
 <main class="wrap">
+<div class="nudge xmas" id="xmasBar" hidden><span>🎄 <b>크리스마스 노래 컨테스트</b> · <span data-x>12/1 접수 시작</span> · 가사 한 줄이면 참가 · 1위 문화상품권 10만원 + Pro 6개월</span><a class="btn" data-play="xmas" href="https://play.google.com/store/apps/details?id=kr.dyq.yarr" rel="noopener">앱에서 참가하기</a></div>
 
 <!-- 차트 -->
 <section class="view on" id="v-chart">
@@ -496,6 +502,7 @@ html,body{background:var(--bg)}
       <div id="spotWrap"></div>
     </div>
   </div>
+  <div class="nudge" id="chartNudge"><span>💛 응원하는 곡을 1위로 · <b>앱에서 들어야 차트 순위에 반영돼요</b> (웹 재생은 순위에 들어가지 않아요)</span><a class="btn" data-play="chart" href="https://play.google.com/store/apps/details?id=kr.dyq.yarr" rel="noopener">앱 받기</a></div>
 
   <div class="listhead">
     <h2 class="sec" id="listTitle">TOP <span id="topN">100</span> <small id="listSub">지난 7일 재생 기준</small> <a class="rule" href="chart.html" title="차트를 어떻게 세는지 공개해요">집계 기준</a><span class="rgn" id="rgn" role="group" aria-label="차트 나라"></span></h2>
@@ -669,6 +676,7 @@ html,body{background:var(--bg)}
     </div>
   </div>
 </div>
+<div class="endcard" id="endCard" role="dialog" aria-label="앱 안내"><button class="x" id="endX" aria-label="닫기">✕</button><b style="font-size:15px">이 노래, 마음에 드셨나요?</b><p class="soft" style="margin:6px 0 12px;font-size:13px">앱에서 들으면 이 곡의 차트 순위가 올라가요. 가사 한 줄로 내 노래도 만들 수 있어요.</p><a class="btn" style="width:100%;justify-content:center" data-play="songend" href="https://play.google.com/store/apps/details?id=kr.dyq.yarr" rel="noopener">앱에서 계속 듣기</a></div>
 <div class="toast" id="toast" role="status"><span>✓</span><b id="toastMsg" style="font-weight:500"></b></div>
 
 <!-- 모달 -->
@@ -689,8 +697,8 @@ html,body{background:var(--bg)}
   <div class="card"><b>차트에 반영되는 재생</b> · 좋아요 · 내 보관함</div>
   <div class="card"><b>AI로 내 곡 만들기</b> · AI 작사 도우미 · 여러 목소리 · 직접 멜로디 찍기</div>
   <div class="card"><b>매장 BGM 모드</b> · 영업시간 예약 · 안내방송 · 오프라인 재생 · 이용 확인서</div>
-  <p class="soft" style="font-size:12.5px">Android 앱이에요. Google Play 정식 출시를 준비하고 있어요. 곡 만들기 · 올리기는 이 사이트의 <a href="?tab=studio" style="color:#FB923C">스튜디오</a> 탭에서도 바로 할 수 있어요.</p>
-  <a class="btn" style="width:100%;justify-content:center" href="https://play.google.com/store/apps/details?id=kr.dyq.yarr" rel="noopener">Google Play에서 보기</a>
+  <p class="soft" style="font-size:12.5px">Android 앱이에요. Google Play에서 받을 수 있어요. 곡 만들기 · 올리기는 이 사이트의 <a href="?tab=studio" style="color:#FB923C">스튜디오</a> 탭에서도 바로 할 수 있어요.</p>
+  <a class="btn" style="width:100%;justify-content:center" data-play="modal" href="https://play.google.com/store/apps/details?id=kr.dyq.yarr" rel="noopener">Google Play에서 받기</a>
 </div></div>
 
 <div class="modal" id="mFamily"><div class="box glass" style="border-color:rgba(255,140,0,.3)"><button class="x" data-close aria-label="닫기">✕</button>
@@ -804,6 +812,39 @@ html,body{background:var(--bg)}
     if (!r.ok) throw Object.assign(new Error(j.error || 'FAILED'), { status: r.status });
     return j;
   }
+  // ---------- 🧭 들어온 곳 · 방문 수 · 앱 안내 (2026-11-28 · 109 SQL) ----------
+  // 들어온 곳: 주소의 ?from= · ?utm_source= → 없으면 이전 페이지 주소(틱톡 · 유튜브 · 검색 등) → 없으면 direct
+  // 서버에는 날짜 · 페이지 · 들어온 곳별 숫자만 올라가요 (누가 왔는지는 남기지 않아요)
+  const visitSrc = (() => {
+    const known = { 'tiktok.com': 'tiktok', 'youtube.com': 'youtube', 'youtu.be': 'youtube', 'instagram.com': 'instagram', 'google.': 'google', 'naver.com': 'naver', 'daum.net': 'daum', 'kakao.com': 'kakao', 'facebook.com': 'facebook', 'fb.com': 'facebook', 't.co': 'x', 'twitter.com': 'x', 'x.com': 'x', 'threads.net': 'threads', 'threads.com': 'threads' };
+    const clean = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20);
+    const q = new URLSearchParams(location.search);
+    let s = clean(q.get('from') || q.get('utm_source'));
+    if (!s) {
+      let h = ''; try { h = new URL(document.referrer).hostname.replace(/^(www|m)\./, ''); } catch { /* 주소 없음 */ }
+      if (h && h !== location.hostname) { const k = Object.keys(known).find((d) => h === d || h.endsWith('.' + d) || (d.endsWith('.') && h.includes(d))); s = k ? known[k] : 'other'; }
+    }
+    try { if (s) sessionStorage.setItem('yarr_src', s); else s = sessionStorage.getItem('yarr_src') || 'direct'; } catch { s = s || 'direct'; }
+    return s;
+  })();
+  const playUrl = (c) => `https://play.google.com/store/apps/details?id=kr.dyq.yarr&referrer=${encodeURIComponent(`utm_source=${visitSrc}&utm_medium=web&utm_campaign=${c}`)}`;
+  document.querySelectorAll('a[data-play]').forEach((a) => { a.href = playUrl(a.dataset.play); });
+  (() => { let first = false; try { const d = new Date().toLocaleDateString('sv', { timeZone: 'Asia/Seoul' }); if (localStorage.getItem('yarr_vday') !== d) { localStorage.setItem('yarr_vday', d); first = true; } } catch { /* 저장 못 해도 괜찮아요 */ } api({ action: 'visit', page: 'listen', src: visitSrc, first }).catch(() => {}); })();
+  // 🎄 크리스마스 컨테스트 띠: 접수 12/1~12/20 · 발표 12/24 (그 뒤로는 숨겨요)
+  (() => {
+    const d = new Date().toLocaleDateString('sv', { timeZone: 'Asia/Seoul' }), bar = $('xmasBar');
+    if (!bar || d > '2026-12-24') return;
+    bar.querySelector('[data-x]').textContent = d < '2026-12-01' ? '12/1 접수 시작' : d <= '2026-12-20' ? '접수 중 · 12/20까지' : '12/24 결과 발표';
+    bar.hidden = false;
+  })();
+  // 🎵 곡을 끝까지 들으면 한 번만 (이 탭에서 처음 한 번 · 12초 뒤 저절로 닫혀요)
+  let endShown = false;
+  const showEnd = () => {
+    if (endShown) return; endShown = true;
+    try { if (sessionStorage.getItem('yarr_endcard')) return; sessionStorage.setItem('yarr_endcard', '1'); } catch { /* 그래도 한 번은 보여요 */ }
+    $('endCard').classList.add('on'); clearTimeout(showEnd.t); showEnd.t = setTimeout(() => $('endCard').classList.remove('on'), 12000);
+  };
+  $('endX').onclick = () => $('endCard').classList.remove('on');
   async function share(url, title) {
     try {
       if (navigator.share && matchMedia('(pointer:coarse)').matches) { await navigator.share({ title, url }); return; }
@@ -1287,7 +1328,7 @@ html,body{background:var(--bg)}
   }
   A.forEach((el, k) => {
     el.addEventListener('play', setPlayingUi); el.addEventListener('pause', setPlayingUi);
-    el.addEventListener('ended', () => { if (k !== ai) return; mode === 'listen' ? listenNext() : storeNext(false); });
+    el.addEventListener('ended', () => { if (k !== ai) return; if (mode === 'listen') { showEnd(); listenNext(); } else storeNext(false); });
     el.addEventListener('error', () => {
       if (k !== ai || !el.getAttribute('src')) return;
       if (mode === 'listen') { toast('이 곡을 재생하지 못해 다음 곡으로 넘어가요'); setTimeout(listenNext, 800); }
